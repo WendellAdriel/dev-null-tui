@@ -2,7 +2,35 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Phase 0 provides an offline visual demo and the build/quality scaffold. Login, live logs, posting, and other social features are not available yet. All demo authors and commits are synthetic. The demo makes no network requests and stores no account data.
+The client provides an account connection screen and an offline visual demo. Live logs, posting, and other social features are not available yet. All demo authors and commits are synthetic. The demo makes no network requests and stores no account data.
+
+## Connect an account
+
+The device key is stored **unencrypted** on your computer. Anyone who obtains the file can act as your account until you revoke the device. Do not share the key, authorization callback, or a backup containing the key.
+
+```sh
+go run ./cmd/devnull --connect
+```
+
+1. Press `Enter` to start connection.
+2. In your browser, sign in through GitHub if needed. Compare the device fingerprint with the terminal, then approve the device.
+3. Return to the terminal. Connection succeeds only after the client verifies a signed `GET /api/v1/me`.
+
+The client temporarily registers a `devnull://` handler when no existing owner is found. It does not replace another application's handler. Linux uses desktop integration utilities, macOS uses built-in application registration utilities, and Windows uses a per-user registry entry. If automatic return is unavailable, press `p` and paste the complete `devnull://auth/callback?...` link. Bare codes are not accepted. On the current website, obtaining the approval callback may require inspecting the approval response's `Location` header in your browser's developer tools. Do not share or save that header. This fallback is less convenient than automatic return.
+
+If the browser does not open, press `u` to display the authorization URL and open it yourself. Press `Esc` to cancel an attempt, or `r` to retry after an error. Attempts expire after ten minutes. Failed enrollment is never retried automatically.
+
+On later launches, the client verifies the saved key with its original server. If a saved device needs attention, the primary action verifies it before starting another browser approval. A revoked device requires reconnection.
+
+Successful verification shows "Connection verified just now" for five seconds. Once connected, use **Device details** or `i` to show or hide the fingerprint. It remains visible during browser approval.
+
+Use `Tab` and `Shift+Tab` to select an action, then `Enter` to activate it. Press `d` to open local disconnection confirmation. It defaults to keeping the key. Select **Delete local key**, then press `Enter`, to delete it. This does not revoke server approval. Revoke the device separately in [Settings > Devices](https://dev-null.sh/settings/devices).
+
+Keys are stored in `connection.json` under the OS configuration directory's `dev-null-cli` subdirectory. Linux and macOS require an owner-only directory and file. Windows applies a protected ACL for the current user. No keyring service, passphrase, or credentials from another TUI are used. Temporary handler records support cleanup on the next account-screen launch after an interruption.
+
+Canceling before enrollment removes a newly generated key. Once enrollment starts, the key is retained because a network error can leave approval uncertain. Verify the saved connection with `v`, retry approval, or disconnect locally and revoke it on the web.
+
+For an approved isolated environment, use `--connect --server https://your-test-host`. Plain HTTP is accepted only for `localhost` or a loopback IP. The saved server must match the selected `--server` origin before any signed restore request is sent. Tests use local HTTP fixtures, not production enrollment.
 
 ## Run the demo
 
@@ -14,7 +42,7 @@ go run ./cmd/devnull --demo --theme light
 go run ./cmd/devnull --demo --theme dark
 ```
 
-The default `auto` theme follows the terminal's background when the terminal reports it. The demo uses the terminal font. It requires at least 60 columns and 18 rows, and displays a resize notice below that size.
+The default `auto` theme follows the terminal's background when the terminal reports it. Both screens use the terminal font and require at least 60 columns and 18 rows. They display a resize notice below that size.
 
 Press `?` for help, `Esc` to close help, and `Ctrl+C` to exit. The key `q` is reserved for quoting in a later phase, not quitting. See [shortcuts](docs/shortcuts.md).
 
@@ -96,7 +124,7 @@ The read-only GitHub Actions workflow checks code quality, race behavior, covera
 
 The headless demo lifecycle test checks alternate-screen entry and restoration. It does not replace an interactive terminal check. CI jobs have not run until these changes are pushed through a separately authorized action.
 
-At the Phase 0 review handoff, Linux amd64 builds and local validation are available. macOS/Windows native execution and ARM64 runtime checks require their target systems. Do not interpret the cross-build matrix as completed native runtime verification. Test the demo in a macOS terminal and in Windows Terminal with PowerShell before declaring those runtime acceptance checks complete.
+Linux amd64 builds and local validation are available. Native macOS and Windows execution, ARM64 runtime checks, and real-account connection acceptance remain pending. Do not interpret the cross-build matrix or local HTTP fixtures as completed native runtime or live-authentication verification. Verify browser return, storage protection, cancellation, and terminal restoration on the target systems before declaring cross-platform login release acceptance complete.
 
 ## Design reference
 
