@@ -20,9 +20,19 @@ import (
 const DefaultOrigin = "https://dev-null.sh"
 
 type User struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Username string `json:"username"`
+	ID               string          `json:"id"`
+	Name             string          `json:"name"`
+	Username         string          `json:"username"`
+	AvatarURL        string          `json:"avatar_url"`
+	Bio              string          `json:"bio"`
+	Company          string          `json:"company"`
+	Location         string          `json:"location"`
+	Commits          *int            `json:"commits_count"`
+	Following        *int            `json:"following_count"`
+	Followers        *int            `json:"followers_count"`
+	Lane             json.RawMessage `json:"lane"`
+	PasteisMode      bool            `json:"pasteis_mode"`
+	PasteisRemaining *int            `json:"pasteis_remaining"`
 }
 
 type APIError struct {
@@ -90,24 +100,49 @@ func (c *Client) Me(ctx context.Context) (User, error) {
 }
 
 func (c *Client) request(ctx context.Context, method, path string, body []byte) (User, error) {
+	data, err := c.send(ctx, method, path, body)
+	if err != nil {
+		return User{}, err
+	}
+	var result struct {
+		Data User `json:"data"`
+	}
+	if err := json.Unmarshal(data, &result); err != nil || result.Data.ID == "" || result.Data.Username == "" {
+		return User{}, errors.New("account server returned an invalid identity")
+	}
+	return result.Data, nil
+}
+
+func (c *Client) GetJSON(ctx context.Context, target string, result any) error {
+	data, err := c.send(ctx, http.MethodGet, target, nil)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, result); err != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
+}
+
+func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	u, err := c.origin.Parse(path)
-	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || !strings.HasPrefix(path, "/api/v1/") {
-		return User{}, errors.New("refusing an account request outside the configured origin")
+	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || u.User != nil || u.Fragment != "" || !strings.HasPrefix(u.Path, "/api/v1/") {
+		return nil, errors.New("refusing a request outside the configured API origin")
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
 	if err != nil {
-		return User{}, errors.New("cannot create account request")
+		return nil, errors.New("cannot create account request")
 	}
 	nonce := make([]byte, 16)
 	if _, err := rand.Read(nonce); err != nil {
-		return User{}, err
+		return nil, err
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	nonceString := hex.EncodeToString(nonce)
 	message := []byte(strings.Join([]string{timestamp, nonceString, req.Method, req.URL.RequestURI(), string(body)}, "\n"))
 	signature, err := c.key.Sign(message)
 	if err != nil {
-		return User{}, errors.New("cannot sign account request")
+		return nil, errors.New("cannot sign account request")
 	}
 	req.Header.Set("X-Devnull-Timestamp", timestamp)
 	req.Header.Set("X-Devnull-Nonce", nonceString)
@@ -117,27 +152,21 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	response, err := c.http.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
-			return User{}, ctx.Err()
+			return nil, ctx.Err()
 		}
-		return User{}, errors.New("cannot reach the account server; check your connection and try again")
+		return nil, errors.New("cannot reach the server; check your connection and try again")
 	}
 	defer func() { _ = response.Body.Close() }()
 	data, err := io.ReadAll(io.LimitReader(response.Body, (1<<20)+1))
 	if err != nil || len(data) > 1<<20 {
-		return User{}, errors.New("account server returned an unreadable response")
+		return nil, errors.New("server returned an unreadable response")
 	}
 	if response.StatusCode != http.StatusOK {
 		var failure struct {
 			Code string `json:"code"`
 		}
 		_ = json.Unmarshal(data, &failure)
-		return User{}, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After")}
+		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After")}
 	}
-	var result struct {
-		Data User `json:"data"`
-	}
-	if err := json.Unmarshal(data, &result); err != nil || result.Data.ID == "" || result.Data.Username == "" {
-		return User{}, errors.New("account server returned an invalid identity")
-	}
-	return result.Data, nil
+	return data, nil
 }
