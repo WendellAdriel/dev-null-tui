@@ -62,3 +62,33 @@ func TestDemoFailureIsReturned(t *testing.T) {
 		t.Fatalf("got %v, want %v", err, want)
 	}
 }
+
+func TestAccountStartupAndCallbackAreExplicitAndSeparateFromDemo(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	called := false
+	err := runCommands([]string{"--connect", "--theme=light", "--server=http://127.0.0.1:8080"}, &stdout, &stderr, commands{account: func(output io.Writer, theme, server string) error {
+		called = true
+		if output != &stdout || theme != "light" || server != "http://127.0.0.1:8080" {
+			t.Fatal("account options not forwarded")
+		}
+		return nil
+	}})
+	if err != nil || !called {
+		t.Fatalf("account startup: %v", err)
+	}
+	callback := "devnull://auth/callback?code=synthetic&state=example"
+	err = runCommands([]string{"callback", callback}, &stdout, &stderr, commands{callback: func(raw string) error {
+		if raw != callback {
+			t.Fatal("callback changed")
+		}
+		return errors.New("safe callback error")
+	}})
+	if err == nil || strings.Contains(stdout.String(), "synthetic") || strings.Contains(stderr.String(), "synthetic") {
+		t.Fatal("callback leaked or failure hidden")
+	}
+	for _, args := range [][]string{{"--connect", "--demo"}, {"--connect", "--version"}, {"callback"}, {"callback", callback, "extra"}, {"--server=https://other.example"}} {
+		if err := runCommands(args, io.Discard, io.Discard, commands{}); err == nil {
+			t.Fatalf("invalid account arguments accepted: %q", args)
+		}
+	}
+}
