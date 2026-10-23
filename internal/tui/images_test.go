@@ -1,0 +1,112 @@
+package tui
+
+import (
+	"image"
+	"image/color"
+	"image/png"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+
+	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
+	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi/kitty"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
+)
+
+func TestGraphicsRequireProbeAndOnlyDownloadVisibleReadOnlyMedia(t *testing.T) {
+	var downloads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("X-SSH-Signature") != "" || r.Header.Get("Authorization") != "" || r.Method != http.MethodGet {
+			t.Error("media request was signed or writable")
+		}
+		downloads.Add(1)
+		im := image.NewNRGBA(image.Rect(0, 0, 8, 8))
+		im.SetNRGBA(4, 4, color.NRGBA{R: 255, A: 255})
+		if err := png.Encode(w, im); err != nil {
+			t.Error(err)
+		}
+	}))
+	defer server.Close()
+	m := fixtureApp(t)
+	m.account.profile = colorprofile.TrueColor
+	m.images = graphics.New(server.URL)
+	c := fixtureCommit("picture")
+	c.Author.AvatarURL = server.URL + "/avatar.png"
+	c.Images = []api.Image{{URL: server.URL + "/image.png", Width: 800, Height: 600, Description: "Synthetic image"}}
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{c}})
+	if m.syncImages() != nil || downloads.Load() != 0 {
+		t.Fatal("images must not load before a positive capability response")
+	}
+	updated, commands := m.Update(uv.KittyGraphicsEvent{Options: kitty.Options{ID: m.images.ProbeID}, Payload: []byte("OK")})
+	m = updated.(AppModel)
+	if !m.images.Enabled || commands == nil {
+		t.Fatal("positive capability response did not schedule visible media")
+	}
+	var results []graphics.Result
+	var run func(tea.Cmd)
+	run = func(cmd tea.Cmd) {
+		if cmd == nil {
+			return
+		}
+		switch msg := cmd().(type) {
+		case tea.BatchMsg:
+			for _, next := range msg {
+				run(next)
+			}
+		case graphics.Result:
+			results = append(results, msg)
+		}
+	}
+	run(commands)
+	if downloads.Load() != 2 {
+		t.Fatalf("expected only the visible avatar and picture, got %d", downloads.Load())
+	}
+	for _, result := range results {
+		if result.Err != nil {
+			t.Fatal(result.Err)
+		}
+		updated, _ = m.Update(result)
+		m = updated.(AppModel)
+	}
+	if strings.Count(m.feeds[0].viewport.GetContent(), string(kitty.Placeholder)) < 8 {
+		t.Fatal("ready avatars and inline images did not reach the feed")
+	}
+	m.leaveApplication()
+	cleanup := m.syncImages()
+	if cleanup == nil {
+		t.Fatal("leaving a session did not delete terminal images")
+	}
+	for _, result := range results {
+		updated, _ = m.Update(result)
+		m = updated.(AppModel)
+	}
+	if strings.Contains(m.feeds[0].viewport.GetContent(), string(kitty.Placeholder)) {
+		t.Fatal("stale media restored private content after logout")
+	}
+}
+
+func TestGraphicsProbeKeepsLimitedColorProfilesInTextMode(t *testing.T) {
+	m := fixtureApp(t)
+	for _, reply := range []uv.KittyGraphicsEvent{{Options: kitty.Options{ID: m.images.ProbeID + 1}, Payload: []byte("OK")}, {Options: kitty.Options{ID: m.images.ProbeID}, Payload: []byte("ENOTSUP")}} {
+		updated, _ := m.Update(reply)
+		m = updated.(AppModel)
+		if m.images.Enabled {
+			t.Fatal("unrelated or negative probe enabled graphics")
+		}
+	}
+	updated, _ := m.Update(uv.KittyGraphicsEvent{Options: kitty.Options{ID: m.images.ProbeID}, Payload: []byte("OK")})
+	m = updated.(AppModel)
+	for _, profile := range []colorprofile.Profile{colorprofile.ASCII, colorprofile.ANSI, colorprofile.ANSI256, colorprofile.TrueColor} {
+		updated, _ = m.Update(tea.ColorProfileMsg{Profile: profile})
+		m = updated.(AppModel)
+		if m.images.Enabled != (profile == colorprofile.TrueColor) {
+			t.Fatal("graphics ignored the renderer's truecolor requirement")
+		}
+	}
+}

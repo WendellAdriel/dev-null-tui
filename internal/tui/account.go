@@ -80,26 +80,27 @@ func (l *accountLife) command(work func() tea.Msg) tea.Cmd {
 }
 
 type AccountModel struct {
-	width, height          int
-	theme                  string
-	dark                   bool
-	backgroundKnown        bool
-	state                  string
-	status                 string
-	store                  auth.Store
-	origin                 string
-	key                    *auth.Key
-	user                   auth.User
-	flow                   *auth.Flow
-	life                   *accountLife
-	attemptCtx             context.Context
-	attemptCancel          context.CancelFunc
-	generation             int
-	actionFocus            int
-	profile                colorprofile.Profile
-	showDeviceDetails      bool
-	input                  textinput.Model
-	pasting, help, showURL bool
+	width, height               int
+	theme                       string
+	dark                        bool
+	backgroundKnown             bool
+	state                       string
+	status                      string
+	store                       auth.Store
+	origin                      string
+	key                         *auth.Key
+	user                        auth.User
+	flow                        *auth.Flow
+	life                        *accountLife
+	attemptCtx                  context.Context
+	attemptCancel               context.CancelFunc
+	generation                  int
+	actionFocus                 int
+	profile                     colorprofile.Profile
+	showDeviceDetails           bool
+	workspace, approvalRequired bool
+	input                       textinput.Model
+	pasting, help, showURL      bool
 }
 
 func NewAccount(theme string, store auth.Store, origin string, ctx context.Context) AccountModel {
@@ -169,8 +170,11 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.user = msg.user
 		if msg.err != nil {
 			m.state, m.status = "failed", msg.err.Error()
+			var failure *auth.APIError
+			m.approvalRequired = errors.As(msg.err, &failure) && failure.Status == 401
 		} else if msg.user.ID != "" {
 			m.state, m.status = "connected", verificationNotice
+			m.approvalRequired = false
 		} else {
 			m.state, m.status = "idle", "Connect your existing /dev/null account."
 		}
@@ -453,7 +457,7 @@ func (m AccountModel) bindings() accountKeys {
 	case "idle":
 		add("enter", "connect")
 	case "failed":
-		if m.key != nil {
+		if m.key != nil && !m.approvalRequired {
 			add("r", "new approval")
 		} else {
 			add("r", "retry")
@@ -467,6 +471,9 @@ func (m AccountModel) bindings() accountKeys {
 	case "preparing", "verifying":
 		add("esc", "cancel")
 	case "connected":
+		if m.workspace {
+			add("esc", "workspace")
+		}
 		add("v", "verify")
 		add("d", "disconnect")
 		if m.key != nil {

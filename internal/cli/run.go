@@ -16,10 +16,7 @@ import (
 var Version = "dev"
 
 func Run(args []string, stdout, stderr io.Writer) error {
-	return runCommands(args, stdout, stderr, commands{demo: func(output io.Writer, theme string) error {
-		_, err := tea.NewProgram(tui.New(theme), tea.WithOutput(output)).Run()
-		return err
-	}, account: startAccount, callback: func(raw string) error {
+	return runCommands(args, stdout, stderr, commands{app: startApp, callback: func(raw string) error {
 		store, err := auth.DefaultStore()
 		if err != nil {
 			return err
@@ -32,13 +29,8 @@ func Run(args []string, stdout, stderr io.Writer) error {
 }
 
 type commands struct {
-	demo     func(io.Writer, string) error
-	account  func(io.Writer, string, string) error
+	app      func(io.Writer, string, string) error
 	callback func(string) error
-}
-
-func run(args []string, stdout, stderr io.Writer, start func(io.Writer, string) error) error {
-	return runCommands(args, stdout, stderr, commands{demo: start})
 }
 
 func runCommands(args []string, stdout, stderr io.Writer, actions commands) error {
@@ -50,13 +42,11 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	}
 	flags := flag.NewFlagSet("devnull", flag.ContinueOnError)
 	flags.SetOutput(stderr)
-	demo := flags.Bool("demo", false, "open the offline visual demo")
-	connect := flags.Bool("connect", false, "open the account connection screen")
-	server := flags.String("server", auth.DefaultOrigin, "account server origin (with --connect)")
+	server := flags.String("server", auth.DefaultOrigin, "server origin")
 	version := flags.Bool("version", false, "print the version")
 	theme := flags.String("theme", "auto", "appearance: auto, light, or dark")
 	flags.Usage = func() {
-		_, _ = fmt.Fprint(stdout, "Usage: devnull [--demo | --connect] [--theme auto|light|dark]\n\n/dev/null terminal client. Connect an account or open the offline demo.\n\n")
+		_, _ = fmt.Fprint(stdout, "Usage: devnull [--theme auto|light|dark] [--server origin]\n\n/dev/null terminal client. Opens your account and application.\n\n")
 		flags.SetOutput(stdout)
 		flags.PrintDefaults()
 		flags.SetOutput(stderr)
@@ -73,27 +63,14 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	if *theme != "auto" && *theme != "light" && *theme != "dark" {
 		return fmt.Errorf("unknown theme %q: choose auto, light, or dark", *theme)
 	}
-	if (*version && (*demo || *connect)) || (*demo && *connect) {
-		return errors.New("choose one of --version, --demo, or --connect")
-	}
-	if !*connect && *server != auth.DefaultOrigin {
-		return errors.New("--server requires --connect")
-	}
 	if *version {
 		_, err := fmt.Fprintln(stdout, "devnull", Version)
 		return err
 	}
-	if *connect {
-		return actions.account(stdout, *theme, *server)
-	}
-	if !*demo {
-		flags.Usage()
-		return nil
-	}
-	return actions.demo(stdout, *theme)
+	return actions.app(stdout, *theme, *server)
 }
 
-func startAccount(output io.Writer, theme, origin string) (err error) {
+func startApp(output io.Writer, theme, origin string) (err error) {
 	if _, err := auth.NewClient(origin, nil); err != nil {
 		return err
 	}
@@ -109,8 +86,12 @@ func startAccount(output io.Writer, theme, origin string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	model := tui.NewAccount(theme, store, origin, context.Background())
+	model := tui.NewApp(theme, store, origin, context.Background())
 	defer func() { err = errors.Join(err, model.Close()) }()
+	defer func() {
+		_, cleanupErr := io.WriteString(output, model.GraphicsCleanup())
+		err = errors.Join(err, cleanupErr)
+	}()
 	_, err = tea.NewProgram(model, tea.WithOutput(output)).Run()
 	return err
 }

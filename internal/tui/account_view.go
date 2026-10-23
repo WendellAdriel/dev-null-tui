@@ -21,6 +21,9 @@ func (m AccountModel) actions() []accountAction {
 	case "waiting":
 		return []accountAction{{"b", "Open browser", "Browser"}, {"p", "Paste callback", "Paste link"}, {"u", "Show URL", "URL"}}
 	case "failed":
+		if m.approvalRequired {
+			return []accountAction{{"r", "New browser approval", "New approval"}, {"d", "Clear local connection", "Clear connection"}}
+		}
 		if m.key != nil {
 			return []accountAction{{"v", "Verify saved connection", "Verify saved connection"}, {"r", "New browser approval", "New approval"}}
 		}
@@ -162,10 +165,15 @@ func (m AccountModel) accountBody(width int, p palette) string {
 	case "disconnecting":
 		title, lead, detail = "Disconnecting locally", "Deleting this terminal's private key.", "Server approval is unchanged."
 	case "connected":
-		title, lead, detail = "Account connected", safeText(m.user.Name)+"  @"+safeText(m.user.Username), "This terminal can sign requests as your account. Log screens are not available yet."
+		title, lead, detail = "Account connected", safeText(m.user.Name)+"  @"+safeText(m.user.Username), "This terminal can sign requests as your account."
+		if m.workspace {
+			detail += " Press Esc to return to your workspace."
+		}
 	case "failed":
 		title = "Connection needs attention"
-		if m.key != nil {
+		if m.approvalRequired {
+			lead, detail = "This device needs browser approval.", "Start a new browser approval to reconnect your account."
+		} else if m.key != nil {
 			lead, detail = "Your device key is still saved.", "Browser approval may have succeeded. Verify the saved connection before starting a new approval."
 		} else {
 			lead, detail = "No account connection was established.", "Try connecting again. No account credentials are shown or logged."
