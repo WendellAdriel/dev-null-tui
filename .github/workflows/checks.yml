@@ -1,0 +1,89 @@
+name: Checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Install pinned quality tools
+        working-directory: ${{ runner.temp }}
+        shell: bash
+        env:
+          GOVULNCHECK_VERSION: v1.9.0
+        run: |
+          version="$(cat "$GITHUB_WORKSPACE/.golangci-lint-version")"
+          archive="golangci-lint-${version}-linux-amd64.tar.gz"
+          base="https://github.com/golangci/golangci-lint/releases/download/v${version}"
+          curl --fail --silent --show-error --location --output "$archive" "$base/$archive"
+          curl --fail --silent --show-error --location --output checksums.txt "$base/golangci-lint-${version}-checksums.txt"
+          grep "  $archive$" checksums.txt | sha256sum --check --strict
+          tar -xzf "$archive"
+          echo "$RUNNER_TEMP/golangci-lint-${version}-linux-amd64" >> "$GITHUB_PATH"
+          GOBIN="$RUNNER_TEMP/go-tools" go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+          echo "$RUNNER_TEMP/go-tools" >> "$GITHUB_PATH"
+      - run: golangci-lint version
+      - run: make check
+      - run: make test-race
+      - run: make coverage
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: coverage
+          path: coverage.out
+          if-no-files-found: error
+
+  native:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            binary: devnull
+          - os: macos-latest
+            binary: devnull
+          - os: windows-latest
+            binary: devnull.exe
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go env GOOS GOARCH
+      - run: go test ./...
+      - run: go build -trimpath -o bin/${{ matrix.binary }} ./cmd/devnull
+      - run: ./bin/${{ matrix.binary }} --version
+      - run: ./bin/${{ matrix.binary }} --help
+
+  cross-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - run: go run ./tools/build
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: devnull-binaries
+          path: dist/
+          if-no-files-found: error
