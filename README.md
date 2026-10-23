@@ -2,19 +2,19 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-The client provides an account connection screen and an offline visual demo. Live logs, posting, and other social features are not available yet. All demo authors and commits are synthetic. The demo makes no network requests and stores no account data.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. This increment is read-only. Posting, threads, and engagement actions are not available yet.
 
 ## Connect an account
 
 The device key is stored **unencrypted** on your computer. Anyone who obtains the file can act as your account until you revoke the device. Do not share the key, authorization callback, or a backup containing the key.
 
 ```sh
-go run ./cmd/devnull --connect
+go run ./cmd/devnull
 ```
 
 1. Press `Enter` to start connection.
 2. In your browser, sign in through GitHub if needed. Compare the device fingerprint with the terminal, then approve the device.
-3. Return to the terminal. Connection succeeds only after the client verifies a signed `GET /api/v1/me`.
+3. Return to the terminal. After a signed `GET /api/v1/me` verifies your identity, the application opens automatically.
 
 The client temporarily registers a `devnull://` handler when no existing owner is found. It does not replace another application's handler. Linux uses desktop integration utilities, macOS uses built-in application registration utilities, and Windows uses a per-user registry entry. If automatic return is unavailable, press `p` and paste the complete `devnull://auth/callback?...` link. Bare codes are not accepted. On the current website, obtaining the approval callback may require inspecting the approval response's `Location` header in your browser's developer tools. Do not share or save that header. This fallback is less convenient than automatic return.
 
@@ -22,7 +22,7 @@ If the browser does not open, press `u` to display the authorization URL and ope
 
 On later launches, the client verifies the saved key with its original server. If a saved device needs attention, the primary action verifies it before starting another browser approval. A revoked device requires reconnection.
 
-Successful verification shows "Connection verified just now" for five seconds. Once connected, use **Device details** or `i` to show or hide the fingerprint. It remains visible during browser approval.
+Press `a` in the workspace to open your account connection. Use **Device details** or `i` to show or hide the fingerprint. It remains visible during browser approval. Press `Esc` from the connected account view to return to the workspace.
 
 Use `Tab` and `Shift+Tab` to select an action, then `Enter` to activate it. Press `d` to open local disconnection confirmation. It defaults to keeping the key. Select **Delete local key**, then press `Enter`, to delete it. This does not revoke server approval. Revoke the device separately in [Settings > Devices](https://dev-null.sh/settings/devices).
 
@@ -30,23 +30,35 @@ Keys are stored in `connection.json` under the OS configuration directory's `dev
 
 Canceling before enrollment removes a newly generated key. Once enrollment starts, the key is retained because a network error can leave approval uncertain. Verify the saved connection with `v`, retry approval, or disconnect locally and revoke it on the web.
 
-For an approved isolated environment, use `--connect --server https://your-test-host`. Plain HTTP is accepted only for `localhost` or a loopback IP. The saved server must match the selected `--server` origin before any signed restore request is sent. Tests use local HTTP fixtures, not production enrollment.
+For an approved isolated environment, use `--server https://your-test-host`. Plain HTTP is accepted only for `localhost` or a loopback IP. The saved server must match the selected `--server` origin before any signed restore request is sent. Tests use local HTTP fixtures, not production enrollment.
 
-## Run the demo
+## Read your workspace
 
 With Go **1.27.3** installed, run these commands from the project root:
 
 ```sh
-go run ./cmd/devnull --demo
-go run ./cmd/devnull --demo --theme light
-go run ./cmd/devnull --demo --theme dark
+go run ./cmd/devnull
+go run ./cmd/devnull --theme light
+go run ./cmd/devnull --theme dark
 ```
 
-The default `auto` theme follows the terminal's background when the terminal reports it. Both screens use the terminal font and require at least 60 columns and 18 rows. They display a resize notice below that size.
+The default `auto` theme follows the terminal's background when the terminal reports it. The client uses your terminal font and requires at least 30 columns and 10 rows. Below 100 columns, navigation becomes an icon strip. The account aside appears at 124 columns.
 
-Press `?` for help, `Esc` to close help, and `Ctrl+C` to exit. The key `q` is reserved for quoting in a later phase, not quitting. See [shortcuts](docs/shortcuts.md).
+Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move between commits with `j`, `k`, or the mouse wheel. Click a row to select it. `PageUp` and `PageDown` move five commits. `g g` or `Home` selects the first commit. `G` or `End` selects the last loaded commit. Older pages load near the end of the list, or when you press `n`.
 
-Running without arguments prints usage. `--help` and `--version` work without opening a TUI or requiring an interactive terminal:
+Press `Ctrl+R` to refresh. Existing content stays visible while the client fetches the first page. After success, the client selects the first commit and scrolls to the top. On failure, your position stays unchanged. In Trending, the first commit is the highest ranked, not necessarily the newest. Switching logs still preserves each log's reading position.
+
+A chronological log checks for new commits once a minute while the workspace is focused, but does not insert them until you refresh. Trending is ranked and does not check for chronological arrivals. Neither `r` nor `R` refreshes the workspace. Lowercase `r` remains reserved for future replies.
+
+Wide layouts center the feed between navigation and an account aside. The aside displays your returned profile counts, bio, company, and location when available. Missing counts are omitted, not replaced with zeroes. Author identities use lane-colored dots or round avatars, compact ages, and commit hashes. Quotes and reply previews stay grouped with their parent commit.
+
+Press `y` to copy the selected commit's web link. Clipboard access uses optional native utilities: `pbcopy` on macOS, PowerShell on Windows, or `wl-copy`, `xclip`, or `xsel` on Linux. If none works, the client displays the link for manual copying. No clipboard utility is required to read the logs.
+
+Quotes and reply previews are read-only. Terminals that confirm Kitty graphics support and provide true color can display optional avatars and inline images. Other terminals show dots and image descriptions. Media downloads are unsigned, limited to two concurrent requests, 10 MiB per response, and eight million decoded pixels. Images stay in memory, and the client deletes its terminal image IDs when they leave the visible feed or the program exits. Uploads and voting controls are not available. Suggestions on an empty Following log are labeled separately, not presented as followed content. There are no persistent feed caches.
+
+Press `?` for a centered help overlay. Use the arrow keys or mouse wheel to scroll it, `Esc` to close it, and `Ctrl+C` to exit. The key `q` is reserved for quoting in a later phase, not quitting. See [shortcuts](docs/shortcuts.md).
+
+`--help` and `--version` work without opening a TUI or requiring an interactive terminal. The old `--demo` and `--connect` flags are removed:
 
 ```sh
 go run ./cmd/devnull --help
@@ -59,7 +71,7 @@ go run ./cmd/devnull --version
 go build -trimpath -o bin/ ./cmd/devnull
 ```
 
-On macOS and Linux, run `./bin/devnull --demo`. On Windows PowerShell, run `./bin/devnull.exe --demo`. Users of a compiled binary do not need Go or developer quality tools installed.
+On macOS and Linux, run `./bin/devnull`. On Windows PowerShell, run `./bin/devnull.exe`. Users of a compiled binary do not need Go or developer quality tools installed.
 
 Build all six targets with the same command on every operating system:
 
@@ -122,10 +134,10 @@ The enabled linters are `govet`, `staticcheck`, `errcheck`, `ineffassign`, `unus
 
 The read-only GitHub Actions workflow checks code quality, race behavior, coverage, and all six builds. It also defines native tests, host builds, and version/help smoke checks on Linux, macOS, and Windows. It uploads coverage and binary artifacts, but never publishes releases or pushes repository changes.
 
-The headless demo lifecycle test checks alternate-screen entry and restoration. It does not replace an interactive terminal check. CI jobs have not run until these changes are pushed through a separately authorized action.
+The headless application lifecycle test checks alternate-screen entry and restoration. It does not replace an interactive terminal check. CI jobs have not run until these changes are pushed through a separately authorized action.
 
 Linux amd64 builds and local validation are available. Native macOS and Windows execution, ARM64 runtime checks, and real-account connection acceptance remain pending. Do not interpret the cross-build matrix or local HTTP fixtures as completed native runtime or live-authentication verification. Verify browser return, storage protection, cancellation, and terminal restoration on the target systems before declaring cross-platform login release acceptance complete.
 
 ## Design reference
 
-The palette, flat rows, and graph motif follow the web project's [design guide](https://github.com/dev-null-sh/dev-null.sh/blob/production/DESIGN.md). This scaffold is a preview, not full Log page parity. Only shipped shortcuts appear in help.
+The palette, flat rows, and graph motif follow the web project's [design guide](https://github.com/dev-null-sh/dev-null.sh/blob/production/DESIGN.md). Only shipped shortcuts appear in help. Native platform and live log acceptance checks remain separate from fixture-backed tests and cross-builds.
