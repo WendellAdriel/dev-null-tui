@@ -40,6 +40,44 @@ func TestAccountAsideUsesOnlyReturnedProfileFields(t *testing.T) {
 	}
 }
 
+func TestAsideCentersIdentityAndCountsButNotProfileDetails(t *testing.T) {
+	m := fixtureApp(t)
+	m.account.user.Name = "Ada Fixture"
+	m.account.user.Username = "ada"
+	m.account.user.Commits = new(31)
+	m.account.user.Following = new(48)
+	m.account.user.Followers = new(5)
+	m.account.user.Bio = "Building small tools."
+	m.account.user.Company = "Fixture Labs"
+	m.account.user.Location = "Porto"
+	for _, width := range []int{36, 40} {
+		plain := ansi.Strip(m.aside(width, 45, colors(true)))
+		for _, value := range []string{"◉", "Ada Fixture", "@ada", "31 commits", "5 followers"} {
+			found := false
+			for _, line := range strings.Split(plain, "\n") {
+				if !strings.Contains(line, value) {
+					continue
+				}
+				found = true
+				body := ansi.Cut(line, 2, width-1)
+				left := len(body) - len(strings.TrimLeft(body, " "))
+				right := len(body) - len(strings.TrimRight(body, " "))
+				if left-right > 1 || right-left > 1 {
+					t.Fatalf("%q not centered at %d columns: %q", value, width, body)
+				}
+			}
+			if !found {
+				t.Fatalf("profile missing %q", value)
+			}
+		}
+		for _, value := range []string{"Building small tools.", "Company: Fixture Labs", "Location: Porto"} {
+			if !strings.Contains(plain, "\n  "+value) {
+				t.Fatalf("profile detail missing or not left-aligned: %q", value)
+			}
+		}
+	}
+}
+
 func TestFirstLoadShowsDayMarkerBeforeTheFirstAuthor(t *testing.T) {
 	m := fixtureApp(t)
 	var commits []api.Commit

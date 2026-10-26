@@ -266,11 +266,13 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	u := m.account.user
 	inner := width - 3
 	lane := laneColor(u.Lane, p)
-	identity := text(lane).Render("◉ ") + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner-2)) + "\n" + text(p.lanes[1]).Render("● ") + text(p.muted).Render(fit("@"+safeText(u.Username), inner-2))
+	avatar := text(lane).Render("◉")
 	req := m.avatarRequest(u.AvatarURL, lane, 4, 2)
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
-		identity = top + " " + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner-5)) + "\n" + bottom + " " + text(p.muted).Render(fit("@"+safeText(u.Username), inner-5))
+		avatar = top + "\n" + bottom
 	}
+	centered := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
+	identity := centered.Render(avatar + "\n" + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner)) + "\n" + text(p.muted).Render(fit("@"+safeText(u.Username), inner)))
 	content := "\n" + identity + "\n\n"
 	var stats []string
 	for _, stat := range []struct {
@@ -286,7 +288,7 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		row := ""
 		for _, stat := range stats {
 			if row != "" && lipgloss.Width(row)+2+lipgloss.Width(stat) > inner {
-				content += row + "\n"
+				content += centered.Render(row) + "\n"
 				row = ""
 			}
 			if row != "" {
@@ -294,14 +296,14 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 			}
 			row += stat
 		}
-		content += row + "\n\n"
+		content += centered.Render(row) + "\n\n"
 	}
 	if u.Bio != "" {
 		content += lipgloss.NewStyle().Width(inner).MaxHeight(3).Foreground(lipgloss.Color(p.muted)).Render(safeText(u.Bio)) + "\n\n"
 	}
-	for _, line := range []string{u.Company, u.Location} {
-		if line != "" {
-			content += text(p.muted).Render(fit(safeText(line), inner)) + "\n"
+	for _, field := range []struct{ label, value string }{{"Company", u.Company}, {"Location", u.Location}} {
+		if field.value != "" {
+			content += text(p.muted).Render(fit(field.label+": "+safeText(field.value), inner)) + "\n"
 		}
 	}
 	if u.Company != "" || u.Location != "" {
