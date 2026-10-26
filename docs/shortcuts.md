@@ -16,24 +16,67 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | Mouse wheel | Select the next or previous commit, or scroll help while it is open |
-| Left click | Select a commit row, log tab, sidebar action, or sidebar shortcut |
+| Left click | Open a commit's thread, or select a log tab, sidebar action, or sidebar shortcut. Click an image to view it |
 | `n` | Load older commits when another page exists |
 | `Ctrl+R` | Refresh the first page, then select the first commit and scroll to the top after success |
 | `y` | Copy the selected commit's link, with a manual fallback if clipboard access fails |
 | `a` | Open account connection controls |
 | `c` | Open the composer modal |
+| `Enter` | Open the selected commit's thread |
+| `r` | Reply to the selected commit |
+| `q` | Quote the selected commit |
+| `v` | View the selected commit's images |
+| `D` | Ask to delete your own selected commit |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
 | `F2` | Switch between light and dark for the current session |
 
-`q` does not quit. It is reserved for the web application's quote action when that feature ships.
+`q` quotes. It never quits.
 
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
-Neither `r` nor `R` refreshes the workspace. Lowercase `r` is reserved for replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
+Neither `r` nor `R` refreshes the workspace. Lowercase `r` replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
 
 The `g` sequence expires after one second. Changing screens, opening help, or changing focus clears it. Paste never invokes workspace shortcuts. Entering another log cancels the previous log's in-flight request, and stale responses cannot overwrite the active state.
+
+## Thread
+
+The thread replaces the log column. `Esc` returns to the previous thread, then to the same log row.
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `Down`, `Up` | Select the next or previous entry |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five entries |
+| `Home`, `G`, `End` | Select the first or last entry |
+| `Enter` | Open the selected entry's thread |
+| `Space` | Show or hide replies. On a reply, show or hide its nested replies |
+| `n` | Load more replies |
+| `r`, `q` | Reply to or quote the selected entry |
+| `v` | View the selected entry's images |
+| `D` | Ask to delete your own selected entry |
+| `y` | Copy the selected entry's link |
+| `Ctrl+R` | Reload the thread |
+| `c` | Open the composer |
+| `Esc` | Go back |
+| Left click | Select an entry, open the selected entry's thread, activate an action, or view an image |
+
+Replies hang off a dashed line below their parent, with each author's avatar on its node when the terminal supports graphics. Quotes carry a **quoted** tag after the author. Nesting shows one inline level. `Space` on a nested reply asks you to press `Enter` to open its thread.
+
+Delete confirmation offers **Keep commit** (`Esc`) and **Delete commit** (`Ctrl+D`). `Tab`, `Shift+Tab`, `Left`, and `Right` move between them. `Enter` activates the focused action, which starts on Keep commit. A **Deleting commit** toast stays until the server answers, then the result toast replaces it. A commit that is already gone counts as deleted.
+
+## Image viewer
+
+| Keys | Action |
+| --- | --- |
+| `Left`, `Right`, `h`, `l` | Previous or next image. Stops at the ends |
+| `j`, `k`, `Down`, `Up`, mouse wheel | Scroll the commit and replies panel |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D`, `Home`, `End` | Scroll the panel by five lines or to either end |
+| `n` | Load more replies into the panel |
+| `p` | Show or hide the commit and replies panel |
+| `y` | Copy the image link |
+| `Esc` | Close the viewer |
+| Left click | Activate a toolbar action or arrow |
 
 ## Account connection
 
@@ -98,4 +141,4 @@ While emoji suggestions are open, `Up` and `Down` select an emoji, `Enter` or `T
 
 Ghostty's default `Ctrl+Enter` fullscreen binding intercepts submission. Set `keybind = ctrl+enter=unbind` in Ghostty and reload its configuration, or use `Ctrl+S`. The client never changes your terminal configuration.
 
-Search, thread navigation, replies, quoting, and engagement shortcuts are not active yet. Later phases add them alongside their features.
+`r` and `q` reopen a kept draft with its original target instead of starting another. Search and engagement shortcuts are not active yet. Later phases add them alongside their features.

@@ -2,7 +2,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs and submit text commits. Threads and engagement actions are not available yet.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs and threads, view commit images, submit text commits, reply, quote, and delete your own commits. Engagement actions are not available yet.
 
 ## Connect an account
 
@@ -46,19 +46,19 @@ The default `auto` theme follows the terminal's background when the terminal rep
 
 Press `F2` to switch between dark and light while reading, composing, connecting, or confirming an action. The on-screen hint names the theme you switch to. This overrides automatic appearance for the current session without writing a preference file.
 
-Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move between commits with `j`, `k`, or the mouse wheel. Click a row to select it. `PageUp` and `PageDown` move five commits. `g g` or `Home` selects the first commit. `G` or `End` selects the last loaded commit. Older pages load near the end of the list, or when you press `n`.
+Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move between commits with `j`, `k`, or the mouse wheel. Click a row to open its thread. `PageUp` and `PageDown` move five commits. `g g` or `Home` selects the first commit. `G` or `End` selects the last loaded commit. Older pages load near the end of the list, or when you press `n`.
 
 Press `Ctrl+R` to refresh. Existing content stays visible while the client fetches the first page. After success, the client selects the first commit and scrolls to the top. On failure, your position stays unchanged. In Trending, the first commit is the highest ranked, not necessarily the newest. Switching logs still preserves each log's reading position.
 
-A chronological log checks for new commits once a minute while the workspace is focused, but does not insert them until you refresh. Trending is ranked and does not check for chronological arrivals. Neither `r` nor `R` refreshes the workspace. Lowercase `r` remains reserved for future replies.
+A chronological log checks for new commits once a minute while the workspace is focused, but does not insert them until you refresh. Trending is ranked and does not check for chronological arrivals. Neither `r` nor `R` refreshes the workspace. Lowercase `r` replies to the selected commit.
 
-Wide layouts center the feed between navigation and an account aside. The aside displays your returned profile counts, bio, company, and location when available. Missing counts are omitted, not replaced with zeroes. Author identities use lane-colored dots or round avatars, compact ages, and commit hashes. Quotes and reply previews stay grouped with their parent commit.
+Wide layouts center the feed between navigation and an account aside. The aside displays your returned profile counts, bio, company, and location when available. Missing counts are omitted, not replaced with zeroes. Author identities use lane-colored dots or round avatars, compact ages, and commit hashes. Each commit's lane line runs from its avatar to a ring beside its stats, and reply previews hang off a dashed line below it, like the web log. Quotes stay grouped with their parent commit.
 
 Press `y` to copy the selected commit's web link. Clipboard access uses optional native utilities: `pbcopy` on macOS, PowerShell on Windows, or `wl-copy`, `xclip`, or `xsel` on Linux. If none works, the client displays the link for manual copying. No clipboard utility is required to read the logs.
 
-Quotes and reply previews are read-only. Terminals that confirm Kitty graphics support and provide true color can display optional avatars and inline images. Other terminals show dots and image descriptions. Media downloads are unsigned, limited to two concurrent requests, 10 MiB per response, and eight million decoded pixels. Images stay in memory, and the client deletes its terminal image IDs when they leave the visible feed or the program exits. Uploads and voting controls are not available. Suggestions on an empty Following log are labeled separately, not presented as followed content. There are no persistent feed caches.
+Terminals that confirm Kitty graphics support and provide true color can display optional avatars and inline images. Other terminals show dots and image descriptions. Media downloads are unsigned, limited to two concurrent requests, 10 MiB per response, and eight million decoded pixels. Images stay in memory, and the client deletes its terminal image IDs when they leave the visible feed or the program exits. Uploads and voting controls are not available. Suggestions on an empty Following log are labeled separately, not presented as followed content. There are no persistent feed caches.
 
-Press `?` for a centered help overlay. Use the arrow keys or mouse wheel to scroll it, `Esc` to close it, and `Ctrl+C` to exit. The key `q` is reserved for quoting in a later phase, not quitting. See [shortcuts](docs/shortcuts.md).
+Press `?` for a centered help overlay. Use the arrow keys or mouse wheel to scroll it, `Esc` to close it, and `Ctrl+C` to exit. The key `q` quotes the selected commit. It never quits. See [shortcuts](docs/shortcuts.md).
 
 `--help` and `--version` work without opening a TUI or requiring an interactive terminal. The old `--demo` and `--connect` flags are removed:
 
@@ -66,6 +66,24 @@ Press `?` for a centered help overlay. Use the arrow keys or mouse wheel to scro
 go run ./cmd/devnull --help
 go run ./cmd/devnull --version
 ```
+
+## Read a thread
+
+Press `Enter`, or click a commit, to open its thread in place of the log. The thread shows up to 20 ancestors, the focused commit, and its replies oldest first. Replies hang off a dashed line below the focused commit, with each author's avatar on its node when the terminal supports graphics. Quotes of the focused commit appear among the replies with a **quoted** tag after the author. Deleted commits appear as **Commit deleted** with no author or text. Press `n` to load more replies and `Ctrl+R` to reload.
+
+Move with `j` and `k`. The selected entry shows its actions: **Reply** (`r`), **Quote** (`q`), **Replies** (`Space`), **View** (`v`) when it has images, and **Delete** (`D`) on your own commits. Click an action or press its key. Click a selected entry to open its thread. `Space` on a reply shows or hides one level of nested replies. Deeper replies open with `Enter` in their own thread. `Esc` returns to the previous thread, then to the same log row and scroll position.
+
+## View images
+
+Click an image, or press `v` on a commit with images, to open the viewer. It shows the image enlarged with its position, such as `1 / 2`. A right panel holds the commit and its replies, drawn like the log: the commit's avatar and lane line end in a ring, and replies hang off a dashed line with their authors' avatars. Use `Left` and `Right`, or click the arrows, to move between images. Navigation stops at the first and last image. Scroll the panel with `j`, `k`, or the mouse wheel, and press `n` to load more replies. Press `p` to hide or show the panel, `y` to copy the image link, and `Esc` to return to where you were. Terminals without Kitty graphics show the image description and link instead. The viewer has no zoom or download.
+
+## Reply, quote, and delete
+
+`r` opens the composer as a reply and `q` as a quote. The modal names the target with a short excerpt, such as **Replying to @grace**. Replies appear in the thread and update its reply count. They are not inserted into logs, because logs only hold top-level commits. Quotes appear at the top of the originating chronological log and among the quoted commit's replies. If the target was deleted before you submit, the client reports that the commit is no longer available and keeps your draft.
+
+Only one draft exists. If you kept a draft, `c`, `r`, or `q` reopens it with its original target and asks you to finish or discard it first.
+
+`D` asks before deleting your own commit. The confirmation defaults to **Keep commit** (`Esc`). Choose **Delete commit** (`Ctrl+D`) to delete it. Deletion cannot be undone. While the request runs, `D` cannot start another delete. The commit leaves your logs, and open threads show it as deleted.
 
 ## Write a commit
 
@@ -83,7 +101,7 @@ The client does not edit terminal settings. Use `Ctrl+S` if you prefer to keep G
 
 Type a shortcode prefix such as `:ro` to see emoji suggestions from the web app's catalog. Use `Up` and `Down` to choose, then `Enter` or `Tab` to insert. `Esc` dismisses suggestions before canceling the composer. Completing a known shortcode such as `:rocket:` turns it into an emoji at the caret. Code stays literal, including unfinished inline code and fenced blocks. Suggestions work offline and do not store usage history.
 
-The budget is 4000 Unicode characters after normalization. Prose links count as at most 23 characters, while code counts literally. A link can contain at most 2048 characters, and normalized raw text must fit within 40000 characters. Server validation remains authoritative. Only text is sent. Replies, quotes, polls, and uploads are not supported.
+The budget is 4000 Unicode characters after normalization. Prose links count as at most 23 characters, while code counts literally. A link can contain at most 2048 characters, and normalized raw text must fit within 40000 characters. Server validation remains authoritative. Only text is sent. Polls and uploads are not supported.
 
 Submissions use your approved device key. The client sends once while a request is in flight and never retries automatically. Validation, rejection, and transport errors keep your draft. If the outcome is unknown, check the web before retrying. Submitting again requires confirmation because the first commit may already exist.
 
