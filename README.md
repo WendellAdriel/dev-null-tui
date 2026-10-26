@@ -2,7 +2,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. This increment is read-only. Posting, threads, and engagement actions are not available yet.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs and submit text commits. Threads and engagement actions are not available yet.
 
 ## Connect an account
 
@@ -44,6 +44,8 @@ go run ./cmd/devnull --theme dark
 
 The default `auto` theme follows the terminal's background when the terminal reports it. The client uses your terminal font and requires at least 30 columns and 10 rows. Below 100 columns, navigation becomes an icon strip. The account aside appears at 124 columns.
 
+Press `F2` to switch between dark and light while reading, composing, connecting, or confirming an action. The on-screen hint names the theme you switch to. This overrides automatic appearance for the current session without writing a preference file.
+
 Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move between commits with `j`, `k`, or the mouse wheel. Click a row to select it. `PageUp` and `PageDown` move five commits. `g g` or `Home` selects the first commit. `G` or `End` selects the last loaded commit. Older pages load near the end of the list, or when you press `n`.
 
 Press `Ctrl+R` to refresh. Existing content stays visible while the client fetches the first page. After success, the client selects the first commit and scrolls to the top. On failure, your position stays unchanged. In Trending, the first commit is the highest ranked, not necessarily the newest. Switching logs still preserves each log's reading position.
@@ -64,6 +66,30 @@ Press `?` for a centered help overlay. Use the arrow keys or mouse wheel to scro
 go run ./cmd/devnull --help
 go run ./cmd/devnull --version
 ```
+
+## Write a commit
+
+Press `c` from a log to focus the inline composer. Text entry owns typing and paste, so letters do not navigate the workspace. Composing needs at least 18 terminal rows. Use `Tab` or `Shift+Tab` to focus **Preview**, **Submit**, or **Cancel**, then press `Enter`. In the text field, `Enter` inserts a new line. Preview uses the signed server endpoint without publishing or storing a commit. Use arrow or page keys to scroll a preview, and **Edit** or `Esc` to return to editing.
+
+`Ctrl+Enter` submits when the terminal delivers it. `Ctrl+S` is the submit fallback, and `Ctrl+P` toggles preview and editing. These shortcuts appear in the composer, alongside `F2` for appearance.
+
+Ghostty binds `Ctrl+Enter` to fullscreen by default, so the app cannot receive it. To send it to the client, add this line to your Ghostty configuration and reload the configuration:
+
+```ini
+keybind = ctrl+enter=unbind
+```
+
+The client does not edit terminal settings. Use `Ctrl+S` if you prefer to keep Ghostty's fullscreen binding.
+
+Type a shortcode prefix such as `:ro` to see emoji suggestions from the web app's catalog. Use `Up` and `Down` to choose, then `Enter` or `Tab` to insert. `Esc` dismisses suggestions before canceling the composer. Completing a known shortcode such as `:rocket:` turns it into an emoji at the caret. Code stays literal, including unfinished inline code and fenced blocks. Suggestions work offline and do not store usage history.
+
+The budget is 4000 Unicode characters after normalization. Prose links count as at most 23 characters, while code counts literally. A link can contain at most 2048 characters, and normalized raw text must fit within 40000 characters. Server validation remains authoritative. Only text is sent. Replies, quotes, polls, and uploads are not supported.
+
+Submissions use your approved device key. The client sends once while a request is in flight and never retries automatically. Validation, rejection, and transport errors keep your draft. If the outcome is unknown, check the web before retrying. Submitting again requires confirmation because the first commit may already exist.
+
+Most successful submissions are **pending**, not public until approved. The originating chronological log shows the returned status without resetting other logs. Trending stays ranked and requires refresh to check for the commit. First-time posters must make their first commit through the web composer and accept the commit rules there.
+
+Drafts stay in memory only. `Esc` or **Cancel** asks before discarding a nonempty draft, and `Ctrl+C` asks before exiting. Confirmations default to keeping the draft. Closing the terminal or terminating the process loses it. Exiting during submission cannot guarantee that the server cancels publication.
 
 ## Build a binary
 
@@ -129,6 +155,8 @@ Make is optional. The direct commands below also work from PowerShell. Run them 
 `make check` runs the formatting check, lint, module verification, tests, and vulnerability analysis. Race tests, coverage, and build checks are separate targets. On platforms where race detection requires cgo, install a compatible C compiler and enable cgo for that test command. Do not set `CGO_ENABLED=0` globally and expect race tests to run.
 
 The enabled linters are `govet`, `staticcheck`, `errcheck`, `ineffassign`, `unused`, and `gosec`. Formatting uses `goimports`. No blanket warning exclusions or coverage threshold are configured. Inspect coverage with `go tool cover -func=coverage.out`.
+
+Developers can refresh the bundled emoji catalog from a web checkout with `go run ./tools/emoji ../dev-null.sh/resources/js/lib/emoji-shortcodes.json`. Run this from the CLI repository root. The tool validates the supplied local JSON and replaces `internal/tui/emoji.json`. The compiled client does not need the web checkout.
 
 ## CI and platform verification
 
