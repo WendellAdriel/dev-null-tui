@@ -236,7 +236,7 @@ func (m AppModel) columns() (nav, center, aside int) {
 
 func (m *AppModel) reflow() {
 	_, center, _ := m.columns()
-	m.sizeComposer(center)
+	m.sizeComposer()
 	for i := range m.feeds {
 		f := &m.feeds[i]
 		offset := f.viewport.YOffset()

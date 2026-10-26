@@ -48,10 +48,34 @@ func keyChip(value string, p palette) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.wash)).Render(" " + value + " ")
 }
 
-func (m AppModel) View() tea.View {
-	if m.composer.confirm != "" {
-		return m.draftConfirmationView()
+func filledButton(label, shortcut string, width int, background, foreground string) string {
+	content := label
+	if shortcut != "" {
+		content += strings.Repeat(" ", max(1, width-2-ansi.StringWidth(label)-len(shortcut))) + shortcut
 	}
+	return lipgloss.NewStyle().Background(lipgloss.Color(background)).Foreground(lipgloss.Color(foreground)).Bold(true).Width(width).Padding(0, 1).Align(lipgloss.Center).Render(content)
+}
+
+func (m AppModel) View() tea.View {
+	v := m.workspaceView()
+	p := colors(m.account.dark)
+	if m.composer.open && m.connected && !m.accountOpen {
+		content, r := m.composerModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.composer.confirm != "" {
+		content, r, _ := m.confirmationModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.toast.visible && m.composer.confirm == "" && m.account.width >= 20 && m.account.height >= 8 {
+		content, r := m.toastView()
+		v.Content = m.overlayToast(v.Content, content, r)
+	}
+	v.MouseMode = tea.MouseModeCellMotion
+	return v
+}
+
+func (m AppModel) workspaceView() tea.View {
 	if !m.connected || m.accountOpen {
 		v := m.account.View()
 		v.ReportFocus = true
@@ -67,8 +91,6 @@ func (m AppModel) View() tea.View {
 	var page string
 	if w < 30 || h < 10 {
 		page = "/dev/null needs a bigger terminal."
-	} else if m.composer.open && h < 18 {
-		page = "Enlarge the terminal to compose (18 rows).\nYour draft is kept. Esc to cancel, Ctrl+C to exit."
 	} else {
 		nav, center, aside := m.columns()
 		total := nav + center + aside + 2
@@ -78,13 +100,13 @@ func (m AppModel) View() tea.View {
 		if aside > 0 {
 			main = lipgloss.JoinHorizontal(lipgloss.Top, main, m.aside(aside, m.mainHeight(), p))
 		}
-		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + m.footer(w, p)
+		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + m.workspaceFooter(w)
 	}
 	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(w).Height(h).MaxWidth(w).MaxHeight(h)
 	page = frame.Render(page)
 	if m.help && w >= 30 && h >= 10 {
 		modal := m.helpModal(p)
-		page = lipgloss.NewCompositor(lipgloss.NewLayer(page), lipgloss.NewLayer(modal).X((w-lipgloss.Width(modal))/2).Y((h-lipgloss.Height(modal))/2)).Render()
+		page = overlay(page, modal, m.helpBounds(), p, w, h)
 	}
 	v := tea.NewView(page)
 	v.AltScreen, v.ReportFocus = true, true
@@ -111,15 +133,11 @@ func (m AppModel) footer(width int, p palette) string {
 		}
 		return fit(" ctrl+enter send  ctrl+p preview  f2 "+m.account.nextTheme()+"  esc back", width)
 	}
-	right := " f2 " + m.account.nextTheme() + "  ? help  ctrl+c quit "
-	remaining := max(0, width-len(right)-2)
-	status := m.feedStatus()
-	f := m.feeds[m.active]
-	if m.notice == "" && f.status == "" && !m.pendingG && !f.loading && f.newCount == 0 {
-		status = "j/k move   tab log   c compose   ctrl+r refresh"
-	}
-	left := " " + fit(status, remaining)
-	return left + strings.Repeat(" ", max(1, width-lipgloss.Width(left)-lipgloss.Width(right))) + right
+	return m.workspaceFooter(width)
+}
+
+func (m AppModel) workspaceFooter(width int) string {
+	return fit(" "+m.feedStatus(), width)
 }
 
 func (m AppModel) feedTabs(width int, p palette) string {
@@ -152,7 +170,7 @@ func (m AppModel) feedColumn(width int, p palette) string {
 	var content string
 	switch {
 	case m.manualLink != "":
-		content = "  " + text(p.ink).Bold(true).Render("Copy commit link") + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  Clipboard unavailable. Copy this link:\n\n" + lipgloss.NewStyle().Width(width-4).MarginLeft(2).Render(m.manualLink) + "\n\n  " + keyChip("esc", p) + " Back to log"
+		content, _ = m.manualLinkView(width, p)
 	default:
 		f := m.feeds[m.active]
 		user := m.account.user
@@ -165,9 +183,6 @@ func (m AppModel) feedColumn(width int, p palette) string {
 		reader = fit(reader, max(1, width-lipgloss.Width(refresh)-2)) + strings.Repeat(" ", max(1, width-lipgloss.Width(reader)-lipgloss.Width(refresh)-1)) + refresh
 		hairline := text(p.hairline).Render(strings.Repeat("─", width))
 		content = "\n" + m.feedTabs(width, p) + "\n" + hairline + "\n\n" + reader + "\n\n" + hairline + "\n"
-		if m.composer.open {
-			content = "\n" + m.feedTabs(width, p) + "\n" + hairline + "\n" + m.composerView(width, p) + "\n" + hairline + "\n"
-		}
 		if !f.loaded {
 			title, detail := "Reading your log...", "Fetching commits with your signed connection."
 			if !f.loading && f.status != "" {
@@ -183,6 +198,11 @@ func (m AppModel) feedColumn(width int, p palette) string {
 }
 
 func (m AppModel) navigation(width, height int, p palette) string {
+	column, _ := m.navigationLayout(width, height, p)
+	return column
+}
+
+func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitArea) {
 	inner := width - 2
 	navRow := func(left, right string, active bool) string {
 		if right == "" {
@@ -199,14 +219,21 @@ func (m AppModel) navigation(width, height int, p palette) string {
 		return fit(line, inner)
 	}
 	logo := "   " + brand(p)
-	log, account, refresh := "◉  Log", "≡  Account", "↻  Refresh"
-	logKey, accountKey, refreshKey := "g l", "a", "ctrl+r"
+	log, logKey := "◉  Log", "g l"
 	if width < 12 {
 		logo = " //"
-		log, account, refresh = "◉", "≡", "↻"
-		logKey, accountKey, refreshKey = "", "", ""
+		log, logKey = "◉", ""
 	}
-	top := "\n" + logo + "\n\n\n " + navRow(text(p.blue).Bold(true).Render(log), logKey, true) + "\n\n " + navRow(text(p.ink).Render(account), accountKey, false) + "\n\n " + navRow(text(p.muted).Render(refresh), refreshKey, false)
+	top := "\n" + logo + "\n\n\n " + navRow(text(p.blue).Bold(true).Render(log), logKey, true)
+	compose, shortcut := "＋ Commit", "c"
+	if width < 12 {
+		compose, shortcut = "+", ""
+	}
+	button := filledButton(compose, shortcut, inner, p.blue, p.shell)
+	buttonY := lipgloss.Height(top) + 1
+	buttonX := (width - lipgloss.Width(button)) / 2
+	top += "\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
+	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
 	avatar := m.images.Row(m.avatarRequest(user.AvatarURL, lane, 2, 1), 0)
@@ -219,10 +246,23 @@ func (m AppModel) navigation(width, height int, p palette) string {
 	}
 	gap := max(1, height-lipgloss.Height(top)-lipgloss.Height(bottom))
 	content := top + strings.Repeat("\n", gap) + bottom + "\n"
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).Render(content)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).Render(content), areas
+}
+
+func (m AppModel) manualLinkView(width int, p palette) (string, hitArea) {
+	content := "  " + text(p.ink).Bold(true).Render("Copy commit link") + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  Clipboard unavailable. Copy this link:\n\n" + lipgloss.NewStyle().Width(width-4).MarginLeft(2).Render(m.manualLink)
+	back := "  " + keyChip("esc", p) + " Back to log"
+	area := hitArea{uiRect{2, lipgloss.Height(content) + 1, min(width-2, lipgloss.Width(back)-2), 1}, "esc", 0}
+	return content + "\n\n" + back, area
 }
 
 func (m AppModel) aside(width, height int, p palette) string {
+	column, _ := m.asideLayout(width, height, p)
+	return column
+}
+
+func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) {
+	var areas []hitArea
 	u := m.account.user
 	inner := width - 3
 	lane := laneColor(u.Lane, p)
@@ -231,8 +271,7 @@ func (m AppModel) aside(width, height int, p palette) string {
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		identity = top + " " + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner-5)) + "\n" + bottom + " " + text(p.muted).Render(fit("@"+safeText(u.Username), inner-5))
 	}
-	context := lipgloss.NewStyle().Width(inner).Foreground(lipgloss.Color(p.muted)).Render("  " + keyChip("c", p) + " New commit")
-	content := "\n" + context + "\n\n" + identity + "\n\n"
+	content := "\n" + identity + "\n\n"
 	var stats []string
 	for _, stat := range []struct {
 		value *int
@@ -271,22 +310,45 @@ func (m AppModel) aside(width, height int, p palette) string {
 	if u.PasteisMode && u.PasteisRemaining != nil {
 		content += text(p.muted).Render(fit(fmt.Sprintf("◍ %d pastéis left today", *u.PasteisRemaining), inner)) + "\n\n"
 	}
-	content += text(p.hairline).Render(strings.Repeat("─", inner)) + "\n\n" + text(p.ink).Bold(true).Render("Shortcuts") + "\n\n"
-	for _, binding := range m.bindings().all {
+	line := text(p.hairline).Render(strings.Repeat("─", inner))
+	controls := line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
+	for i, action := range []struct{ label, key string }{{"Account", "a"}, {"Refresh", "ctrl+r"}} {
+		if i > 0 {
+			controls += "\n\n"
+		}
+		button := filledButton(action.label, action.key, inner-2, p.wash, p.ink)
+		x := (inner - lipgloss.Width(button)) / 2
+		areas = append(areas, hitArea{uiRect{2 + x, strings.Count(controls, "\n"), lipgloss.Width(button), lipgloss.Height(button)}, action.key, 0})
+		controls += lipgloss.PlaceHorizontal(inner, lipgloss.Center, button)
+	}
+	controls += "\n" + line + "\n" + text(p.ink).Bold(true).Render("Shortcuts") + "\n"
+	workspace := m
+	workspace.composer.open = false
+	for _, binding := range workspace.bindings().short {
 		h := binding.Help()
-		if m.composer.open {
-			content += text(p.muted).Render(h.Desc) + "\n" + keyChip(h.Key, p) + "\n\n"
+		if h.Key == "c" || h.Key == "ctrl+r" || h.Key == "a" {
 			continue
 		}
-		if h.Key == "j/k" || h.Key == "tab" || h.Key == "c" || h.Key == "ctrl+r" || h.Key == "y" || h.Key == "a" {
-			content += lipgloss.NewStyle().Width(13).Foreground(lipgloss.Color(p.muted)).Render(h.Desc) + keyChip(h.Key, p) + "\n"
+		action := h.Key
+		if action == "j/k" {
+			action = "down"
 		}
+		areas = append(areas, hitArea{uiRect{2, strings.Count(controls, "\n"), inner, 1}, action, 0})
+		chip := keyChip(h.Key, p)
+		label := fit(h.Desc, max(1, inner-lipgloss.Width(chip)-1))
+		controls += text(p.muted).Render(label) + strings.Repeat(" ", max(1, inner-lipgloss.Width(label)-lipgloss.Width(chip))) + chip + "\n"
 	}
 	origin, _ := url.Parse(m.account.origin)
-	bottom := text(p.muted).Render("Keyboard shortcuts ") + keyChip("?", p) + "\n" + text(p.muted).Render(fit(safeText(origin.Host), inner))
+	bottom := text(p.muted).Render(fit(safeText(origin.Host), inner))
+	profileHeight := max(1, height-lipgloss.Height(controls)-3)
+	content = strings.TrimRight(lipgloss.NewStyle().MaxHeight(profileHeight).Render(content), "\n") + "\n\n"
+	for i := range areas {
+		areas[i].y += strings.Count(content, "\n")
+	}
+	content += controls
 	gap := max(1, height-lipgloss.Height(content)-lipgloss.Height(bottom))
 	content += strings.Repeat("\n", gap) + bottom
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content), areas
 }
 
 func (m AppModel) feedViewport(p palette) string {
@@ -317,13 +379,16 @@ func (m AppModel) helpLines(width int, p palette) []string {
 }
 
 func (m AppModel) helpMaxScroll() int {
-	return max(0, len(m.helpLines(max(1, min(62, m.account.width-4)-4), colors(m.account.dark)))-max(1, min(48, m.account.height-4)-4))
+	r := m.helpBounds()
+	return max(0, len(m.helpLines(max(1, r.w-4), colors(m.account.dark)))-max(1, r.h-6))
 }
 
+func (m AppModel) helpBounds() uiRect { return centeredRect(m.account.width, m.account.height, 62, 48) }
+
 func (m AppModel) helpModal(p palette) string {
-	w, h := min(62, m.account.width-4), min(48, m.account.height-4)
-	lines := m.helpLines(w-4, p)
+	r := m.helpBounds()
+	lines := m.helpLines(max(1, r.w-4), p)
 	start := min(m.helpScroll, m.helpMaxScroll())
-	content := text(p.ink).Bold(true).Render("Keyboard shortcuts") + "\n" + strings.Join(lines[start:min(len(lines), start+max(1, h-4))], "\n")
-	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(p.hairline)).Padding(0, 1).Width(w).Height(h).MaxHeight(h).Render(content)
+	content := strings.Join(lines[start:min(len(lines), start+max(1, r.h-6))], "\n")
+	return panel("Keyboard shortcuts", content, "↑/↓ scroll · esc close", r, p)
 }

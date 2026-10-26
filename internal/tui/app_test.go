@@ -143,8 +143,11 @@ func TestRemoteContentAndLayoutsStayInDisplayBounds(t *testing.T) {
 				t.Fatal("remote terminal control survived")
 			}
 			plain := ansi.Strip(view.Content)
-			if size.Width >= 60 && (!strings.Contains(plain, "ctrl+c") || !strings.Contains(plain, "Following")) {
+			if size.Width >= 60 && !strings.Contains(plain, "Following") {
 				t.Fatalf("compact shell lost controls at %dx%d", size.Width, size.Height)
+			}
+			if size.Width >= 124 && !strings.Contains(plain, "ctrl+c") {
+				t.Fatal("right sidebar lost exit shortcut")
 			}
 		}
 	}

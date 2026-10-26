@@ -20,6 +20,21 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
+func logResponse(t *testing.T, cmd tea.Cmd) tea.Msg {
+	t.Helper()
+	msg := cmd()
+	if batch, ok := msg.(tea.BatchMsg); ok {
+		for _, command := range batch {
+			result := command()
+			if _, ok := result.(logResult); ok {
+				return result
+			}
+		}
+		t.Fatal("command batch did not return a log response")
+	}
+	return msg
+}
+
 func TestReferenceNodesAndDayGroupsSurvivePagination(t *testing.T) {
 	m := fixtureApp(t)
 	first, second := fixtureCommit("a"), fixtureCommit("b")
@@ -94,7 +109,7 @@ func TestRefreshReturnsToFirstPageAndCountsDoNotInsertRows(t *testing.T) {
 	if m.feeds[0].commits[m.feeds[0].selected].ID != "b" {
 		t.Fatal("refresh cleared content before completion")
 	}
-	updated, _ := m.Update(cmd())
+	updated, _ := m.Update(logResponse(t, cmd))
 	m = updated.(AppModel)
 	if requests != 1 || m.feeds[0].selected != 0 || m.feeds[0].commits[0].ID != "new" || m.feeds[0].viewport.YOffset() != 0 || m.feeds[0].next != "older" {
 		t.Fatal("refresh must load only the first page and select its first commit")
@@ -217,7 +232,7 @@ func TestSuccessfulRefreshGoesToTopEvenAfterPendingNavigation(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Ctrl+R must refresh")
 	}
-	response := cmd()
+	response := logResponse(t, cmd)
 	m, _ = m.handleKey("j")
 	m, _ = m.handleKey("j")
 	updated, _ := m.Update(response)
@@ -247,7 +262,7 @@ func TestRefreshFailureKeepsPositionAndLetterRDoesNotRefresh(t *testing.T) {
 	if cmd == nil {
 		t.Fatal("Ctrl+R must refresh")
 	}
-	updated, _ := m.Update(cmd())
+	updated, _ := m.Update(logResponse(t, cmd))
 	m = updated.(AppModel)
 	if m.feeds[0].commits[m.feeds[0].selected].ID != "b" || m.feeds[0].viewport.YOffset() != position {
 		t.Fatal("failed refresh changed reading position")

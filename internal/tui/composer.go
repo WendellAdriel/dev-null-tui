@@ -22,6 +22,7 @@ type composer struct {
 	previewOffset                                        int
 	status, confirm, owner                               string
 	confirmAction                                        bool
+	dragging                                             bool
 	preview                                              api.Preview
 	cancel                                               context.CancelFunc
 	emojis                                               []emojiSuggestion
@@ -252,7 +253,7 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	}
 	if err := api.ValidateBody(c.input.Value()); err != nil {
 		c.status = err.Error()
-		return nil
+		return m.notify("error", "Cannot submit", c.status)
 	}
 	if c.uncertain {
 		c.confirm, c.confirmAction = "retry", false
@@ -288,7 +289,7 @@ func (m *AppModel) startPreview() tea.Cmd {
 	}
 	if err := api.ValidateBody(c.input.Value()); err != nil {
 		c.status = err.Error()
-		return nil
+		return m.notify("error", "Cannot preview", c.status)
 	}
 	if c.cancel != nil {
 		c.cancel()
@@ -315,10 +316,8 @@ func (m *AppModel) acceptPreview(result previewResult) tea.Cmd {
 	c.loadingPreview, c.cancel = false, nil
 	if result.err != nil {
 		c.status = m.composerError(result.err)
-		if m.reconnectComposer(result.err) {
-			return nil
-		}
-		return nil
+		m.reconnectComposer(result.err)
+		return m.notify("error", "Preview failed", c.status)
 	}
 	c.preview, c.previewing, c.previewOffset = result.preview, true, 0
 	c.status = "Server preview. Nothing has been published."
@@ -341,15 +340,15 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 			c.status = "Outcome unknown. Check the web before retrying to avoid duplicates. Your draft is kept."
 		}
 		if m.reconnectComposer(result.err) {
-			return nil
+			return m.notify("error", "Submission failed", c.status)
 		}
-		return m.focusComposer()
+		return tea.Batch(m.focusComposer(), m.notify("error", "Submission failed", c.status))
 	}
 	commit := result.commit
 	if commit.Status == "rejected" {
 		c.focus, c.previewing = 0, false
 		c.status = "Rejected. Not public. Your draft is kept for editing."
-		return m.focusComposer()
+		return tea.Batch(m.focusComposer(), m.notify("error", "Commit rejected", c.status))
 	}
 	index := c.log
 	if index != 2 {
@@ -378,7 +377,10 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 		m.notice += " Trending stays ranked. Refresh to check for it."
 	}
 	m.clearComposer()
-	return nil
+	if commit.Status == "pending" {
+		return m.notify("success", "Submitted for review", "Your commit is awaiting review, not public yet.")
+	}
+	return m.notify("success", "Commit submitted", m.notice)
 }
 
 func (m *AppModel) reconnectComposer(err error) bool {

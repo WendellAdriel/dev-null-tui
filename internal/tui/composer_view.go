@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"charm.land/bubbles/v2/textarea"
-	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 
@@ -13,21 +12,63 @@ import (
 )
 
 func (m AppModel) composerHeight() int {
-	return min(max(1, m.mainHeight()-5), max(8, min(14, m.account.height/2)))
+	return max(1, m.composerBounds().h-6)
 }
 
 func (m AppModel) headerHeight() int {
-	if m.composer.open {
-		return 5 + m.composerHeight()
-	}
 	return feedHeaderHeight
 }
 
-func (m *AppModel) sizeComposer(width int) {
+func (m AppModel) composerBounds() uiRect {
+	return centeredRect(m.account.width, m.account.height, 86, 24)
+}
+func (m AppModel) composerUsable() bool { return m.account.width >= 48 && m.account.height >= 18 }
+func (m AppModel) composerEditorBounds() uiRect {
+	r := m.composerBounds()
+	return uiRect{r.x + 7, r.y + 4, m.composer.input.Width(), m.composer.input.Height()}
+}
+
+func (m AppModel) composerLabels() []string {
+	preview, submit := "Preview", "Submit"
+	if m.composer.previewing {
+		preview = "Edit"
+	}
+	if m.composer.sending {
+		submit = "Sending..."
+	}
+	return []string{preview, submit, "Cancel"}
+}
+
+func (m AppModel) composerControls() []hitArea {
+	r := m.composerBounds()
+	x := r.x + 7
+	var controls []hitArea
+	for i, label := range m.composerLabels() {
+		controls = append(controls, hitArea{uiRect{x, r.y + r.h - 4, len(label) + 2, 1}, "composer", i + 1})
+		x += len(label) + 3
+	}
+	return controls
+}
+
+func (m AppModel) composerModal(p palette) (string, uiRect) {
+	r := m.composerBounds()
+	body := m.composerView(max(1, r.w-4), p)
+	if !m.composerUsable() {
+		body = "Resize to at least 48x18.\nYour draft is kept.\nEsc to close safely."
+	}
+	title := "New commit"
+	if m.composer.previewing {
+		title = "Preview commit"
+	}
+	return panel(title, body, m.footer(max(1, r.w-4), p), r, p), r
+}
+
+func (m *AppModel) sizeComposer() {
 	c := &m.composer
 	if !c.open {
 		return
 	}
+	width := max(1, m.composerBounds().w-4)
 	c.input.SetWidth(max(1, width-7))
 	c.input.SetHeight(max(1, m.composerHeight()-6))
 	p := colors(m.account.dark)
@@ -91,25 +132,20 @@ func (m AppModel) composerView(width int, p palette) string {
 	}
 	rows = append(rows, lipgloss.NewStyle().Width(inner).Height(3).MaxHeight(3).MarginLeft(5).Foreground(lipgloss.Color(p.muted)).Render(statusView))
 	button := func(label string, focused bool) string {
-		if focused {
+		if focused && !c.sending {
 			return text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render("[" + label + "]")
 		}
 		return text(p.muted).Render(" " + label + " ")
 	}
-	previewLabel := "Preview"
-	if c.previewing {
-		previewLabel = "Edit"
+	var buttons []string
+	for i, label := range m.composerLabels() {
+		buttons = append(buttons, button(label, c.focus == i+1))
 	}
-	submitLabel := "Submit"
-	if c.sending {
-		submitLabel = "Sending..."
-	}
-	buttons := []string{button(previewLabel, c.focus == 1), button(submitLabel, c.focus == 2), button("Cancel", c.focus == 3)}
 	rows = append(rows, "     "+strings.Join(buttons, " "))
 	return lipgloss.NewStyle().Width(width).Height(m.composerHeight()).MaxHeight(m.composerHeight()).Render(strings.Join(rows, "\n"))
 }
 
-func (m AppModel) draftConfirmationView() tea.View {
+func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 	c := m.composer
 	title, action := "Discard this draft?", "Discard draft"
 	detail := "Keep editing, or discard the text stored in this session."
@@ -126,47 +162,44 @@ func (m AppModel) draftConfirmationView() tea.View {
 		keep, action = " Keep draft ", "["+action+"]"
 	}
 	w, h := max(1, m.account.width), max(1, m.account.height)
-	p := colors(m.account.dark)
 	compactTitle := title
 	if c.confirm == "retry" {
 		compactTitle = "Risk a duplicate?"
 	}
-	content := compactTitle + "\n" + keep + "\n" + action + "\nTab / Enter · f2 " + m.account.nextTheme()
-	if w >= 60 && h >= 18 {
-		width := min(88, w-8)
-		label := text(p.muted).Render("DRAFT PROTECTION")
-		head := brand(p) + strings.Repeat(" ", max(2, width-lipgloss.Width(brand(p))-lipgloss.Width(label))) + label + "\n" + text(p.hairline).Render(strings.Repeat("─", width))
-		node := "●  LOCAL DRAFT"
-		if c.sending || c.uncertain {
-			node = "◌  DELIVERY UNKNOWN"
-			if c.confirm != "retry" {
-				detail = "The server may still publish this commit. Check the web before submitting again."
-			}
-		}
-		summary := fmt.Sprintf("%d characters · memory only · nothing saved to disk", api.BodyCharacterCount(c.input.Value()))
-		if c.owner != m.account.user.ID {
-			summary = "Draft belongs to another account. Its text stays private."
-		}
-		body := text(p.blue).Render(node) + "\n" + text(p.hairline).Render("│") + "\n" + text(p.ink).Bold(true).Render(title) + "\n" + text(p.muted).Render(ansi.Wrap(detail, width, "")) + "\n" + text(p.muted).Render(ansi.Wrap(summary, width, ""))
-		button := func(value string, focused, danger bool) string {
-			style := text(p.ink)
-			if focused {
-				color := p.blue
-				if danger {
-					color = p.danger
-				}
-				style = style.Foreground(lipgloss.Color(p.shell)).Background(lipgloss.Color(color)).Bold(true)
-			}
-			return style.Render(" " + value + " ")
-		}
-		actions := button(keep, !c.confirmAction, false) + "  " + button(action, c.confirmAction, true)
-		footer := text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + text(p.muted).Render("tab choose · enter confirm · esc keep · f2 "+m.account.nextTheme())
-		page := head + "\n\n" + body + "\n\n" + actions + "\n\n" + footer
-		top := max(0, min(6, (h-lipgloss.Height(page))/3))
-		content = lipgloss.NewStyle().MarginLeft((w - width) / 2).MarginTop(top).Render(page)
+	if w < 48 || h < 18 {
+		content := compactTitle + "\n" + keep + "\n" + action + "\nTab / Enter · f2 " + m.account.nextTheme()
+		r := uiRect{0, 0, w, h}
+		areas := []hitArea{{uiRect{0, 1, min(w, len(keep)), 1}, "confirm", 0}, {uiRect{0, 2, min(w, len(action)), 1}, "confirm", 1}}
+		return lipgloss.NewStyle().Width(w).Height(h).MaxWidth(w).MaxHeight(h).Background(lipgloss.Color(p.shell)).Foreground(lipgloss.Color(p.ink)).Render(content), r, areas
 	}
-	v := m.account.View()
-	v.ReportFocus = true
-	v.Content = lipgloss.NewStyle().Width(w).Height(h).MaxWidth(w).MaxHeight(h).Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Render(content)
-	return v
+	r := centeredRect(w, h, 76, 18)
+	width := r.w - 4
+	node := "●  LOCAL DRAFT"
+	if c.sending || c.uncertain {
+		node = "◌  DELIVERY UNKNOWN"
+		if c.confirm != "retry" {
+			detail = "The server may still publish this commit. Check the web before submitting again."
+		}
+	}
+	summary := fmt.Sprintf("%d characters · memory only · nothing saved to disk", api.BodyCharacterCount(c.input.Value()))
+	if c.owner != m.account.user.ID {
+		summary = "Draft belongs to another account. Its text stays private."
+	}
+	body := text(p.blue).Render(node) + "\n" + text(p.ink).Bold(true).Render(title) + "\n\n" + text(p.muted).Render(ansi.Wrap(detail, width, "")) + "\n" + text(p.muted).Render(ansi.Wrap(summary, width, ""))
+	button := func(value string, focused, danger bool) string {
+		style := text(p.ink)
+		if focused {
+			color := p.blue
+			if danger {
+				color = p.danger
+			}
+			style = style.Foreground(lipgloss.Color(p.shell)).Background(lipgloss.Color(color)).Bold(true)
+		}
+		return style.Render(" " + value + " ")
+	}
+	keepButton, actionButton := button(keep, !c.confirmAction, false), button(action, c.confirmAction, true)
+	body = lipgloss.NewStyle().Width(width).Height(max(1, r.h-8)).MaxHeight(max(1, r.h-8)).Render(body) + "\n\n" + keepButton + "  " + actionButton
+	areas := []hitArea{{uiRect{r.x + 2, r.y + r.h - 4, lipgloss.Width(keepButton), 1}, "confirm", 0}, {uiRect{r.x + 4 + lipgloss.Width(keepButton), r.y + r.h - 4, lipgloss.Width(actionButton), 1}, "confirm", 1}}
+	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "confirm", 0})
+	return panel("/dev/null · DRAFT PROTECTION", body, "tab choose · enter confirm · esc keep · f2 "+m.account.nextTheme(), r, p), r, areas
 }

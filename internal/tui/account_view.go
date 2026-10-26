@@ -46,7 +46,20 @@ func (m AccountModel) actions() []accountAction {
 
 func (m AccountModel) View() tea.View {
 	p := colors(m.dark)
+	page, _ := m.accountScreen(p)
+	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(max(0, m.width)).Height(max(0, m.height)).MaxWidth(max(0, m.width)).MaxHeight(max(0, m.height))
+	view := tea.NewView(frame.Render(page))
+	view.AltScreen = true
+	if m.profile >= colorprofile.ANSI && (m.theme != "auto" || m.backgroundKnown) {
+		view.BackgroundColor = lipgloss.Color(p.shell)
+		view.ForegroundColor = lipgloss.Color(p.ink)
+	}
+	return view
+}
+
+func (m AccountModel) accountScreen(p palette) (string, []hitArea) {
 	var page string
+	var areas []hitArea
 	if m.width >= 60 && m.height >= 18 {
 		width := min(m.width-8, 100)
 		wide := width >= 92 && m.height >= 26 && !m.help && !m.showURL && !m.pasting
@@ -55,13 +68,16 @@ func (m AccountModel) View() tea.View {
 			mainWidth -= 28
 		}
 		head := m.accountMasthead(width, p)
-		body := m.accountBody(mainWidth, p)
+		body, buttons := m.accountBodyLayout(mainWidth, p)
+		bodyX, bodyY := 0, 0
 		if wide {
+			bodyX = 28
 			body = lipgloss.JoinHorizontal(lipgloss.Top, m.accountJourney(p), strings.Repeat(" ", 5), body)
 		} else if !m.help && !m.showURL && !m.pasting {
+			bodyY = lipgloss.Height(m.accountSteps(p)) + 1
 			body = m.accountSteps(p) + "\n\n" + body
 		}
-		footer := m.accountFooter(width, p)
+		footer, footerAreas := m.accountFooterLayout(width, p)
 		gap := "\n\n"
 		gapRows := 2
 		if m.height <= 24 {
@@ -73,18 +89,25 @@ func (m AccountModel) View() tea.View {
 		page = head + gap + body + gap + footer
 		page = lipgloss.NewStyle().Width(width).Render(page)
 		top := min(6, max(0, (m.height-lipgloss.Height(page))/3))
+		for _, area := range footerAreas {
+			area.x += (m.width - width) / 2
+			area.y += top + lipgloss.Height(page) - lipgloss.Height(footer)
+			if area.y < m.height {
+				areas = append(areas, area)
+			}
+		}
+		for _, area := range buttons {
+			area.x += (m.width-width)/2 + bodyX
+			area.y += top + lipgloss.Height(head) + len(gap) + bodyY - 1
+			if area.y < top+lipgloss.Height(head)+len(gap)-1+maxBody {
+				areas = append(areas, area)
+			}
+		}
 		page = lipgloss.NewStyle().MarginLeft((m.width - width) / 2).MarginTop(top).Render(page)
 	} else if m.width > 0 && m.height > 0 {
 		page = "ACCOUNT\nResize to at least 60x18.\nf2 " + m.nextTheme() + " theme · Ctrl+C to quit."
 	}
-	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(max(0, m.width)).Height(max(0, m.height)).MaxWidth(max(0, m.width)).MaxHeight(max(0, m.height))
-	view := tea.NewView(frame.Render(page))
-	view.AltScreen = true
-	if m.profile >= colorprofile.ANSI && (m.theme != "auto" || m.backgroundKnown) {
-		view.BackgroundColor = lipgloss.Color(p.shell)
-		view.ForegroundColor = lipgloss.Color(p.ink)
-	}
-	return view
+	return page, areas
 }
 
 func (m AccountModel) accountMasthead(width int, p palette) string {
@@ -147,7 +170,7 @@ func (m AccountModel) accountSteps(p palette) string {
 	return strings.Join(labels, text(p.hairline).Render("  /  "))
 }
 
-func (m AccountModel) accountBody(width int, p palette) string {
+func (m AccountModel) accountBodyLayout(width int, p palette) (string, []hitArea) {
 	compact := m.height <= 24
 	title, lead := "Connect your account", "Approve this terminal in your browser."
 	detail := "Sign in through GitHub, then approve the device on /dev/null."
@@ -182,16 +205,16 @@ func (m AccountModel) accountBody(width int, p palette) string {
 		title, lead, detail = "Delete this terminal's key?", "Local disconnect does not revoke server approval.", "Revoke the device separately at "+m.origin+"/settings/devices"
 	}
 	if m.help {
-		return m.accountHelp(width, p)
+		return m.accountHelp(width, p), nil
 	}
 	if m.pasting {
 		input := m.input
 		input.SetStyles(textinput.DefaultStyles(m.dark))
 		input.SetWidth(max(1, width-4))
-		return text(p.ink).Bold(true).Render("Paste callback link") + "\n\n" + text(p.muted).Render("Use the full devnull://auth/callback link.") + "\n\n" + input.View() + "\n\n" + text(p.muted).Render("Masked input. Nothing is logged.")
+		return text(p.ink).Bold(true).Render("Paste callback link") + "\n\n" + text(p.muted).Render("Use the full devnull://auth/callback link.") + "\n\n" + input.View() + "\n\n" + text(p.muted).Render("Masked input. Nothing is logged."), nil
 	}
 	if m.showURL && m.flow != nil {
-		return text(p.ink).Bold(true).Render("Open this authorization URL") + "\n\n" + lipgloss.NewStyle().Width(width).Render(m.flow.Attempt.URL) + "\n\n" + text(p.muted).Render("Return here after approval. Never share the callback.")
+		return text(p.ink).Bold(true).Render("Open this authorization URL") + "\n\n" + lipgloss.NewStyle().Width(width).Render(m.flow.Attempt.URL) + "\n\n" + text(p.muted).Render("Return here after approval. Never share the callback."), nil
 	}
 	var sections []string
 	sections = append(sections, text(p.ink).Bold(true).Render(title))
@@ -220,18 +243,24 @@ func (m AccountModel) accountBody(width int, p palette) string {
 		}
 		sections = append(sections, lipgloss.NewStyle().Width(width).Foreground(lipgloss.Color(p.muted)).Render(status))
 	}
-	if actions := m.accountActionBar(width, p); actions != "" {
-		sections = append(sections, actions)
-	}
 	separator := "\n\n"
 	if m.height < 28 {
 		separator = "\n"
 	}
-	return lipgloss.NewStyle().Width(width).Render(strings.Join(sections, separator))
+	body := strings.Join(sections, separator)
+	actions, areas := m.accountActionsLayout(width, p)
+	if actions != "" {
+		for i := range areas {
+			areas[i].y += lipgloss.Height(body) + len(separator) - 1
+		}
+		body += separator + actions
+	}
+	return lipgloss.NewStyle().Width(width).Render(body), areas
 }
 
-func (m AccountModel) accountActionBar(width int, p palette) string {
+func (m AccountModel) accountActionsLayout(width int, p palette) (string, []hitArea) {
 	actions := m.actions()
+	var areas []hitArea
 	var rows []string
 	line := ""
 	for i, action := range actions {
@@ -259,39 +288,42 @@ func (m AccountModel) accountActionBar(width int, p palette) string {
 		if line != "" {
 			line += "  "
 		}
+		areas = append(areas, hitArea{uiRect{lipgloss.Width(line), len(rows), min(width-lipgloss.Width(line), lipgloss.Width(button)), 1}, "account", i})
 		line += button
 	}
 	if line != "" {
 		rows = append(rows, line)
 	}
-	return strings.Join(rows, "\n")
+	return strings.Join(rows, "\n"), areas
 }
 
-func (m AccountModel) accountFooter(width int, p palette) string {
-	var hints []string
+func (m AccountModel) accountFooterLayout(width int, p palette) (string, []hitArea) {
+	var hints []struct{ label, action string }
 	for _, binding := range m.bindings().bindings {
 		hint := binding.Help()
 		if hint.Key == "tab" || hint.Key == "enter" || hint.Key == "esc" || hint.Key == "?" || hint.Key == "ctrl+c" || hint.Key == "f2" || (hint.Key == "d" && m.state == "failed") {
-			hints = append(hints, hint.Key+" "+hint.Desc)
+			hints = append(hints, struct{ label, action string }{hint.Key + " " + hint.Desc, hint.Key})
 		}
 	}
 	var rows []string
+	var areas []hitArea
 	row := ""
 	for _, hint := range hints {
-		if row != "" && lipgloss.Width(row)+3+lipgloss.Width(hint) > width {
+		if row != "" && lipgloss.Width(row)+3+lipgloss.Width(hint.label) > width {
 			rows = append(rows, row)
 			row = ""
 		}
 		if row != "" {
 			row += "   "
 		}
-		row += hint
+		areas = append(areas, hitArea{uiRect{lipgloss.Width(row), 1 + len(rows), min(width-lipgloss.Width(row), lipgloss.Width(hint.label)), 1}, hint.action, 0})
+		row += hint.label
 	}
 	if row != "" {
 		rows = append(rows, row)
 	}
 	footer := text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + text(p.muted).Render(strings.Join(rows, "\n"))
-	return footer
+	return footer, areas
 }
 
 func (m AccountModel) accountHelp(width int, p palette) string {

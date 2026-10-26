@@ -68,6 +68,7 @@ type AppModel struct {
 	composer                               composer
 	submit                                 func(context.Context, string) (api.Commit, error)
 	preview                                func(context.Context, string) (api.Preview, error)
+	toast                                  toastNotice
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -107,6 +108,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case toastExpired:
+		if msg.session == m.session && msg.id == m.toast.id {
+			m.toast.visible = false
+		}
+		return m, nil
 	case submissionResult:
 		cmd := m.acceptSubmission(msg)
 		return m, cmd
@@ -128,20 +134,20 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.MouseWheelMsg:
-		if m.composer.open {
-			return m, nil
-		}
-		if m.connected && !m.accountOpen {
-			if msg.Button == tea.MouseWheelUp {
-				return m.handleKey("up")
-			}
-			if msg.Button == tea.MouseWheelDown {
-				return m.handleKey("down")
-			}
-		}
-		return m, nil
+		return m.mouseWheel(msg)
 	case tea.MouseClickMsg:
 		return m.handleMouse(msg)
+	case tea.MouseMotionMsg:
+		m.dragComposer(msg.X, msg.Y)
+		return m, nil
+	case tea.MouseReleaseMsg:
+		if m.composer.dragging {
+			m.dragComposer(msg.X, msg.Y)
+			m.composer.input.EndSelection()
+			m.composer.dragging = false
+			m.refreshEmoji()
+		}
+		return m, nil
 	case gExpired:
 		if msg.generation == m.generation {
 			m.pendingG = false
@@ -152,6 +158,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.account = updated.(AccountModel)
 		return m, cmd
 	case tea.BlurMsg:
+		m.composer.input.EndSelection()
+		m.composer.dragging = false
 		m.focused = false
 		m.resetSequence()
 		return m, nil
@@ -160,6 +168,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		return m, nil
 	case tea.WindowSizeMsg, tea.BackgroundColorMsg, tea.ColorProfileMsg:
+		m.composer.input.EndSelection()
+		m.composer.dragging = false
 		updated, cmd := m.account.Update(msg)
 		m.account = updated.(AccountModel)
 		m.images.Enabled = m.graphicsSupported && m.account.profile == colorprofile.TrueColor
@@ -206,11 +216,17 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.leaveApplication()
 				m.account.state, m.account.status = "failed", "Device approval is no longer valid. Connect again."
 				m.account.approvalRequired = true
+				if msg.mode == "refresh" {
+					return m, m.notify("error", "Refresh failed", m.account.status)
+				}
 				return m, nil
 			}
 			f.status = msg.err.Error() + ". Ctrl+R to retry."
 			if errors.As(msg.err, &failure) && failure.Status == http.StatusTooManyRequests && failure.RetryAfter != "" {
 				f.status = "Rate limited. Retry after " + safeText(failure.RetryAfter) + ". Ctrl+R to retry."
+			}
+			if msg.mode == "refresh" {
+				return m, m.notify("error", "Refresh failed", f.status)
 			}
 			return m, nil
 		}
@@ -261,6 +277,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.viewport.GotoTop()
 		} else if f.selected < len(f.starts) {
 			f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))
+		}
+		if msg.mode == "refresh" {
+			return m, m.notify("success", "Log refreshed", logNames[msg.index]+" is up to date.")
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -328,6 +347,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *AppModel) leaveApplication() {
+	m.toast.visible = false
 	if m.composer.cancel != nil {
 		m.composer.cancel()
 		m.composer.cancel = nil
@@ -474,7 +494,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			f.generation++
 		}
 		cmd := m.load("refresh")
-		return m, cmd
+		expiry := m.notify("info", "Refreshing log", "Checking "+logNames[m.active]+" for the latest commits.")
+		return m, tea.Batch(cmd, expiry)
 	case "j", "down", "k", "up":
 		delta := 1
 		if pressed == "k" || pressed == "up" {
@@ -536,7 +557,7 @@ func (m AppModel) selectCommit(index int) (AppModel, tea.Cmd) {
 	return m, nil
 }
 
-func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
+func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.composer.open {
 		return m, nil
 	}
@@ -569,6 +590,9 @@ func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
 	if index == m.active {
 		return m, nil
+	}
+	if m.toast.kind == "info" {
+		m.toast.visible = false
 	}
 	f := &m.feeds[m.active]
 	if f.cancel != nil {
@@ -611,16 +635,14 @@ func (m AppModel) feedStatus() string {
 	if m.notice != "" {
 		return m.notice
 	}
-	if f.status != "" {
+	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status
 	}
-	if f.loading {
+	if f.loading && f.loadingMode != "refresh" {
 		if !f.loaded {
 			return "Reading from /dev/null..."
 		}
 		switch f.loadingMode {
-		case "refresh":
-			return "Refreshing log..."
 		case "more":
 			return "Loading older commits..."
 		case "count":
@@ -629,10 +651,10 @@ func (m AppModel) feedStatus() string {
 		return "Updating log..."
 	}
 	if f.newCount > 0 {
-		return fmt.Sprintf("%d new commits · Ctrl+R to load", f.newCount)
+		return fmt.Sprintf("%d new commits available", f.newCount)
 	}
 	if len(f.commits) == 0 {
-		return "No commits in this log. Tab to explore another log."
+		return "No commits in this log."
 	}
 	ending := "more available"
 	if f.next == "" {
