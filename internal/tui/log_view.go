@@ -236,6 +236,7 @@ func (m AppModel) columns() (nav, center, aside int) {
 
 func (m *AppModel) reflow() {
 	_, center, _ := m.columns()
+	m.sizeComposer(center)
 	for i := range m.feeds {
 		f := &m.feeds[i]
 		offset := f.viewport.YOffset()
@@ -243,7 +244,11 @@ func (m *AppModel) reflow() {
 			offset -= f.starts[f.selected]
 		}
 		f.viewport.SetWidth(center)
-		f.viewport.SetHeight(max(1, m.mainHeight()-feedHeaderHeight))
+		header := feedHeaderHeight
+		if i == m.active {
+			header = m.headerHeight()
+		}
+		f.viewport.SetHeight(max(1, m.mainHeight()-header))
 		m.renderFeed(i)
 		if f.selected < len(f.starts) {
 			f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))

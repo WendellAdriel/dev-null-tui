@@ -23,6 +23,7 @@ var logNames = [3]string{"Following", "Latest", "Trending"}
 
 type feed struct {
 	commits, suggestions []api.Commit
+	submitted            []api.Commit
 	selected             int
 	viewport             viewport.Model
 	starts, ends         []int
@@ -64,6 +65,9 @@ type AppModel struct {
 	images                                 *graphics.Manager
 	helpScroll                             int
 	graphicsSupported                      bool
+	composer                               composer
+	submit                                 func(context.Context, string) (api.Commit, error)
+	preview                                func(context.Context, string) (api.Preview, error)
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -81,6 +85,9 @@ func (m AppModel) Init() tea.Cmd { return tea.Batch(m.account.Init(), tea.Raw(m.
 
 func (m AppModel) GraphicsCleanup() string { return m.images.Clear() }
 func (m AppModel) Close() error {
+	if m.composer.cancel != nil {
+		m.composer.cancel()
+	}
 	for _, f := range m.feeds {
 		if f.cancel != nil {
 			f.cancel()
@@ -100,6 +107,12 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case submissionResult:
+		cmd := m.acceptSubmission(msg)
+		return m, cmd
+	case previewResult:
+		cmd := m.acceptPreview(msg)
+		return m, cmd
 	case uv.KittyGraphicsEvent:
 		if msg.Options.ID == m.images.ProbeID && string(msg.Payload) == "OK" {
 			m.graphicsSupported = true
@@ -115,6 +128,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.MouseWheelMsg:
+		if m.composer.open {
+			return m, nil
+		}
 		if m.connected && !m.accountOpen {
 			if msg.Button == tea.MouseWheelUp {
 				return m.handleKey("up")
@@ -184,6 +200,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		f.loading = false
 		if msg.err != nil {
+			f.submitted = nil
 			var failure *auth.APIError
 			if errors.As(msg.err, &failure) && failure.Status == http.StatusUnauthorized {
 				m.leaveApplication()
@@ -203,6 +220,16 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, nil
 		}
+		for i, submitted := range f.submitted {
+			for _, current := range msg.page.Data {
+				if current.ID == submitted.ID {
+					f.submitted[i] = current
+					break
+				}
+			}
+		}
+		msg.page.Data = uniqueCommits(append(f.submitted, msg.page.Data...))
+		f.submitted = nil
 		anchor, offset := "", 0
 		if len(f.commits) > 0 && msg.mode != "refresh" {
 			anchor = f.commits[f.selected].ID
@@ -237,7 +264,22 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
+		if msg.String() == "f2" {
+			m.account.toggleTheme()
+			m.resetSequence()
+			m.reflow()
+			return m, nil
+		}
+		if (m.connected && m.composer.open) || m.composer.confirm != "" {
+			cmd := m.composerKey(msg)
+			return m, cmd
+		}
 		if msg.String() == "ctrl+c" {
+			if m.composer.input.Value() != "" {
+				m.composer.open = true
+				cmd := m.requestDraftAction("exit")
+				return m, cmd
+			}
 			m.account.life.cancel()
 			return m, tea.Quit
 		}
@@ -250,6 +292,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resetSequence()
 			return m, nil
 		}
+	}
+	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.focus == 0 && m.composer.confirm == "" {
+		cmd := m.updateComposerInput(msg)
+		return m, cmd
 	}
 	if m.connected && !m.accountOpen {
 		return m, nil
@@ -269,6 +315,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.fetch == nil {
 			m.fetch = client.Log
 		}
+		m.submit, m.preview = client.CreateCommit, client.Preview
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
@@ -281,6 +328,16 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *AppModel) leaveApplication() {
+	if m.composer.cancel != nil {
+		m.composer.cancel()
+		m.composer.cancel = nil
+	}
+	if m.composer.sending {
+		m.composer.uncertain = true
+		m.composer.status = "Outcome unknown. Check the web before retrying."
+	}
+	m.composer.open, m.composer.sending, m.composer.loadingPreview = false, false, false
+	m.composer.generation++
 	m.connected, m.accountOpen, m.help = false, false, false
 	m.session++
 	m.fetch = nil
@@ -390,6 +447,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		}
 	}
 	switch pressed {
+	case "c":
+		cmd := m.openComposer()
+		return m, cmd
 	case "g":
 		m.pendingG = true
 		m.generation++
@@ -477,6 +537,9 @@ func (m AppModel) selectCommit(index int) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
+	if m.composer.open {
+		return m, nil
+	}
 	if !m.connected || m.accountOpen || m.help || m.manualLink != "" || msg.Button != tea.MouseLeft || m.account.width < 30 || m.account.height < 10 {
 		return m, nil
 	}
@@ -520,7 +583,7 @@ func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	}
 	m.notice = ""
 	m.reflow()
-	if !m.feeds[index].loaded {
+	if !m.feeds[index].loaded || len(m.feeds[index].submitted) > 0 {
 		cmd := m.load("initial")
 		return m, cmd
 	}

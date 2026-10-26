@@ -27,3 +27,15 @@ func colors(dark bool) palette {
 func text(color string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 }
+
+func (m AccountModel) nextTheme() string {
+	if m.dark {
+		return "light"
+	}
+	return "dark"
+}
+
+func (m *AccountModel) toggleTheme() {
+	m.theme = m.nextTheme()
+	m.dark = !m.dark
+}

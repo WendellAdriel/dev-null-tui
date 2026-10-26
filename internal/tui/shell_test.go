@@ -51,11 +51,11 @@ func TestFirstLoadShowsDayMarkerBeforeTheFirstAuthor(t *testing.T) {
 	}
 }
 
-func TestReaderHasAuthorIdentityAndReadOnlyContext(t *testing.T) {
+func TestReaderHasAuthorIdentityAndComposerEntry(t *testing.T) {
 	m := fixtureApp(t)
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a")}})
 	plain := ansi.Strip(m.View().Content)
-	for _, value := range []string{"●", "Ada Fixture", "@ada", "ctrl+r", "Read-only"} {
+	for _, value := range []string{"●", "Ada Fixture", "@ada", "ctrl+r", "What did you ship?", "c Commit"} {
 		if !strings.Contains(plain, value) {
 			t.Fatalf("workspace lost identity or active reading control %q", value)
 		}
@@ -65,7 +65,7 @@ func TestReaderHasAuthorIdentityAndReadOnlyContext(t *testing.T) {
 			t.Fatal("refresh must not use a case-sensitive letter shortcut")
 		}
 	}
-	for _, value := range []string{"Commit  c", "Search  /"} {
+	for _, value := range []string{"Search  /"} {
 		if strings.Contains(plain, value) {
 			t.Fatalf("obsolete or unfinished control %q", value)
 		}

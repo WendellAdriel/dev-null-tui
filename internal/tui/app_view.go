@@ -21,11 +21,18 @@ func (k appKeys) FullHelp() [][]key.Binding { return [][]key.Binding{k.all} }
 
 func (m AppModel) bindings() appKeys {
 	bind := func(k, label string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, label)) }
-	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("ctrl+r", "refresh")}
+	if m.composer.open {
+		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("f2", m.account.nextTheme()+" theme"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
+		if m.composer.previewing {
+			keys = append(keys, bind("up/down / pgup/pgdown", "scroll preview"))
+		}
+		return appKeys{keys, keys}
+	}
+	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
 	}
-	short = append(short, bind("?", "help"), bind("ctrl+c", "quit"))
+	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
 	all = append(all, bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "select commit"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
@@ -42,6 +49,9 @@ func keyChip(value string, p palette) string {
 }
 
 func (m AppModel) View() tea.View {
+	if m.composer.confirm != "" {
+		return m.draftConfirmationView()
+	}
 	if !m.connected || m.accountOpen {
 		v := m.account.View()
 		v.ReportFocus = true
@@ -57,6 +67,8 @@ func (m AppModel) View() tea.View {
 	var page string
 	if w < 30 || h < 10 {
 		page = "/dev/null needs a bigger terminal."
+	} else if m.composer.open && h < 18 {
+		page = "Enlarge the terminal to compose (18 rows).\nYour draft is kept. Esc to cancel, Ctrl+C to exit."
 	} else {
 		nav, center, aside := m.columns()
 		total := nav + center + aside + 2
@@ -93,12 +105,18 @@ func brand(p palette) string {
 }
 
 func (m AppModel) footer(width int, p palette) string {
-	right := " ? help  ctrl+c quit "
+	if m.composer.open {
+		if len(m.composer.emojis) > 0 {
+			return fit(" ↑/↓ emoji  enter/tab insert  esc dismiss  f2 "+m.account.nextTheme(), width)
+		}
+		return fit(" ctrl+enter send  ctrl+p preview  f2 "+m.account.nextTheme()+"  esc back", width)
+	}
+	right := " f2 " + m.account.nextTheme() + "  ? help  ctrl+c quit "
 	remaining := max(0, width-len(right)-2)
 	status := m.feedStatus()
 	f := m.feeds[m.active]
 	if m.notice == "" && f.status == "" && !m.pendingG && !f.loading && f.newCount == 0 {
-		status = "j/k move   tab log   ctrl+r refresh   y copy link"
+		status = "j/k move   tab log   c compose   ctrl+r refresh"
 	}
 	left := " " + fit(status, remaining)
 	return left + strings.Repeat(" ", max(1, width-lipgloss.Width(left)-lipgloss.Width(right))) + right
@@ -142,11 +160,14 @@ func (m AppModel) feedColumn(width int, p palette) string {
 		if avatar == "" {
 			avatar = text(laneColor(user.Lane, p)).Render("◯ ")
 		}
-		reader := "  " + avatar + " " + text(p.muted).Render("Read-only log")
-		refresh := keyChip("ctrl+r", p)
+		reader := "  " + avatar + " " + text(p.muted).Render("What did you ship?")
+		refresh := keyChip("c Commit", p)
 		reader = fit(reader, max(1, width-lipgloss.Width(refresh)-2)) + strings.Repeat(" ", max(1, width-lipgloss.Width(reader)-lipgloss.Width(refresh)-1)) + refresh
 		hairline := text(p.hairline).Render(strings.Repeat("─", width))
 		content = "\n" + m.feedTabs(width, p) + "\n" + hairline + "\n\n" + reader + "\n\n" + hairline + "\n"
+		if m.composer.open {
+			content = "\n" + m.feedTabs(width, p) + "\n" + hairline + "\n" + m.composerView(width, p) + "\n" + hairline + "\n"
+		}
 		if !f.loaded {
 			title, detail := "Reading your log...", "Fetching commits with your signed connection."
 			if !f.loading && f.status != "" {
@@ -210,7 +231,7 @@ func (m AppModel) aside(width, height int, p palette) string {
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		identity = top + " " + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner-5)) + "\n" + bottom + " " + text(p.muted).Render(fit("@"+safeText(u.Username), inner-5))
 	}
-	context := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(p.hairline)).Width(inner - 2).Render("  Read-only workspace")
+	context := lipgloss.NewStyle().Width(inner).Foreground(lipgloss.Color(p.muted)).Render("  " + keyChip("c", p) + " New commit")
 	content := "\n" + context + "\n\n" + identity + "\n\n"
 	var stats []string
 	for _, stat := range []struct {
@@ -253,7 +274,11 @@ func (m AppModel) aside(width, height int, p palette) string {
 	content += text(p.hairline).Render(strings.Repeat("─", inner)) + "\n\n" + text(p.ink).Bold(true).Render("Shortcuts") + "\n\n"
 	for _, binding := range m.bindings().all {
 		h := binding.Help()
-		if h.Key == "j/k" || h.Key == "tab" || h.Key == "ctrl+r" || h.Key == "y" || h.Key == "a" {
+		if m.composer.open {
+			content += text(p.muted).Render(h.Desc) + "\n" + keyChip(h.Key, p) + "\n\n"
+			continue
+		}
+		if h.Key == "j/k" || h.Key == "tab" || h.Key == "c" || h.Key == "ctrl+r" || h.Key == "y" || h.Key == "a" {
 			content += lipgloss.NewStyle().Width(13).Foreground(lipgloss.Color(p.muted)).Render(h.Desc) + keyChip(h.Key, p) + "\n"
 		}
 	}
@@ -281,7 +306,7 @@ func (m AppModel) feedViewport(p palette) string {
 }
 
 func (m AppModel) helpLines(width int, p palette) []string {
-	lines := []string{text(p.muted).Render("Read-only workspace controls."), ""}
+	lines := []string{text(p.muted).Render("Log and composer controls."), ""}
 	for _, binding := range m.bindings().all {
 		h := binding.Help()
 		chip := keyChip(h.Key, p)

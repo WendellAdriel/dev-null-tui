@@ -228,6 +228,10 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.actionFocus = 0
 	case tea.KeyPressMsg:
+		if msg.String() == "f2" {
+			m.toggleTheme()
+			return m, nil
+		}
 		if msg.String() == "ctrl+c" {
 			m.life.cancel()
 			return m, tea.Quit
@@ -444,6 +448,7 @@ func (m AccountModel) bindings() accountKeys {
 	add := func(keys, label string) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys(keys), key.WithHelp(keys, label)))
 	}
+	add("f2", m.nextTheme()+" theme")
 	if m.help || m.showURL {
 		add("esc", "back")
 		return accountKeys{bindings}

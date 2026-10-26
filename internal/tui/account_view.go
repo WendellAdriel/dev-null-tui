@@ -75,7 +75,7 @@ func (m AccountModel) View() tea.View {
 		top := min(6, max(0, (m.height-lipgloss.Height(page))/3))
 		page = lipgloss.NewStyle().MarginLeft((m.width - width) / 2).MarginTop(top).Render(page)
 	} else if m.width > 0 && m.height > 0 {
-		page = "ACCOUNT\nResize to at least 60x18.\nCtrl+C to quit."
+		page = "ACCOUNT\nResize to at least 60x18.\nf2 " + m.nextTheme() + " theme · Ctrl+C to quit."
 	}
 	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(max(0, m.width)).Height(max(0, m.height)).MaxWidth(max(0, m.width)).MaxHeight(max(0, m.height))
 	view := tea.NewView(frame.Render(page))
@@ -271,7 +271,7 @@ func (m AccountModel) accountFooter(width int, p palette) string {
 	var hints []string
 	for _, binding := range m.bindings().bindings {
 		hint := binding.Help()
-		if hint.Key == "tab" || hint.Key == "enter" || hint.Key == "esc" || hint.Key == "?" || hint.Key == "ctrl+c" || (hint.Key == "d" && m.state == "failed") {
+		if hint.Key == "tab" || hint.Key == "enter" || hint.Key == "esc" || hint.Key == "?" || hint.Key == "ctrl+c" || hint.Key == "f2" || (hint.Key == "d" && m.state == "failed") {
 			hints = append(hints, hint.Key+" "+hint.Desc)
 		}
 	}
