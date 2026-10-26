@@ -124,16 +124,27 @@ func bodyText(commit api.Commit, p palette) string {
 	return strings.TrimSpace(b.String())
 }
 
+type pictureArea struct {
+	uiRect
+	entry, image int
+}
+
 func commitLines(commit api.Commit, width int, p palette, now time.Time, managers ...*graphics.Manager) []string {
 	var manager *graphics.Manager
 	if len(managers) > 0 {
 		manager = managers[0]
 	}
+	lines, _ := commitLayout(commit, "", width, p, now, manager)
+	return lines
+}
+
+// commitLayout renders a commit, with an optional tag such as "quoted" after the username.
+func commitLayout(commit api.Commit, tag string, width int, p palette, now time.Time, manager *graphics.Manager) ([]string, []pictureArea) {
 	if commit.DeletedAt != nil {
-		return []string{text(p.muted).Render("Commit deleted")}
+		return []string{text(p.muted).Render("Commit deleted")}, nil
 	}
 	if commit.Author == nil {
-		return []string{text(p.muted).Render("Commit unavailable")}
+		return []string{text(p.muted).Render("Commit unavailable")}, nil
 	}
 	name := safeText(commit.Author.Name)
 	if name == "" {
@@ -141,6 +152,9 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 	}
 	stamp := relativeAge(commit.CreatedAt, now)
 	meta := text(p.ink).Bold(true).Render(name) + " " + text(p.muted).Render("@"+safeText(commit.Author.Username))
+	if tag != "" {
+		meta += " " + text(p.blue).Render(tag)
+	}
 	if stamp != "" {
 		meta += " " + text(p.muted).Render("· "+stamp)
 	}
@@ -181,9 +195,18 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 			lines = append(lines, text(p.hairline).Render("╰"+strings.Repeat("─", max(0, width-2))+"╯"))
 		}
 	}
+	var areas []pictureArea
 	pictures := pictureLines(commit.Images, width, p, manager)
+	x := 0
+	for i, req := range imageRequests(commit.Images, width) {
+		if len(pictures) == 0 {
+			break
+		}
+		areas = append(areas, pictureArea{uiRect{x, len(lines), req.Cols, len(pictures)}, 0, i})
+		x += req.Cols + 1
+	}
 	lines = append(lines, pictures...)
-	for _, image := range commit.Images {
+	for i, image := range commit.Images {
 		if len(pictures) > 0 {
 			break
 		}
@@ -191,6 +214,7 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 		if image.Description != "" {
 			label += " · " + safeText(image.Description)
 		}
+		areas = append(areas, pictureArea{uiRect{0, len(lines), width, 1}, 0, i})
 		lines = append(lines, fit(text(p.muted).Render(label), width))
 	}
 	if len(commit.Poll) > 0 && string(commit.Poll) != "null" {
@@ -201,22 +225,96 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 		label = "reply"
 	}
 	lines = append(lines, fit(text(p.muted).Render(fmt.Sprintf("☆ %-5d ↩ %d %s", commit.Stars, commit.Replies, label)), width))
-	if commit.ReplyPreview != nil {
-		for _, reply := range commit.ReplyPreview.Data {
-			if reply.DeletedAt != nil || reply.Author == nil {
-				continue
-			}
-			lines = append(lines, fit(text(authorColor(commit.Author, p)).Render("╰─ ")+smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Username)), width))
-			body := strings.Split(ansi.Wrap(bodyText(reply, p), max(1, width-5), ""), "\n")
-			if len(body) > 4 {
-				body = append(body[:3], "…")
-			}
-			for _, line := range body {
-				lines = append(lines, fit("     "+line, width))
-			}
+	for _, reply := range previewReplies(commit) {
+		preview := replyPreview(reply, width-3, p, manager)
+		lines = append(lines, fit(text(authorColor(commit.Author, p)).Render("╰─ ")+preview[0], width))
+		for _, line := range preview[1:] {
+			lines = append(lines, fit("   "+line, width))
 		}
 	}
+	return lines, areas
+}
+
+func previewReplies(commit api.Commit) []api.Commit {
+	if commit.ReplyPreview == nil {
+		return nil
+	}
+	var replies []api.Commit
+	for _, reply := range commit.ReplyPreview.Data {
+		if reply.DeletedAt == nil && reply.Author != nil {
+			replies = append(replies, reply)
+		}
+	}
+	return replies
+}
+
+// replyPreview renders a reply's author line and up to three body lines aligned under the name.
+func replyPreview(reply api.Commit, width int, p palette, manager *graphics.Manager) []string {
+	lines := []string{fit(smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Username)), width)}
+	body := strings.Split(ansi.Wrap(bodyText(reply, p), max(1, width-3), ""), "\n")
+	if len(body) > 4 {
+		body = append(body[:3], "…")
+	}
+	for _, line := range body {
+		lines = append(lines, fit("   "+line, width))
+	}
 	return lines
+}
+
+// feedRail prefixes a commit's rows with its rail: the avatar node, a solid line down to a ring at the stats row,
+// and a dashed spine with elbows into each reply preview.
+func (m AppModel) feedRail(c api.Commit, rows []string, ring int, heads []int, gutter int, lane string, p palette) []string {
+	col := 2
+	if m.images.Enabled {
+		col = 3
+	}
+	last := -1
+	if len(heads) > 0 {
+		last = heads[len(heads)-1]
+	}
+	out := make([]string, len(rows))
+	for row, body := range rows {
+		cells := strings.Split(strings.Repeat(" ", gutter), "")
+		glyph := ""
+		switch {
+		case row == 0:
+			glyph = "●"
+			if c.Status == "pending" {
+				glyph = "◌"
+			}
+		case row < ring:
+			glyph = "│"
+		case row == ring:
+			glyph = "◉"
+		case row < last:
+			glyph = "┆"
+		}
+		for _, head := range heads {
+			if row != head {
+				continue
+			}
+			glyph = "├"
+			if head == last {
+				glyph = "╰"
+			}
+			for extra := col + 1; extra < gutter; extra++ {
+				cells[extra] = text(lane).Render("╌")
+			}
+		}
+		if glyph != "" {
+			cells[col] = text(lane).Render(glyph)
+		}
+		if row == 0 && (c.DeletedAt != nil || c.Author == nil) {
+			cells[col] = text(p.muted).Render("○")
+		}
+		if m.images.Enabled && row < 2 && c.Author != nil && c.DeletedAt == nil {
+			if avatar := m.images.Row(m.avatarRequest(c.Author.AvatarURL, lane, 5, 2), row); avatar != "" {
+				cells[col-2], cells[col-1], cells[col], cells[col+1], cells[col+2] = avatar, "", "", "", ""
+			}
+		}
+		out[row] = strings.Join(cells, "") + body
+	}
+	return out
 }
 
 func (m AppModel) columns() (nav, center, aside int) {
@@ -257,6 +355,7 @@ func (m *AppModel) reflow() {
 			}
 		}
 	}
+	m.sizeThreads()
 }
 
 func (m *AppModel) renderFeed(index int) {
@@ -269,7 +368,7 @@ func (m *AppModel) renderFeed(index int) {
 	}
 	contentWidth := max(1, width-gutter-2)
 	lines := []string{}
-	f.starts, f.ends = nil, nil
+	f.starts, f.ends, f.pictures = nil, nil, nil
 	day := ""
 	for i, c := range f.commits {
 		lane := authorColor(c.Author, p)
@@ -282,36 +381,31 @@ func (m *AppModel) renderFeed(index int) {
 			day = date
 		}
 		f.starts = append(f.starts, len(lines))
-		rows := commitLines(c, contentWidth, p, m.now, m.images)
-		for row, body := range rows {
-			marker := " "
+		previews := previewReplies(c)
+		c.ReplyPreview = nil
+		rows, pictures := commitLayout(c, "", contentWidth, p, m.now, m.images)
+		for _, picture := range pictures {
+			picture.x += gutter
+			picture.y += len(lines)
+			picture.entry = i
+			f.pictures = append(f.pictures, picture)
+		}
+		ring := -1
+		if c.DeletedAt == nil && c.Author != nil && len(rows) > 1 {
+			ring = len(rows) - 1
+		}
+		var heads []int
+		if len(previews) > 0 {
+			rows = append(rows, "")
+		}
+		for _, reply := range previews {
+			heads = append(heads, len(rows))
+			rows = append(rows, replyPreview(reply, contentWidth, p, m.images)...)
+		}
+		for _, line := range m.feedRail(c, rows, ring, heads, gutter, lane, p) {
 			if i == f.selected {
-				marker = text(p.blue).Render("▌")
+				line = text(p.blue).Render("▌") + ansi.Cut(line, 1, width)
 			}
-			node := " "
-			if c.ReplyPreview != nil && len(c.ReplyPreview.Data) > 0 {
-				node = text(lane).Render("│")
-			}
-			if row == 0 {
-				node = text(lane).Render("●")
-				if c.Status == "pending" {
-					node = text(lane).Render("◌")
-				}
-				if c.DeletedAt != nil || c.Author == nil {
-					node = text(p.muted).Render("○")
-				}
-			}
-			prefix := marker + " " + node + "  "
-			if m.images.Enabled {
-				prefix = marker + "  " + node + "   "
-				if row < 2 && c.Author != nil && c.DeletedAt == nil {
-					avatar := m.images.Row(m.avatarRequest(c.Author.AvatarURL, lane, 4, 2), row)
-					if avatar != "" {
-						prefix = marker + " " + avatar + " "
-					}
-				}
-			}
-			line := prefix + body
 			line = lipgloss.NewStyle().Width(width).MaxWidth(width).Render(line)
 			if i == f.selected {
 				line = withBackground(line, p.wash)

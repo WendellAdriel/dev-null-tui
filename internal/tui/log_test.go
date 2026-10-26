@@ -53,8 +53,16 @@ func TestReferenceNodesAndDayGroupsSurvivePagination(t *testing.T) {
 	if !strings.Contains(strings.Join(lines, "\n"), "Yesterday") {
 		t.Fatal("pagination lost the next day group")
 	}
-	if strings.Contains(strings.Join(lines, "\n"), "│") {
-		t.Fatal("unrelated commits must not be joined by reply rails")
+	for i, start := range f.starts {
+		stats := f.ends[i] - 2
+		if !strings.Contains(lines[stats], "☆") || graphCell(t, lines, stats, 2) != "◉" || graphCell(t, lines, start+1, 2) != "│" {
+			t.Fatalf("commit %d lacks its rail and ring:\n%s", i, strings.Join(lines, "\n"))
+		}
+		for line := stats + 1; line < len(lines) && (i+1 >= len(f.starts) || line < f.starts[i+1]); line++ {
+			if cell := graphCell(t, lines, line, 2); cell == "│" || cell == "┆" {
+				t.Fatal("unrelated commits must not be joined by rails")
+			}
+		}
 	}
 	if len(f.starts) != 2 || authorColor(first.Author, colors(true)) != colors(true).lanes[4] {
 		t.Fatal("wrong author lane or missing commit offsets")
@@ -248,11 +256,11 @@ func TestRefreshFailureKeepsPositionAndLetterRDoesNotRefresh(t *testing.T) {
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b"), fixtureCommit("c")}})
 	m, _ = m.handleKey("j")
 	for _, pressed := range []string{"r", "R"} {
-		var cmd tea.Cmd
-		m, cmd = m.handleKey(pressed)
-		if cmd != nil {
+		m, _ = m.handleKey(pressed)
+		if m.feeds[0].loading {
 			t.Fatal("letter r must not refresh in either case")
 		}
+		m = pressApp(m, "esc")
 	}
 	position := m.feeds[0].viewport.YOffset()
 	m.fetch = func(context.Context, api.Log, string, string) (api.Page, error) {
@@ -304,5 +312,42 @@ func TestResizeKeepsSelectedCommitOnScreen(t *testing.T) {
 	f := m.feeds[0]
 	if f.commits[f.selected].ID != "e" || f.starts[f.selected] >= f.viewport.YOffset()+f.viewport.Height() || f.ends[f.selected] <= f.viewport.YOffset() {
 		t.Fatal("resize moved the selected commit off screen")
+	}
+}
+
+func TestReplyPreviewsHangOffTheCommitSpine(t *testing.T) {
+	m := fixtureApp(t)
+	c := fixtureCommit("a")
+	first, second := fixtureCommit("r1"), fixtureCommit("r2")
+	first.Body, second.Body = "First preview", "Second preview"
+	c.ReplyPreview = &struct {
+		Data []api.Commit `json:"data"`
+	}{Data: []api.Commit{first, second}}
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{c}})
+	lines := strings.Split(ansi.Strip(m.feeds[0].viewport.GetContent()), "\n")
+	find := func(text string) int {
+		for i, line := range lines {
+			if strings.Contains(line, text) {
+				return i
+			}
+		}
+		t.Fatalf("missing %q", text)
+		return 0
+	}
+	stats, heads := find("☆"), []int{find("First preview") - 1, find("Second preview") - 1}
+	checks := []struct {
+		line, col int
+		want      string
+	}{
+		{stats, 2, "◉"}, {stats + 1, 2, "┆"}, {heads[0], 2, "├"}, {heads[0], 3, "╌"},
+		{heads[0] + 1, 2, "┆"}, {heads[1], 2, "╰"}, {heads[1] + 1, 2, " "},
+	}
+	for _, c := range checks {
+		if got := graphCell(t, lines, c.line, c.col); got != c.want {
+			t.Fatalf("line %d col %d = %q, want %q:\n%s", c.line, c.col, got, c.want, strings.Join(lines, "\n"))
+		}
+	}
+	if strings.Contains(strings.Join(lines, "\n"), "╰─ ") {
+		t.Fatal("previews kept their inline connector beside the spine")
 	}
 }

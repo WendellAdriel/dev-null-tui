@@ -75,9 +75,10 @@ func TestMouseSelectsRowsAndHelpOwnsScrolling(t *testing.T) {
 	x := (m.account.width-nav-center-aside-2)/2 + nav + 2
 	updated, _ = m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: x, Y: feedHeaderHeight + m.feeds[0].starts[1]})
 	m = updated.(AppModel)
-	if m.feeds[0].selected != 1 {
-		t.Fatal("click must select the commit under the pointer")
+	if m.feeds[0].selected != 1 || len(m.threads) != 1 || m.threads[0].root.ID != "b" {
+		t.Fatal("click must open the thread of the commit under the pointer")
 	}
+	m, _ = m.handleKey("esc")
 	m, _ = m.handleKey("?")
 	before := m.feeds[0].viewport.YOffset()
 	m, _ = m.handleKey("pgdown")

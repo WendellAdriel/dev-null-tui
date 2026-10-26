@@ -28,13 +28,23 @@ func (m AppModel) bindings() appKeys {
 		}
 		return appKeys{keys, keys}
 	}
+	if m.viewer.open {
+		keys := []key.Binding{bind("left/right", "previous or next image"), bind("j/k / wheel", "scroll panel"), bind("n", "more replies"), bind("p", "show or hide panel"), bind("y", "copy image link"), bind("esc", "close viewer"), bind("ctrl+c", "quit")}
+		return appKeys{keys, keys}
+	}
+	if len(m.threads) > 0 {
+		short := []key.Binding{bind("j/k", "move"), bind("r", "reply"), bind("q", "quote"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
+		all := append([]key.Binding(nil), short...)
+		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("ctrl+r", "reload thread"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
+		return appKeys{short, all}
+	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
 	}
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "select commit"), bind("esc", "close overlay"))
+	all = append(all, bind("enter", "open thread"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
 	}
@@ -59,6 +69,13 @@ func filledButton(label, shortcut string, width int, background, foreground stri
 func (m AppModel) View() tea.View {
 	v := m.workspaceView()
 	p := colors(m.account.dark)
+	if m.viewer.open && m.connected && !m.accountOpen && m.account.width >= 30 && m.account.height >= 10 {
+		v.Content, _ = m.viewerLayout(p)
+	}
+	if m.deleting.id != "" && m.connected && !m.accountOpen {
+		content, r, _ := m.deleteModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.composer.open && m.connected && !m.accountOpen {
 		content, r := m.composerModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
@@ -95,6 +112,9 @@ func (m AppModel) workspaceView() tea.View {
 		nav, center, aside := m.columns()
 		total := nav + center + aside + 2
 		main := m.feedColumn(center, p)
+		if len(m.threads) > 0 && m.manualLink == "" {
+			main = m.threadColumn(center, p)
+		}
 		rail := text(p.hairline).Render(strings.TrimSuffix(strings.Repeat("│\n", m.mainHeight()), "\n"))
 		main = lipgloss.JoinHorizontal(lipgloss.Top, m.navigation(nav, m.mainHeight(), p), rail, main, rail)
 		if aside > 0 {
@@ -360,7 +380,7 @@ func (m AppModel) feedViewport(p palette) string {
 }
 
 func (m AppModel) helpLines(width int, p palette) []string {
-	lines := []string{text(p.muted).Render("Log and composer controls."), ""}
+	lines := []string{text(p.muted).Render("Log, thread, and composer controls."), ""}
 	for _, binding := range m.bindings().all {
 		h := binding.Help()
 		chip := keyChip(h.Key, p)

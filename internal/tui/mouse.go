@@ -9,8 +9,14 @@ func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 		key.Code = tea.KeyEnter
 	case "tab":
 		key.Code = tea.KeyTab
+	case "space":
+		key.Code = tea.KeySpace
 	case "down":
 		key.Code = tea.KeyDown
+	case "left":
+		key.Code = tea.KeyLeft
+	case "right":
+		key.Code = tea.KeyRight
 	case "esc":
 		key.Code = tea.KeyEscape
 	case "f2":
@@ -72,6 +78,18 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.composer.open && m.connected && !m.accountOpen {
 		return m.composerMouse(msg)
 	}
+	if m.connected && m.deleting.id != "" {
+		_, _, areas := m.deleteModal(colors(m.account.dark))
+		for _, area := range areas {
+			if area.contains(msg.X, msg.Y) {
+				return m.mouseKey(area.action)
+			}
+		}
+		return m, nil
+	}
+	if m.connected && !m.accountOpen && m.viewer.open {
+		return m.viewerMouse(msg.X, msg.Y)
+	}
 	if !m.connected || m.accountOpen {
 		_, areas := m.account.accountScreen(colors(m.account.dark))
 		for _, area := range areas {
@@ -125,7 +143,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if (uiRect{left + nav + 1, 5, center, 1}).contains(msg.X, msg.Y) {
+	if len(m.threads) == 0 && (uiRect{left + nav + 1, 5, center, 1}).contains(msg.X, msg.Y) {
 		return m.mouseKey("c")
 	}
 	return m.handleFeedMouse(msg)
@@ -190,7 +208,7 @@ func (m *AppModel) dragComposer(x, y int) {
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
-	if m.composer.confirm != "" {
+	if m.composer.confirm != "" || m.deleting.id != "" {
 		return m, nil
 	}
 	code := tea.KeyDown

@@ -27,6 +27,7 @@ type feed struct {
 	selected             int
 	viewport             viewport.Model
 	starts, ends         []int
+	pictures             []pictureArea
 	next, status         string
 	loadingMode          string
 	loaded, loading      bool
@@ -47,9 +48,9 @@ type pollLogs struct {
 	at      time.Time
 }
 type clipboardResult struct {
-	session int
-	url     string
-	err     error
+	session   int
+	url, what string
+	err       error
 }
 
 type AppModel struct {
@@ -66,8 +67,16 @@ type AppModel struct {
 	helpScroll                             int
 	graphicsSupported                      bool
 	composer                               composer
-	submit                                 func(context.Context, string) (api.Commit, error)
+	submit                                 func(context.Context, api.NewCommit) (api.Commit, error)
 	preview                                func(context.Context, string) (api.Preview, error)
+	loadThread                             func(context.Context, string) (api.Thread, error)
+	loadReplies                            func(context.Context, string, string) (api.Replies, error)
+	deleteCommit                           func(context.Context, string) error
+	threads                                []threadState
+	threadGeneration                       int
+	viewer                                 viewerState
+	deleting                               deleteConfirm
+	deletingID                             string
 	toast                                  toastNotice
 }
 
@@ -94,6 +103,8 @@ func (m AppModel) Close() error {
 			f.cancel()
 		}
 	}
+	m.closeAllThreads()
+	m.closeViewer()
 	return m.account.Close()
 }
 
@@ -119,6 +130,15 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case previewResult:
 		cmd := m.acceptPreview(msg)
 		return m, cmd
+	case threadResult:
+		cmd := m.acceptThread(msg)
+		return m, cmd
+	case repliesResult:
+		cmd := m.acceptReplies(msg)
+		return m, cmd
+	case deleteResult:
+		cmd := m.acceptDelete(msg)
+		return m, cmd
 	case uv.KittyGraphicsEvent:
 		if msg.Options.ID == m.images.ProbeID && string(msg.Payload) == "OK" {
 			m.graphicsSupported = true
@@ -129,6 +149,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case graphics.Result:
 		raw := m.images.Accept(msg)
 		m.renderFeed(m.active)
+		if len(m.threads) > 0 {
+			m.renderThread(&m.threads[len(m.threads)-1])
+		}
 		if raw != "" {
 			return m, tea.Raw(raw)
 		}
@@ -193,10 +216,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.err != nil {
+			m.closeViewer()
 			m.manualLink = msg.url
 			m.notice = "Clipboard unavailable. Select and copy the link below."
-		} else {
-			m.notice = "Commit link copied"
+			return m, nil
+		}
+		m.notice = msg.what + " copied"
+		if m.viewer.open {
+			return m, m.notify("success", msg.what+" copied", safeText(msg.url))
 		}
 		return m, nil
 	case logResult:
@@ -212,10 +239,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.err != nil {
 			f.submitted = nil
 			var failure *auth.APIError
-			if errors.As(msg.err, &failure) && failure.Status == http.StatusUnauthorized {
-				m.leaveApplication()
-				m.account.state, m.account.status = "failed", "Device approval is no longer valid. Connect again."
-				m.account.approvalRequired = true
+			if m.revoked(msg.err) {
 				if msg.mode == "refresh" {
 					return m, m.notify("error", "Refresh failed", m.account.status)
 				}
@@ -293,6 +317,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.composerKey(msg)
 			return m, cmd
 		}
+		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
+			cmd := m.deleteKey(msg.String())
+			return m, cmd
+		}
 		if msg.String() == "ctrl+c" {
 			if m.composer.input.Value() != "" {
 				m.composer.open = true
@@ -335,6 +363,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetch = client.Log
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
+		if m.loadThread == nil {
+			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
+		}
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
@@ -359,6 +390,12 @@ func (m *AppModel) leaveApplication() {
 	m.composer.open, m.composer.sending, m.composer.loadingPreview = false, false, false
 	m.composer.generation++
 	m.connected, m.accountOpen, m.help = false, false, false
+	m.closeAllThreads()
+	m.closeViewer()
+	m.deleting, m.deletingID = deleteConfirm{}, ""
+	if m.images != nil {
+		m.images.Forget()
+	}
 	m.session++
 	m.fetch = nil
 	m.manualLink, m.notice = "", ""
@@ -429,6 +466,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.viewer.open {
+		return m.viewerKey(pressed)
+	}
 	if pressed == "?" {
 		m.help = !m.help
 		m.helpScroll = 0
@@ -455,6 +495,13 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.helpScroll = max(0, min(m.helpMaxScroll(), m.helpScroll))
 		return m, nil
 	}
+	if len(m.threads) > 0 {
+		next, cmd, handled := m.threadKey(pressed)
+		if handled || (pressed != "c" && pressed != "a") {
+			return next, cmd
+		}
+		m = next
+	}
 	if m.pendingG {
 		m.resetSequence()
 		switch pressed {
@@ -468,8 +515,25 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	switch pressed {
 	case "c":
-		cmd := m.openComposer()
+		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
+	case "enter", "r", "q", "v", "D":
+		f := &m.feeds[m.active]
+		if len(f.commits) == 0 {
+			return m, nil
+		}
+		selected := f.commits[f.selected]
+		switch pressed {
+		case "r", "q":
+			mode := map[string]string{"r": "reply", "q": "quote"}[pressed]
+			return m, m.composeTo(mode, selected)
+		case "v":
+			return m, m.openViewer(selected, 0)
+		case "D":
+			m.confirmDelete(selected)
+			return m, nil
+		}
+		return m, m.openThread(selected)
 	case "g":
 		m.pendingG = true
 		m.generation++
@@ -520,17 +584,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		if len(f.commits) == 0 {
 			return m, nil
 		}
-		raw := f.commits[f.selected].URL
-		if !m.validCommitURL(raw) {
-			m.notice = "The selected commit has no safe link to copy"
-			return m, nil
-		}
-		session, copyLink := m.session, m.copyLink
-		return m, m.account.life.command(func() tea.Msg {
-			ctx, cancel := context.WithTimeout(m.account.life.ctx, 3*time.Second)
-			defer cancel()
-			return clipboardResult{session, raw, copyLink(ctx, raw)}
-		})
+		return m, m.copyCommitLink(f.commits[f.selected])
 	case "esc":
 		m.resetSequence()
 		m.notice = ""
@@ -570,6 +624,9 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if x < 0 || x >= center {
 		return m, nil
 	}
+	if len(m.threads) > 0 {
+		return m.threadMouse(x, msg.Y)
+	}
 	if msg.Y == 1 || msg.Y == 2 {
 		return m.switchLog(min(2, x/(center/3)))
 	}
@@ -578,9 +635,16 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	row := msg.Y - feedHeaderHeight + f.viewport.YOffset()
+	for _, picture := range f.pictures {
+		if picture.contains(x, row) {
+			m, _ = m.selectCommit(picture.entry)
+			return m, m.openViewer(f.commits[picture.entry], picture.image)
+		}
+	}
 	for i, start := range f.starts {
 		if row >= start && row < f.ends[i] {
-			return m.selectCommit(i)
+			m, _ = m.selectCommit(i)
+			return m, m.openThread(f.commits[i])
 		}
 	}
 	return m, nil
@@ -629,6 +693,9 @@ func (m *AppModel) revealSelection() {
 
 func (m AppModel) feedStatus() string {
 	f := m.feeds[m.active]
+	if len(m.threads) > 0 && m.notice == "" {
+		return m.threadStatus()
+	}
 	if m.pendingG {
 		return "g ...  l Log  e Trending  (1 second)"
 	}

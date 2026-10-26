@@ -68,7 +68,7 @@ func TestSubmissionSingleFlightAndUncertainRecovery(t *testing.T) {
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Synthetic draft")
 	calls := 0
-	m.submit = func(context.Context, string) (api.Commit, error) {
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
 		calls++
 		return api.Commit{}, errors.New("transport lost")
 	}
@@ -99,7 +99,7 @@ func TestSubmissionModerationAndFeedIsolation(t *testing.T) {
 			m.composer.input.SetValue("Synthetic draft")
 			commit := fixtureCommit("new")
 			commit.Status = status
-			m.submit = func(context.Context, string) (api.Commit, error) { return commit, nil }
+			m.submit = func(context.Context, api.NewCommit) (api.Commit, error) { return commit, nil }
 			cmd := m.startSubmission()
 			result := cmd().(submissionResult)
 			stale := result
@@ -175,7 +175,7 @@ func TestComposerServerFailuresKeepDraftAndExplainRecovery(t *testing.T) {
 			m := fixtureApp(t)
 			m = pressApp(m, "c")
 			m.composer.input.SetValue("Synthetic private draft")
-			m.submit = func(context.Context, string) (api.Commit, error) { return api.Commit{}, tc.err }
+			m.submit = func(context.Context, api.NewCommit) (api.Commit, error) { return api.Commit{}, tc.err }
 			cmd := m.startSubmission()
 			next, _ := m.Update(cmd())
 			m = next.(AppModel)
@@ -190,7 +190,9 @@ func TestRevokedSubmissionRetainsDraftAndProtectsExitOnLogin(t *testing.T) {
 	m := fixtureApp(t)
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Synthetic retained draft")
-	m.submit = func(context.Context, string) (api.Commit, error) { return api.Commit{}, &auth.APIError{Status: 401} }
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
+		return api.Commit{}, &auth.APIError{Status: 401}
+	}
 	cmd := m.startSubmission()
 	next, _ := m.Update(cmd())
 	m = next.(AppModel)
@@ -211,7 +213,7 @@ func TestComposerModifierShortcutsAndSendingInputOwnership(t *testing.T) {
 	m := fixtureApp(t)
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Synthetic draft")
-	m.submit = func(context.Context, string) (api.Commit, error) { return api.Commit{}, errors.New("offline") }
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) { return api.Commit{}, errors.New("offline") }
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter, Mod: tea.ModCtrl})
 	m = next.(AppModel)
 	if cmd == nil || !m.composer.sending {
@@ -345,7 +347,7 @@ func TestSuccessfulSubmissionSurvivesOlderInitialLogResult(t *testing.T) {
 		old := logResult{index: 0, generation: m.feeds[0].generation, mode: "initial", page: api.Page{Data: []api.Commit{fixtureCommit("old")}, Next: "older-cursor"}}
 		m = pressApp(m, "c")
 		m.composer.input.SetValue("Synthetic new")
-		m.submit = func(context.Context, string) (api.Commit, error) {
+		m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
 			c := fixtureCommit("new")
 			c.Status = "pending"
 			return c, nil
@@ -378,7 +380,7 @@ func TestReturningToSubmittedLogResumesItsCanceledInitialLoad(t *testing.T) {
 	m = applyPage(m, 1, api.Page{Data: []api.Commit{fixtureCommit("other")}})
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Synthetic new")
-	m.submit = func(context.Context, string) (api.Commit, error) {
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
 		c := fixtureCommit("new")
 		c.Status = "pending"
 		return c, nil

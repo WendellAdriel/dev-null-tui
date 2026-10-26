@@ -111,7 +111,7 @@ func TestMouseSubmitIsSingleFlightAndShowsModerationToast(t *testing.T) {
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Synthetic draft")
 	calls := 0
-	m.submit = func(context.Context, string) (api.Commit, error) {
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
 		calls++
 		c := fixtureCommit("posted")
 		c.Status = "pending"
@@ -149,7 +149,9 @@ func TestToastExpiryCannotDismissANewerNoticeAndErrorsKeepDraft(t *testing.T) {
 	}
 	m = pressApp(m, "c")
 	m.composer.input.SetValue("Retain this draft")
-	m.submit = func(context.Context, string) (api.Commit, error) { return api.Commit{}, errors.New("lost connection") }
+	m.submit = func(context.Context, api.NewCommit) (api.Commit, error) {
+		return api.Commit{}, errors.New("lost connection")
+	}
 	cmd := m.startSubmission()
 	next, _ = m.Update(cmd())
 	m = next.(AppModel)

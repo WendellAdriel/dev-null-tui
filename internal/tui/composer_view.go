@@ -26,7 +26,14 @@ func (m AppModel) composerBounds() uiRect {
 func (m AppModel) composerUsable() bool { return m.account.width >= 48 && m.account.height >= 18 }
 func (m AppModel) composerEditorBounds() uiRect {
 	r := m.composerBounds()
-	return uiRect{r.x + 7, r.y + 4, m.composer.input.Width(), m.composer.input.Height()}
+	return uiRect{r.x + 7, r.y + 4 + m.composerContextRows(), m.composer.input.Width(), m.composer.input.Height()}
+}
+
+func (m AppModel) composerContextRows() int {
+	if m.composer.mode == "" {
+		return 0
+	}
+	return 2
 }
 
 func (m AppModel) composerLabels() []string {
@@ -71,7 +78,7 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	if !m.composerUsable() {
 		body = "Resize to at least 48x18.\nYour draft is kept.\nEsc to close safely."
 	}
-	title := "New commit"
+	title := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote commit"}[m.composer.mode]
 	if m.composer.previewing {
 		title = "Preview commit"
 	}
@@ -86,7 +93,7 @@ func (m *AppModel) sizeComposer() {
 	}
 	width := max(1, m.composerBounds().w-4)
 	c.input.SetWidth(max(1, width-7))
-	c.input.SetHeight(max(1, m.composerHeight()-5))
+	c.input.SetHeight(max(1, m.composerHeight()-5-m.composerContextRows()))
 	p := colors(m.account.dark)
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
@@ -106,11 +113,19 @@ func (m AppModel) composerView(width int, p palette) string {
 	if c.input.Value() != "" {
 		marker = text(lane).Render("●")
 	}
-	label := "New commit"
+	label := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote"}[c.mode]
 	if c.previewing {
 		label = "Preview"
 	}
 	rows := []string{"  " + marker + "  " + text(p.ink).Bold(true).Render(label) + " " + text(p.muted).Render("@"+safeText(m.account.user.Username))}
+	if c.mode != "" && c.target.Author != nil {
+		action := "↩ Replying to @"
+		if c.mode == "quote" {
+			action = "❝ Quoting @"
+		}
+		excerpt := strings.SplitN(ansi.Strip(bodyText(c.target, p)), "\n", 2)[0]
+		rows = append(rows, "     "+text(p.blue).Render(fit(action+safeText(c.target.Author.Username), inner)), "     "+text(p.muted).Render(fit(excerpt, inner)))
+	}
 	body := c.input.View()
 	if c.previewing {
 		body = ansi.Wrap(bodyText(api.Commit{Body: c.preview.Body, Segments: c.preview.Segments}, p), inner, "")

@@ -20,7 +20,8 @@ type composer struct {
 	open, sending, previewing, loadingPreview, uncertain bool
 	focus, generation, log                               int
 	previewOffset                                        int
-	status, confirm, owner                               string
+	status, confirm, owner, mode                         string
+	target                                               api.Commit
 	confirmFocus                                         int
 	dragging                                             bool
 	preview                                              api.Preview
@@ -62,6 +63,24 @@ func (m *AppModel) openComposer() tea.Cmd {
 		return nil
 	}
 	return m.focusComposer()
+}
+
+func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
+	if mode != "" && (target.DeletedAt != nil || target.Author == nil) {
+		return nil
+	}
+	c := &m.composer
+	if c.owner != "" && c.input.Value() != "" {
+		cmd := m.openComposer()
+		if m.composer.mode != mode || m.composer.target.ID != target.ID {
+			m.composer.status = "Finish or discard this draft before starting another."
+		}
+		return cmd
+	}
+	cmd := m.openComposer()
+	m.composer.mode, m.composer.target = mode, target
+	m.sizeComposer()
+	return cmd
 }
 
 func (m *AppModel) focusComposer() tea.Cmd {
@@ -313,10 +332,17 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	c.input.Blur()
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	c.cancel = cancel
-	session, generation, body, submit := m.session, c.generation, c.input.Value(), m.submit
+	draft := api.NewCommit{Body: c.input.Value()}
+	switch c.mode {
+	case "reply":
+		draft.ParentID = c.target.ID
+	case "quote":
+		draft.QuotedID = c.target.ID
+	}
+	session, generation, submit := m.session, c.generation, m.submit
 	return m.account.life.command(func() tea.Msg {
 		defer cancel()
-		commit, err := submit(ctx, body)
+		commit, err := submit(ctx, draft)
 		return submissionResult{session: session, generation: generation, commit: commit, err: err}
 	})
 }
@@ -394,8 +420,9 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 		c.status = "Rejected. Not public. Your draft is kept for editing."
 		return tea.Batch(m.focusComposer(), m.notify("error", "Commit rejected", c.status))
 	}
+	m.addToThreads(c.mode, c.target.ID, commit)
 	index := c.log
-	if index != 2 {
+	if c.mode != "reply" && index != 2 {
 		f := &m.feeds[index]
 		if f.loading && f.loadingMode == "initial" {
 			f.submitted = append([]api.Commit{commit}, f.submitted...)
@@ -414,10 +441,13 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 		f.viewport.GotoTop()
 	}
 	m.notice = "Submitted (" + commit.Status + ")."
+	if c.mode == "reply" {
+		m.notice = "Reply submitted (" + commit.Status + ")."
+	}
 	if commit.Status == "pending" {
 		m.notice += " Awaiting review, not public yet."
 	}
-	if index == 2 {
+	if index == 2 && c.mode != "reply" {
 		m.notice += " Trending stays ranked. Refresh to check for it."
 	}
 	m.clearComposer()
@@ -446,6 +476,9 @@ func (m AppModel) composerError(err error) string {
 		}
 		if failure.Status == http.StatusUnauthorized {
 			return "Device approval is invalid. Your draft is kept. Reconnect before submitting."
+		}
+		if failure.Status == http.StatusNotFound {
+			return "That commit is no longer available. Your draft is kept."
 		}
 		if failure.Status == http.StatusUnprocessableEntity && len(failure.BodyErrors) > 0 {
 			return safeText(strings.Join(failure.BodyErrors, " "))

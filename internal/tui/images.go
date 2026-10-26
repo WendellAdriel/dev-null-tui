@@ -32,17 +32,47 @@ func imageRequests(images []api.Image, width int) []graphics.Request {
 	return requests
 }
 
-func (m *AppModel) syncImages() tea.Cmd {
+// visibleMedia lists the images and avatars on screen, attached images first.
+func (m AppModel) visibleMedia() []graphics.Request {
+	if !m.connected || m.accountOpen || !m.images.Enabled || m.account.width < 30 || m.account.height < 10 {
+		return nil
+	}
+	p := colors(m.account.dark)
 	var requests, avatars []graphics.Request
-	if m.connected && !m.accountOpen && m.images.Enabled && m.account.width >= 30 && m.account.height >= 10 {
-		p := colors(m.account.dark)
+	if m.viewer.open {
+		requests = []graphics.Request{m.viewerRequest()}
+		if c := m.viewer.commit; c.Author != nil && c.DeletedAt == nil {
+			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 5, 2))
+		}
+		for _, reply := range m.viewer.replies {
+			if reply.Author != nil && reply.DeletedAt == nil {
+				avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
+			}
+		}
+	} else {
 		f := &m.feeds[m.active]
-		for i, c := range f.commits {
-			if i >= len(f.starts) || f.ends[i] <= f.viewport.YOffset() || f.starts[i] >= f.viewport.YOffset()+f.viewport.Height() || c.DeletedAt != nil || c.Author == nil {
+		commits, starts, ends, widths, view := f.commits, f.starts, f.ends, []int(nil), f.viewport
+		if len(m.threads) > 0 {
+			t := m.threads[len(m.threads)-1]
+			commits, starts, ends, widths, view = nil, t.starts, t.ends, t.widths, t.viewport
+			for _, entry := range t.entries() {
+				entry.commit.ReplyPreview = nil
+				if entry.kind == "quote" {
+					entry.commit.Quote = nil
+				}
+				commits = append(commits, entry.commit)
+			}
+		}
+		for i, c := range commits {
+			if i >= len(starts) || ends[i] <= view.YOffset() || starts[i] >= view.YOffset()+view.Height() || c.DeletedAt != nil || c.Author == nil {
 				continue
 			}
-			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 4, 2))
-			requests = append(requests, imageRequests(c.Images, max(1, f.viewport.Width()-9))...)
+			width := max(1, view.Width()-9)
+			if i < len(widths) {
+				width = widths[i]
+			}
+			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 5, 2))
+			requests = append(requests, imageRequests(c.Images, width)...)
 			if c.Quote != nil && c.Quote.DeletedAt == nil && c.Quote.Author != nil {
 				avatars = append(avatars, m.avatarRequest(c.Quote.Author.AvatarURL, authorColor(c.Quote.Author, p), 2, 1))
 			}
@@ -54,14 +84,17 @@ func (m *AppModel) syncImages() tea.Cmd {
 				}
 			}
 		}
-		u := m.account.user
-		avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
-		_, _, aside := m.columns()
-		if aside > 0 {
-			avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
-		}
 	}
-	jobs, cleanup := m.images.Plan(m.account.life.ctx, append(requests, avatars...))
+	u := m.account.user
+	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
+	if _, _, aside := m.columns(); aside > 0 {
+		avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+	}
+	return append(requests, avatars...)
+}
+
+func (m *AppModel) syncImages() tea.Cmd {
+	jobs, cleanup := m.images.Plan(m.account.life.ctx, m.visibleMedia())
 	var commands []tea.Cmd
 	if cleanup != "" {
 		commands = append(commands, tea.Raw(cleanup))

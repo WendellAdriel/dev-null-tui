@@ -100,7 +100,7 @@ func TestReaderHasAuthorIdentityAndComposerEntry(t *testing.T) {
 		}
 	}
 	for _, binding := range m.bindings().all {
-		if binding.Help().Key == "r" || binding.Help().Key == "R" {
+		if h := binding.Help(); (h.Key == "r" || h.Key == "R") && h.Desc != "reply" {
 			t.Fatal("refresh must not use a case-sensitive letter shortcut")
 		}
 	}
