@@ -39,6 +39,7 @@ type APIError struct {
 	Status     int
 	Code       string
 	RetryAfter string
+	BodyErrors []string
 }
 
 func (e *APIError) Error() string {
@@ -53,6 +54,8 @@ func (e *APIError) Error() string {
 		return "too many attempts; wait before retrying"
 	case "banned":
 		return "this account cannot access the API"
+	case "commit_rules_required":
+		return "your first commit must come from the web after reading the commit rules"
 	}
 	return fmt.Sprintf("account request failed (HTTP %d)", e.Status)
 }
@@ -124,6 +127,17 @@ func (c *Client) GetJSON(ctx context.Context, target string, result any) error {
 	return nil
 }
 
+func (c *Client) PostJSON(ctx context.Context, target string, body []byte, result any) error {
+	data, err := c.send(ctx, http.MethodPost, target, body)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, result); err != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
+}
+
 func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	u, err := c.origin.Parse(path)
 	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || u.User != nil || u.Fragment != "" || !strings.HasPrefix(u.Path, "/api/v1/") {
@@ -161,12 +175,15 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]
 	if err != nil || len(data) > 1<<20 {
 		return nil, errors.New("server returned an unreadable response")
 	}
-	if response.StatusCode != http.StatusOK {
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
 		var failure struct {
-			Code string `json:"code"`
+			Code   string `json:"code"`
+			Errors struct {
+				Body []string `json:"body"`
+			} `json:"errors"`
 		}
 		_ = json.Unmarshal(data, &failure)
-		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After")}
+		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors.Body}
 	}
 	return data, nil
 }
