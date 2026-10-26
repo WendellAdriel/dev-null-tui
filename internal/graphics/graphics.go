@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/x/ansi"
@@ -219,21 +220,21 @@ func (m *Manager) dial(ctx context.Context, network, address string) (net.Conn, 
 		}
 		trusted = strings.EqualFold(host, m.origin.Hostname()) && port == originPort
 	}
-	addresses, err := net.DefaultResolver.LookupIPAddr(ctx, host)
-	if err != nil {
-		return nil, errors.New("image host unavailable")
-	}
-	for _, ip := range addresses {
-		if !trusted && (!ip.IP.IsGlobalUnicast() || ip.IP.IsPrivate() || ip.IP.IsLoopback() || ip.IP.IsLinkLocalUnicast()) {
-			continue
+	dialer := net.Dialer{Timeout: 5 * time.Second, ControlContext: func(_ context.Context, _ string, address string, _ syscall.RawConn) error {
+		if trusted {
+			return nil
 		}
-		dialer := net.Dialer{Timeout: 5 * time.Second}
-		conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.IP.String(), port))
-		if err == nil {
-			return conn, nil
+		host, _, err := net.SplitHostPort(address)
+		if err != nil {
+			return errors.New("image host unavailable")
 		}
-	}
-	return nil, errors.New("image host unavailable")
+		ip := net.ParseIP(host)
+		if !ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() {
+			return errors.New("image host unavailable")
+		}
+		return nil
+	}}
+	return dialer.DialContext(ctx, network, address)
 }
 
 func (m *Manager) download(ctx context.Context, raw string) ([]byte, error) {
