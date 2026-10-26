@@ -44,7 +44,7 @@ func TestComposerPreviewAndSubmitShortcutsAreVisibleAndWork(t *testing.T) {
 			t.Fatalf("submit shortcut not handled: %+v", key)
 		}
 	}
-	for _, hint := range []string{"ctrl+enter", "ctrl+p", "f2"} {
+	for _, hint := range []string{"ctrl+enter", "ctrl+p", "ctrl+s"} {
 		if !strings.Contains(ansi.Strip(m.View().Content), hint) {
 			t.Fatalf("shortcut %s hidden", hint)
 		}
@@ -156,7 +156,7 @@ func TestDraftConfirmationUsesBrandAndKeepsActionsVisible(t *testing.T) {
 		m.composer.input.SetValue("Synthetic draft")
 		m = pressApp(m, "ctrl+c")
 		frame := ansi.Strip(m.View().Content)
-		for _, value := range []string{"/dev/null", "DRAFT PROTECTION", "Keep draft", "Exit", "f2"} {
+		for _, value := range []string{"/dev/null", "DRAFT PROTECTION", "Keep draft", "Exit", "ctrl+k", "ctrl+d", "Back"} {
 			if !strings.Contains(frame, value) {
 				t.Fatalf("confirmation lacks %q at %v", value, size)
 			}

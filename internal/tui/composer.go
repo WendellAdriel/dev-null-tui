@@ -21,7 +21,7 @@ type composer struct {
 	focus, generation, log                               int
 	previewOffset                                        int
 	status, confirm, owner                               string
-	confirmAction                                        bool
+	confirmFocus                                         int
 	dragging                                             bool
 	preview                                              api.Preview
 	cancel                                               context.CancelFunc
@@ -91,7 +91,7 @@ func (m *AppModel) requestDraftAction(action string) tea.Cmd {
 		}
 		return nil
 	}
-	c.confirm, c.confirmAction = action, false
+	c.confirm, c.confirmFocus = action, 0
 	c.input.Blur()
 	return nil
 }
@@ -101,26 +101,34 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	pressed := msg.String()
 	if c.confirm != "" {
 		switch pressed {
-		case "tab", "shift+tab", "left", "right":
-			c.confirmAction = !c.confirmAction
+		case "tab", "right":
+			c.confirmFocus = (c.confirmFocus + 1) % 3
+		case "shift+tab", "left":
+			c.confirmFocus = (c.confirmFocus + 2) % 3
 		case "esc":
 			c.confirm = ""
-			c.confirmAction = false
+			c.confirmFocus = 0
 			return m.focusComposer()
+		case "ctrl+k":
+			return m.keepDraft()
+		case "ctrl+d":
+			if c.confirm != "retry" {
+				return m.confirmDraftAction()
+			}
+		case "ctrl+s":
+			if c.confirm == "retry" {
+				return m.confirmDraftAction()
+			}
 		case "enter":
-			action, proceed := c.confirm, c.confirmAction
-			c.confirm, c.confirmAction = "", false
-			if !proceed {
+			switch c.confirmFocus {
+			case 0:
+				return m.keepDraft()
+			case 1:
+				return m.confirmDraftAction()
+			case 2:
+				c.confirm = ""
+				c.confirmFocus = 0
 				return m.focusComposer()
-			}
-			if action == "retry" {
-				c.uncertain = false
-				return m.startSubmission()
-			}
-			m.clearComposer()
-			if action == "exit" {
-				m.account.life.cancel()
-				return tea.Quit
 			}
 		}
 		return nil
@@ -213,6 +221,42 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	return m.updateComposerInput(msg)
 }
 
+func (m *AppModel) keepDraft() tea.Cmd {
+	c := &m.composer
+	if c.loadingPreview {
+		if c.cancel != nil {
+			c.cancel()
+			c.cancel = nil
+		}
+		c.generation++
+		c.loadingPreview = false
+		c.status = ""
+	}
+	c.open, c.dragging = false, false
+	c.confirm, c.confirmFocus = "", 0
+	c.emojis = nil
+	c.input.EndSelection()
+	c.input.Blur()
+	m.reflow()
+	return nil
+}
+
+func (m *AppModel) confirmDraftAction() tea.Cmd {
+	c := &m.composer
+	action := c.confirm
+	c.confirm, c.confirmFocus = "", 0
+	if action == "retry" {
+		c.uncertain = false
+		return m.startSubmission()
+	}
+	m.clearComposer()
+	if action == "exit" {
+		m.account.life.cancel()
+		return tea.Quit
+	}
+	return nil
+}
+
 func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 	c := &m.composer
 	if c.owner != m.account.user.ID {
@@ -256,7 +300,7 @@ func (m *AppModel) startSubmission() tea.Cmd {
 		return m.notify("error", "Cannot submit", c.status)
 	}
 	if c.uncertain {
-		c.confirm, c.confirmAction = "retry", false
+		c.confirm, c.confirmFocus = "retry", 0
 		return nil
 	}
 	if c.cancel != nil {

@@ -12,7 +12,8 @@ import (
 )
 
 func (m AppModel) composerHeight() int {
-	return max(1, m.composerBounds().h-6)
+	footer, _ := m.composerFooter()
+	return max(1, m.composerBounds().h-5-lipgloss.Height(footer))
 }
 
 func (m AppModel) headerHeight() int {
@@ -40,14 +41,28 @@ func (m AppModel) composerLabels() []string {
 }
 
 func (m AppModel) composerControls() []hitArea {
-	r := m.composerBounds()
-	x := r.x + 7
-	var controls []hitArea
-	for i, label := range m.composerLabels() {
-		controls = append(controls, hitArea{uiRect{x, r.y + r.h - 4, len(label) + 2, 1}, "composer", i + 1})
-		x += len(label) + 3
-	}
+	_, controls := m.composerFooter()
 	return controls
+}
+
+func (m AppModel) composerFooter() (string, []hitArea) {
+	r := m.composerBounds()
+	var actions []modalAction
+	for i, label := range m.composerLabels() {
+		shortcut := []string{"ctrl+p", "ctrl+enter/ctrl+s", "esc"}[i]
+		actions = append(actions, modalAction{label, shortcut, ""})
+	}
+	focus := m.composer.focus
+	if m.composer.sending {
+		focus = 0
+	}
+	foot, areas := modalFooter(actions, max(1, r.w-4), focus, colors(m.account.dark))
+	for i := range areas {
+		areas[i].x += r.x + 2
+		areas[i].y += r.y + r.h - 1 - lipgloss.Height(foot)
+		areas[i].index++
+	}
+	return foot, areas
 }
 
 func (m AppModel) composerModal(p palette) (string, uiRect) {
@@ -60,7 +75,8 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	if m.composer.previewing {
 		title = "Preview commit"
 	}
-	return panel(title, body, m.footer(max(1, r.w-4), p), r, p), r
+	footer, _ := m.composerFooter()
+	return panel(title, body, footer, r, p), r
 }
 
 func (m *AppModel) sizeComposer() {
@@ -70,7 +86,7 @@ func (m *AppModel) sizeComposer() {
 	}
 	width := max(1, m.composerBounds().w-4)
 	c.input.SetWidth(max(1, width-7))
-	c.input.SetHeight(max(1, m.composerHeight()-6))
+	c.input.SetHeight(max(1, m.composerHeight()-5))
 	p := colors(m.account.dark)
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
@@ -110,9 +126,6 @@ func (m AppModel) composerView(width int, p palette) string {
 	counter := fmt.Sprintf("%d/%d", count, api.MaxBodyLength)
 	rows = append(rows, "     "+text(p.muted).Render(counter))
 	status := c.status
-	if status == "" {
-		status = "Ctrl+Enter or Ctrl+S submits. Ctrl+P previews. Tab selects controls."
-	}
 	if c.uncertain && c.status == "" {
 		status = "Previous outcome unknown. Check the web before submitting again."
 	}
@@ -131,35 +144,22 @@ func (m AppModel) composerView(width int, p palette) string {
 		statusView = strings.Join(suggestions, "\n")
 	}
 	rows = append(rows, lipgloss.NewStyle().Width(inner).Height(3).MaxHeight(3).MarginLeft(5).Foreground(lipgloss.Color(p.muted)).Render(statusView))
-	button := func(label string, focused bool) string {
-		if focused && !c.sending {
-			return text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render("[" + label + "]")
-		}
-		return text(p.muted).Render(" " + label + " ")
-	}
-	var buttons []string
-	for i, label := range m.composerLabels() {
-		buttons = append(buttons, button(label, c.focus == i+1))
-	}
-	rows = append(rows, "     "+strings.Join(buttons, " "))
 	return lipgloss.NewStyle().Width(width).Height(m.composerHeight()).MaxHeight(m.composerHeight()).Render(strings.Join(rows, "\n"))
 }
 
 func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 	c := m.composer
-	title, action := "Discard this draft?", "Discard draft"
-	detail := "Keep editing, or discard the text stored in this session."
+	title := "Discard this draft?"
+	detail := "Keep the text for later, discard it, or go back to editing."
 	if c.confirm == "exit" {
-		title, action = "Exit and lose this draft?", "Exit anyway"
-		detail = "Your text stays in this session only. Keep editing to avoid losing it."
+		title = "Exit and lose this draft?"
+		detail = "Discarding exits the application. Keeping the draft stays in this session."
 	}
+	actions := []modalAction{{"Keep draft", "ctrl+k", "ctrl+k"}, {"Discard draft", "ctrl+d", "ctrl+d"}, {"Back", "esc", "esc"}}
 	if c.confirm == "retry" {
-		title, action = "Submit again?", "Submit again"
+		title = "Submit again?"
 		detail = "The previous commit may exist. Another submission risks a duplicate."
-	}
-	keep := "[Keep draft]"
-	if c.confirmAction {
-		keep, action = " Keep draft ", "["+action+"]"
+		actions[1] = modalAction{"Submit again", "ctrl+s", "ctrl+s"}
 	}
 	w, h := max(1, m.account.width), max(1, m.account.height)
 	compactTitle := title
@@ -167,9 +167,12 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 		compactTitle = "Risk a duplicate?"
 	}
 	if w < 48 || h < 18 {
-		content := compactTitle + "\n" + keep + "\n" + action + "\nTab / Enter · f2 " + m.account.nextTheme()
+		footer, areas := modalFooter(actions, w, c.confirmFocus+1, p)
+		content := compactTitle + "\n" + footer
 		r := uiRect{0, 0, w, h}
-		areas := []hitArea{{uiRect{0, 1, min(w, len(keep)), 1}, "confirm", 0}, {uiRect{0, 2, min(w, len(action)), 1}, "confirm", 1}}
+		for i := range areas {
+			areas[i].y++
+		}
 		return lipgloss.NewStyle().Width(w).Height(h).MaxWidth(w).MaxHeight(h).Background(lipgloss.Color(p.shell)).Foreground(lipgloss.Color(p.ink)).Render(content), r, areas
 	}
 	r := centeredRect(w, h, 76, 18)
@@ -186,20 +189,11 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 		summary = "Draft belongs to another account. Its text stays private."
 	}
 	body := text(p.blue).Render(node) + "\n" + text(p.ink).Bold(true).Render(title) + "\n\n" + text(p.muted).Render(ansi.Wrap(detail, width, "")) + "\n" + text(p.muted).Render(ansi.Wrap(summary, width, ""))
-	button := func(value string, focused, danger bool) string {
-		style := text(p.ink)
-		if focused {
-			color := p.blue
-			if danger {
-				color = p.danger
-			}
-			style = style.Foreground(lipgloss.Color(p.shell)).Background(lipgloss.Color(color)).Bold(true)
-		}
-		return style.Render(" " + value + " ")
+	footer, areas := modalFooter(actions, width, c.confirmFocus+1, p)
+	for i := range areas {
+		areas[i].x += r.x + 2
+		areas[i].y += r.y + r.h - 1 - lipgloss.Height(footer)
 	}
-	keepButton, actionButton := button(keep, !c.confirmAction, false), button(action, c.confirmAction, true)
-	body = lipgloss.NewStyle().Width(width).Height(max(1, r.h-8)).MaxHeight(max(1, r.h-8)).Render(body) + "\n\n" + keepButton + "  " + actionButton
-	areas := []hitArea{{uiRect{r.x + 2, r.y + r.h - 4, lipgloss.Width(keepButton), 1}, "confirm", 0}, {uiRect{r.x + 4 + lipgloss.Width(keepButton), r.y + r.h - 4, lipgloss.Width(actionButton), 1}, "confirm", 1}}
-	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "confirm", 0})
-	return panel("/dev/null · DRAFT PROTECTION", body, "tab choose · enter confirm · esc keep · f2 "+m.account.nextTheme(), r, p), r, areas
+	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 2})
+	return panel("/dev/null · DRAFT PROTECTION", body, footer, r, p), r, areas
 }

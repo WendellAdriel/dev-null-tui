@@ -27,6 +27,9 @@ func pressApp(m AppModel, key string) AppModel {
 	if key == "ctrl+c" {
 		msg = tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl}
 	}
+	if strings.HasPrefix(key, "ctrl+") && len(key) == 6 {
+		msg = tea.KeyPressMsg{Code: rune(key[5]), Mod: tea.ModCtrl}
+	}
 	next, _ := m.Update(msg)
 	return next.(AppModel)
 }
@@ -51,7 +54,7 @@ func TestComposerOwnsTypingPasteAndProtectsDraft(t *testing.T) {
 		t.Fatal("cancel lost draft")
 	}
 	m = pressApp(m, "enter")
-	if !m.composer.open || m.composer.confirm != "" {
+	if m.composer.open || m.composer.confirm != "" || m.composer.input.Value() != want {
 		t.Fatal("confirmation must default to keep")
 	}
 	m = pressApp(m, "ctrl+c")

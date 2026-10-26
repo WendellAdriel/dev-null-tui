@@ -19,6 +19,32 @@ type hitArea struct {
 	index  int
 }
 
+type modalAction struct{ label, shortcut, key string }
+
+func modalFooter(actions []modalAction, width, focus int, p palette) (string, []hitArea) {
+	var rows []string
+	var areas []hitArea
+	row := ""
+	for i, action := range actions {
+		label := fit(action.label+" "+action.shortcut, width)
+		if row != "" && lipgloss.Width(row)+3+lipgloss.Width(label) > width {
+			rows = append(rows, row)
+			row = ""
+		}
+		if row != "" {
+			row += "   "
+		}
+		areas = append(areas, hitArea{uiRect{lipgloss.Width(row), len(rows), lipgloss.Width(label), 1}, action.key, i})
+		style := text(p.muted)
+		if focus == i+1 {
+			style = text(p.ink).Bold(true).Background(lipgloss.Color(p.soft))
+		}
+		row += style.Render(label)
+	}
+	rows = append(rows, row)
+	return strings.Join(rows, "\n"), areas
+}
+
 func centeredRect(width, height, maxWidth, maxHeight int) uiRect {
 	w, h := max(1, min(maxWidth, width-4)), max(1, min(maxHeight, height-4))
 	return uiRect{(width - w) / 2, (height - h) / 2, w, h}
@@ -29,7 +55,8 @@ func panel(title, body, footer string, r uiRect, p palette) string {
 	header := text(p.ink).Bold(true).Render(fit(title, max(1, w-3)))
 	header += strings.Repeat(" ", max(1, w-lipgloss.Width(header)-1)) + text(p.muted).Render("×")
 	line := text(p.hairline).Render(strings.Repeat("─", w))
-	content := header + "\n" + line + "\n" + lipgloss.NewStyle().Width(w).Height(max(1, h-4)).MaxHeight(max(1, h-4)).Render(body) + "\n" + line + "\n" + fit(footer, w)
+	bodyHeight := max(1, h-3-lipgloss.Height(footer))
+	content := header + "\n" + line + "\n" + lipgloss.NewStyle().Width(w).Height(bodyHeight).MaxHeight(bodyHeight).Render(body) + "\n" + line + "\n" + footer
 	content = lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Render(content)
 	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.shell)).Padding(0, 1).Render(content)
 }

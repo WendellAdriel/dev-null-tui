@@ -69,6 +69,7 @@ func TestMouseOwnsComposerControlsAndCannotClickThrough(t *testing.T) {
 	if m.composer.confirm != "" || m.composer.input.Value() != "Synthetic draft" {
 		t.Fatal("keep action lost draft")
 	}
+	m = pressApp(m, "c")
 	m, _ = clickText(t, m, "Cancel")
 	m, _ = clickText(t, m, "Discard draft")
 	if m.composer.open || m.composer.input.Value() != "" {
@@ -192,6 +193,7 @@ func TestModalControlsRemainVisibleAtSupportedSizes(t *testing.T) {
 			if m.composer.confirm != "" {
 				t.Fatal("keep click missed")
 			}
+			m = pressApp(m, "c")
 			m, _ = clickText(t, m, "Cancel")
 			m, _ = clickText(t, m, "Discard draft")
 			if m.composer.open {
@@ -290,18 +292,14 @@ func TestCompactAccountButtonsFollowRenderedRows(t *testing.T) {
 	}
 }
 
-func TestEmojiFooterUsesDisplayColumns(t *testing.T) {
+func TestComposerFooterActionsStayClickableWithEmojiSuggestions(t *testing.T) {
 	m := fixtureApp(t)
 	m = pressApp(m, "c")
 	m.composer.input.SetValue(":smi")
 	m.refreshEmoji()
-	m, _ = clickText(t, m, "f2 light")
-	if m.account.dark {
-		t.Fatal("emoji footer theme click missed")
-	}
-	m, _ = clickText(t, m, "esc dismiss")
-	if len(m.composer.emojis) != 0 || !m.composer.open {
-		t.Fatal("emoji dismiss click missed")
+	m, _ = clickText(t, m, "Cancel")
+	if m.composer.confirm != "discard" || m.composer.input.Value() != ":smi" {
+		t.Fatal("emoji suggestions interfered with footer cancel")
 	}
 }
 

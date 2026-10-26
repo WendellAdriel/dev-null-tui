@@ -1,11 +1,6 @@
 package tui
 
-import (
-	"strings"
-
-	tea "charm.land/bubbletea/v2"
-	"github.com/charmbracelet/x/ansi"
-)
+import tea "charm.land/bubbletea/v2"
 
 func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 	key := tea.KeyPressMsg{}
@@ -28,6 +23,15 @@ func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 		key.Mod = tea.ModCtrl
 	case "ctrl+p":
 		key.Code = 'p'
+		key.Mod = tea.ModCtrl
+	case "ctrl+k":
+		key.Code = 'k'
+		key.Mod = tea.ModCtrl
+	case "ctrl+d":
+		key.Code = 'd'
+		key.Mod = tea.ModCtrl
+	case "ctrl+s":
+		key.Code = 's'
 		key.Mod = tea.ModCtrl
 	case "ctrl+enter":
 		key.Code = tea.KeyEnter
@@ -60,8 +64,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		_, _, areas := m.confirmationModal(colors(m.account.dark))
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
-				m.composer.confirmAction = area.index == 1
-				return m.mouseKey("enter")
+				return m.mouseKey(area.action)
 			}
 		}
 		return m, nil
@@ -156,12 +159,6 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	}
 	if m.composer.sending || m.composer.owner != m.account.user.ID {
 		return m, nil
-	}
-	for _, key := range []string{"ctrl+enter", "ctrl+p", "f2", "esc"} {
-		footer := m.footer(max(1, r.w-4), colors(m.account.dark))
-		if x := strings.Index(footer, key); x >= 0 && (uiRect{r.x + 2 + ansi.StringWidth(footer[:x]), r.y + r.h - 2, len(key), 1}).contains(msg.X, msg.Y) {
-			return m.mouseKey(key)
-		}
 	}
 	editor := m.composerEditorBounds()
 	if len(m.composer.emojis) > 0 && (uiRect{editor.x, editor.y + editor.h + 1, editor.w, 3}).contains(msg.X, msg.Y) {

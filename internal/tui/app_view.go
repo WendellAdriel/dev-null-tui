@@ -22,7 +22,7 @@ func (k appKeys) FullHelp() [][]key.Binding { return [][]key.Binding{k.all} }
 func (m AppModel) bindings() appKeys {
 	bind := func(k, label string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, label)) }
 	if m.composer.open {
-		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("f2", m.account.nextTheme()+" theme"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
+		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
 		if m.composer.previewing {
 			keys = append(keys, bind("up/down / pgup/pgdown", "scroll preview"))
 		}
@@ -124,16 +124,6 @@ func (m AppModel) mainHeight() int {
 
 func brand(p palette) string {
 	return text(p.lanes[0]).Bold(true).Render("//") + "  " + text(p.ink).Bold(true).Render("/dev/null")
-}
-
-func (m AppModel) footer(width int, p palette) string {
-	if m.composer.open {
-		if len(m.composer.emojis) > 0 {
-			return fit(" ↑/↓ emoji  enter/tab insert  esc dismiss  f2 "+m.account.nextTheme(), width)
-		}
-		return fit(" ctrl+enter send  ctrl+p preview  f2 "+m.account.nextTheme()+"  esc back", width)
-	}
-	return m.workspaceFooter(width)
 }
 
 func (m AppModel) workspaceFooter(width int) string {
