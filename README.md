@@ -69,7 +69,7 @@ go run ./cmd/devnull --version
 
 ## Write a commit
 
-Press `c` from a log to focus the inline composer. Text entry owns typing and paste, so letters do not navigate the workspace. Composing needs at least 18 terminal rows. Use `Tab` or `Shift+Tab` to focus **Preview**, **Submit**, or **Cancel**, then press `Enter`. In the text field, `Enter` inserts a new line. Preview uses the signed server endpoint without publishing or storing a commit. Use arrow or page keys to scroll a preview, and **Edit** or `Esc` to return to editing.
+Press `c` or click **Commit** to open the composer modal over your log. Opening it preserves the reader's size and position. Composing needs at least 48 columns and 18 rows. Text entry owns typing and paste, so letters do not navigate the workspace. Click **Preview**, **Submit**, or **Cancel**, or select a control with `Tab` or `Shift+Tab` and press `Enter`. In the text field, `Enter` inserts a new line. Click to place the caret and drag to select text. Preview uses the signed server endpoint without publishing or storing a commit. Use arrow or page keys to scroll a preview, and **Edit** or `Esc` to return to editing.
 
 `Ctrl+Enter` submits when the terminal delivers it. `Ctrl+S` is the submit fallback, and `Ctrl+P` toggles preview and editing. These shortcuts appear in the composer, alongside `F2` for appearance.
 
@@ -88,6 +88,8 @@ The budget is 4000 Unicode characters after normalization. Prose links count as 
 Submissions use your approved device key. The client sends once while a request is in flight and never retries automatically. Validation, rejection, and transport errors keep your draft. If the outcome is unknown, check the web before retrying. Submitting again requires confirmation because the first commit may already exist.
 
 Most successful submissions are **pending**, not public until approved. The originating chronological log shows the returned status without resetting other logs. Trending stays ranked and requires refresh to check for the commit. First-time posters must make their first commit through the web composer and accept the commit rules there.
+
+Submission results appear as toasts. Pending commits say **Submitted for review**, not published. Click a toast's **×** to dismiss it, or wait for it to expire. Errors keep the draft and recovery details in the composer after the toast disappears. Clicks outside a modal do not activate the workspace or discard text.
 
 Drafts stay in memory only. `Esc` or **Cancel** asks before discarding a nonempty draft, and `Ctrl+C` asks before exiting. Confirmations default to keeping the draft. Closing the terminal or terminating the process loses it. Exiting during submission cannot guarantee that the server cancels publication.
 

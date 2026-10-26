@@ -1,4 +1,4 @@
-# Keyboard shortcuts
+# Controls and shortcuts
 
 ## Workspace
 
@@ -16,12 +16,12 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | Mouse wheel | Select the next or previous commit, or scroll help while it is open |
-| Left click | Select a commit row or log tab |
+| Left click | Select a commit row, log tab, sidebar action, or sidebar shortcut |
 | `n` | Load older commits when another page exists |
 | `Ctrl+R` | Refresh the first page, then select the first commit and scroll to the top after success |
 | `y` | Copy the selected commit's link, with a manual fallback if clipboard access fails |
 | `a` | Open account connection controls |
-| `c` | Focus the text composer |
+| `c` | Open the composer modal |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
@@ -29,7 +29,9 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` does not quit. It is reserved for the web application's quote action when that feature ships.
 
-Neither `r` nor `R` refreshes the workspace. Lowercase `r` is reserved for replies. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
+The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
+
+Neither `r` nor `R` refreshes the workspace. Lowercase `r` is reserved for replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
 
 The `g` sequence expires after one second. Changing screens, opening help, or changing focus clears it. Paste never invokes workspace shortcuts. Entering another log cancels the previous log's in-flight request, and stale responses cannot overwrite the active state.
 
@@ -59,6 +61,8 @@ A successful verification shows "Connection verified just now" for five seconds.
 
 ## Composer
 
+The modal keeps the log visible without changing its reading position. It needs at least 48 columns and 18 rows. A smaller terminal keeps the draft and shows a resize hint.
+
 | Keys | Action |
 | --- | --- |
 | `Tab`, `Shift+Tab` | Move between the text field, Preview, Submit, and Cancel |
@@ -71,6 +75,13 @@ A successful verification shows "Connection verified just now" for five seconds.
 | `Ctrl+P` | Toggle preview and editing |
 | `Ctrl+Shift+P` | Preview alias in terminals that distinguish it |
 | `F2` | Switch between light and dark without losing the draft |
+| Left click | Place the caret, choose an emoji, or activate a control |
+| Drag | Select text in the editor |
+| Mouse wheel | Move the editor caret by one line, choose an emoji, or scroll the preview |
+
+The mouse wheel in the editor moves the caret and scrolls to keep it visible. Clicks and wheel events outside the composer do not change the log. **Cancel** and the modal's **×** protect nonempty drafts with a separate confirmation. Click **Keep draft** to continue editing or **Discard draft** to remove it.
+
+Account action buttons and account-screen footer shortcuts also accept clicks. Shortcut help has a clickable **×**. All toasts expire after three seconds, including refresh progress and errors. Click a toast's **×** to dismiss it sooner. Errors keep the draft and recovery message after the toast expires. Pending submissions say **Submitted for review** because they are not public yet.
 
 Typing and paste never invoke workspace shortcuts while the composer is open. Use focusable controls when modifier shortcuts are unavailable. Nonempty draft cancellation and exit default to keeping the draft. Unknown submission outcomes require a separate confirmation before another submission. Drafts are not saved to disk.
 
