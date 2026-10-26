@@ -38,6 +38,7 @@ type Commit struct {
 	ID           string          `json:"id"`
 	Hash         string          `json:"short_hash"`
 	Body         string          `json:"body"`
+	ParentID     *string         `json:"parent_id"`
 	URL          string          `json:"html_url"`
 	CreatedAt    time.Time       `json:"created_at"`
 	DeletedAt    *time.Time      `json:"deleted_at"`

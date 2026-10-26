@@ -30,10 +30,17 @@ func (c *Client) Preview(ctx context.Context, body string) (Preview, error) {
 	return result.Data, nil
 }
 
-func (c *Client) CreateCommit(ctx context.Context, body string) (Commit, error) {
-	payload, err := json.Marshal(struct {
-		Body string `json:"body"`
-	}{body})
+type NewCommit struct {
+	Body     string `json:"body"`
+	ParentID string `json:"parent_id,omitempty"`
+	QuotedID string `json:"quoted_commit_id,omitempty"`
+}
+
+func (c *Client) CreateCommit(ctx context.Context, draft NewCommit) (Commit, error) {
+	if draft.ParentID != "" && draft.QuotedID != "" {
+		return Commit{}, errors.New("a commit cannot both reply and quote")
+	}
+	payload, err := json.Marshal(draft)
 	if err != nil {
 		return Commit{}, err
 	}

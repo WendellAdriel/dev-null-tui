@@ -35,7 +35,7 @@ func TestCreateAndPreviewTextContracts(t *testing.T) {
 			if err != nil || preview.Body != "Synthetic draft" || len(preview.Segments) != 1 {
 				t.Fatalf("preview: %+v %v", preview, err)
 			}
-			commit, err := client.CreateCommit(t.Context(), "Synthetic draft")
+			commit, err := client.CreateCommit(t.Context(), NewCommit{Body: "Synthetic draft"})
 			if err != nil || commit.Status != status || calls != 2 {
 				t.Fatalf("submission: %+v %v calls=%d", commit, err, calls)
 			}

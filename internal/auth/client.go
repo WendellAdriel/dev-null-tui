@@ -138,6 +138,11 @@ func (c *Client) PostJSON(ctx context.Context, target string, body []byte, resul
 	return nil
 }
 
+func (c *Client) Delete(ctx context.Context, target string) error {
+	_, err := c.send(ctx, http.MethodDelete, target, nil)
+	return err
+}
+
 func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	u, err := c.origin.Parse(path)
 	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || u.User != nil || u.Fragment != "" || !strings.HasPrefix(u.Path, "/api/v1/") {
@@ -175,7 +180,7 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]
 	if err != nil || len(data) > 1<<20 {
 		return nil, errors.New("server returned an unreadable response")
 	}
-	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated {
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusNoContent {
 		var failure struct {
 			Code   string `json:"code"`
 			Errors struct {
