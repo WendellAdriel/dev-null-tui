@@ -53,3 +53,17 @@ func prepare(data []byte, req Request) (*image.NRGBA, error) {
 	}
 	return output, nil
 }
+
+// frameAvatar pads a square avatar into a wider cell box so terminals do not stretch it.
+// Cells are treated as twice as tall as they are wide, matching the 4x2 square avatar.
+func frameAvatar(avatar *image.NRGBA, cols, rows int) *image.NRGBA {
+	side := avatar.Bounds().Dx()
+	if cols <= rows*2 {
+		return avatar
+	}
+	width := side * cols / (rows * 2)
+	framed := image.NewNRGBA(image.Rect(0, 0, width, side))
+	offset := (width - side) / 2
+	draw.Draw(framed, image.Rect(offset, 0, offset+side, side), avatar, avatar.Bounds().Min, draw.Src)
+	return framed
+}

@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -23,6 +24,9 @@ import (
 )
 
 const MaxImages = 48
+
+// sourceBudget bounds downloaded image bytes kept for redrawing at other sizes.
+const sourceBudget = 32 << 20
 
 type Request struct {
 	URL        string
@@ -49,6 +53,63 @@ type entry struct {
 }
 
 type avatarKey struct{ url, ring string }
+
+type sourceCache struct {
+	mu    sync.Mutex
+	data  map[string][]byte
+	order []string
+	size  int
+}
+
+func (c *sourceCache) get(url string) []byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	data, ok := c.data[url]
+	if ok {
+		c.touch(url)
+	}
+	return data
+}
+
+func (c *sourceCache) put(url string, data []byte) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(data) > sourceBudget {
+		return
+	}
+	if c.data == nil {
+		c.data = make(map[string][]byte)
+	}
+	if old, ok := c.data[url]; ok {
+		c.size -= len(old)
+	}
+	c.data[url] = data
+	c.size += len(data)
+	c.touch(url)
+	for c.size > sourceBudget {
+		oldest := c.order[0]
+		c.order = c.order[1:]
+		c.size -= len(c.data[oldest])
+		delete(c.data, oldest)
+	}
+}
+
+func (c *sourceCache) touch(url string) {
+	for i, key := range c.order {
+		if key == url {
+			c.order = append(c.order[:i], c.order[i+1:]...)
+			break
+		}
+	}
+	c.order = append(c.order, url)
+}
+
+func (c *sourceCache) clear() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.data, c.order, c.size = nil, nil, 0
+}
+
 type Manager struct {
 	Enabled, Tmux bool
 	ProbeID       int
@@ -57,6 +118,7 @@ type Manager struct {
 	client        *http.Client
 	slots         chan struct{}
 	entries       map[Request]*entry
+	sources       sourceCache
 }
 
 func New(origin string) *Manager {
@@ -192,8 +254,14 @@ func (m *Manager) Row(req Request, row int) string {
 }
 
 func (m *Manager) Clear() string {
+	m.Forget()
 	_, cleanup := m.Plan(context.Background(), nil)
 	return cleanup
+}
+
+// Forget drops downloaded images so a later session cannot reuse them.
+func (m *Manager) Forget() {
+	m.sources.clear()
 }
 
 func (m *Manager) Fetch(job Job) Result {
@@ -209,27 +277,35 @@ func (m *Manager) Fetch(job Job) Result {
 	defer cancel()
 	picture := job.avatar
 	if picture == nil {
-		imageData, err := m.download(ctx, job.Request.URL)
-		if err != nil {
-			result.Err = errors.New("image unavailable")
-			return result
+		var err error
+		imageData := m.sources.get(job.Request.URL)
+		if imageData == nil {
+			if imageData, err = m.download(ctx, job.Request.URL); err != nil {
+				result.Err = errors.New("image unavailable")
+				return result
+			}
 		}
 		picture, err = prepare(imageData, job.Request)
 		if err != nil {
 			result.Err = errors.New("image unavailable")
 			return result
 		}
+		m.sources.put(job.Request.URL, imageData)
 	}
 	if ctx.Err() != nil {
 		result.Err = errors.New("image unavailable")
 		return result
+	}
+	encoded := picture
+	if job.Request.Ring != "" {
+		encoded = frameAvatar(picture, job.Request.Cols, job.Request.Rows)
 	}
 	var raw bytes.Buffer
 	options := &kitty.Options{Action: kitty.TransmitAndPut, Format: kitty.PNG, Transmission: kitty.Direct, ID: job.ID, Quiet: 2, Columns: job.Request.Cols, Rows: job.Request.Rows, VirtualPlacement: true, Chunk: true}
 	if m.Tmux {
 		options.ChunkFormatter = ansi.TmuxPassthrough
 	}
-	if err := kitty.EncodeGraphics(&raw, picture, options); err != nil {
+	if err := kitty.EncodeGraphics(&raw, encoded, options); err != nil {
 		result.Err = errors.New("image unavailable")
 		return result
 	}

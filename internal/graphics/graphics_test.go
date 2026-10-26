@@ -40,6 +40,12 @@ func TestRoundAvatarAndImageSizing(t *testing.T) {
 	if out.Bounds().Dx() != 96 || out.NRGBAAt(0, 0).A != 0 || out.NRGBAAt(48, 48).A != 255 || out.NRGBAAt(48, 2).R != 255 {
 		t.Fatal("avatar must be round with an author lane ring")
 	}
+	if wide := frameAvatar(out, 5, 2); wide.Bounds().Dx() != 120 || wide.Bounds().Dy() != 96 || wide.NRGBAAt(60, 48).A != 255 || wide.NRGBAAt(4, 48).A != 0 || wide.NRGBAAt(60, 2).R != 255 {
+		t.Fatal("an odd-width avatar must stay round and centered in its cells")
+	}
+	if frameAvatar(out, 4, 2) != out {
+		t.Fatal("a square avatar box needs no frame")
+	}
 	cols, rows := Fit(1600, 900, 40, 12)
 	if cols != 40 || rows != 11 {
 		t.Fatalf("landscape fit: %dx%d", cols, rows)
@@ -203,5 +209,30 @@ func TestAvatarSizesReuseOneDownloadAndKeepAFreePhotoSlot(t *testing.T) {
 	m.Accept(m.Fetch(jobs[0]))
 	if downloads.Load() != 2 {
 		t.Fatal("session cleanup retained avatar pixels")
+	}
+}
+
+func TestImageSizesReuseOneDownloadUntilCleared(t *testing.T) {
+	var downloads atomic.Int32
+	data := picture(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { downloads.Add(1); _, _ = w.Write(data) }))
+	defer server.Close()
+	m := New(server.URL)
+	m.Enabled = true
+	for _, size := range [][2]int{{40, 12}, {80, 24}, {40, 12}} {
+		req := Request{URL: server.URL + "/photo", Cols: size[0], Rows: size[1]}
+		jobs, _ := m.Plan(t.Context(), []Request{req})
+		if len(jobs) != 1 || m.Accept(m.Fetch(jobs[0])) == "" {
+			t.Fatalf("%v did not load", size)
+		}
+	}
+	if downloads.Load() != 1 {
+		t.Fatalf("one image downloaded %d times across sizes", downloads.Load())
+	}
+	m.Clear()
+	jobs, _ := m.Plan(t.Context(), []Request{{URL: server.URL + "/photo", Cols: 40, Rows: 12}})
+	m.Accept(m.Fetch(jobs[0]))
+	if downloads.Load() != 2 {
+		t.Fatal("session cleanup retained downloaded images")
 	}
 }
