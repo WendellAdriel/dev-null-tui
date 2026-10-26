@@ -21,11 +21,13 @@ import (
 
 func TestGraphicsRequireProbeAndOnlyDownloadVisibleReadOnlyMedia(t *testing.T) {
 	var downloads atomic.Int32
+	paths := make(chan string, 4)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("X-SSH-Signature") != "" || r.Header.Get("Authorization") != "" || r.Method != http.MethodGet {
 			t.Error("media request was signed or writable")
 		}
 		downloads.Add(1)
+		paths <- r.URL.Path
 		im := image.NewNRGBA(image.Rect(0, 0, 8, 8))
 		im.SetNRGBA(4, 4, color.NRGBA{R: 255, A: 255})
 		if err := png.Encode(w, im); err != nil {
@@ -66,6 +68,9 @@ func TestGraphicsRequireProbeAndOnlyDownloadVisibleReadOnlyMedia(t *testing.T) {
 	run(commands)
 	if downloads.Load() != 2 {
 		t.Fatalf("expected only the visible avatar and picture, got %d", downloads.Load())
+	}
+	if first := <-paths; first != "/image.png" {
+		t.Fatalf("visible photo was scheduled behind an avatar: %s", first)
 	}
 	for _, result := range results {
 		if result.Err != nil {
@@ -108,5 +113,28 @@ func TestGraphicsProbeKeepsLimitedColorProfilesInTextMode(t *testing.T) {
 		if m.images.Enabled != (profile == colorprofile.TrueColor) {
 			t.Fatal("graphics ignored the renderer's truecolor requirement")
 		}
+	}
+}
+
+func TestGitHubAvatarRequestsUseThumbnailSizes(t *testing.T) {
+	m := fixtureApp(t)
+	for _, raw := range []string{"https://avatars.githubusercontent.com/u/1", "https://avatars.githubusercontent.com/u/1?v=4"} {
+		req := m.avatarRequest(raw, "#ff8a4c", 4, 2)
+		if !strings.Contains(req.URL, "s=96") {
+			t.Fatal("avatar request still downloads the default full-size image")
+		}
+	}
+	for _, raw := range []string{"https://example.test/avatar?signature=unchanged", "https://avatars.githubusercontent.com.evil.test/u/1", "https://avatars.githubusercontent.com/u/1?s=48"} {
+		if m.avatarRequest(raw, "#ff8a4c", 4, 2).URL != raw {
+			t.Fatal("avatar optimization changed an unrelated or explicitly sized URL")
+		}
+	}
+	m.images.Enabled = true
+	author := &api.Author{AvatarURL: "https://avatars.githubusercontent.com/u/1?v=4", Lane: []byte("0")}
+	req := m.avatarRequest(author.AvatarURL, authorColor(author, colors(true)), 2, 1)
+	jobs, _ := m.images.Plan(t.Context(), []graphics.Request{req})
+	m.images.Accept(graphics.Result{Job: jobs[0], Raw: "ready"})
+	if !strings.Contains(smallAvatar(author, colors(true), m.images), string(kitty.Placeholder)) {
+		t.Fatal("small avatars do not use the same thumbnail URL as their downloads")
 	}
 }

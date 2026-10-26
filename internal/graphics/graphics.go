@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"image"
 	"image/color"
 	"io"
 	"net"
@@ -32,17 +33,22 @@ type Job struct {
 	Request Request
 	ID      int
 	ctx     context.Context
+	avatar  *image.NRGBA
 }
 type Result struct {
-	Job Job
-	Raw string
-	Err error
+	Job    Job
+	Raw    string
+	Err    error
+	avatar *image.NRGBA
 }
 type entry struct {
 	id            int
 	ready, failed bool
 	cancel        context.CancelFunc
+	avatar        *image.NRGBA
 }
+
+type avatarKey struct{ url, ring string }
 type Manager struct {
 	Enabled, Tmux bool
 	ProbeID       int
@@ -88,13 +94,21 @@ func (m *Manager) delete(id int) string {
 
 func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) {
 	wanted := make(map[Request]bool)
+	var ordered []Request
 	for _, req := range requests {
 		if len(wanted) >= MaxImages {
 			break
 		}
 		u, err := url.Parse(req.URL)
-		if err == nil && m.validURL(u) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 {
+		if err == nil && m.validURL(u) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
 			wanted[req] = true
+			ordered = append(ordered, req)
+		}
+	}
+	avatars := make(map[avatarKey]*image.NRGBA)
+	for req, e := range m.entries {
+		if e.ready && e.avatar != nil {
+			avatars[avatarKey{req.URL, req.Ring}] = e.avatar
 		}
 	}
 	var cleanup strings.Builder
@@ -111,8 +125,25 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 	if !m.Enabled {
 		return jobs, cleanup.String()
 	}
-	for req := range wanted {
+	active := 0
+	loading := make(map[avatarKey]bool)
+	for req, e := range m.entries {
+		if !e.ready && !e.failed {
+			active++
+			if req.Ring != "" {
+				loading[avatarKey{req.URL, req.Ring}] = true
+			}
+		}
+	}
+	for _, req := range ordered {
+		if active >= cap(m.slots) {
+			break
+		}
 		if _, ok := m.entries[req]; ok {
+			continue
+		}
+		key := avatarKey{req.URL, req.Ring}
+		if req.Ring != "" && loading[key] {
 			continue
 		}
 		if m.next >= 0xffffff {
@@ -121,7 +152,11 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		m.next++
 		jobCtx, cancel := context.WithCancel(ctx)
 		m.entries[req] = &entry{id: m.next, cancel: cancel}
-		jobs = append(jobs, Job{Request: req, ID: m.next, ctx: jobCtx})
+		jobs = append(jobs, Job{Request: req, ID: m.next, ctx: jobCtx, avatar: avatars[key]})
+		active++
+		if req.Ring != "" {
+			loading[key] = true
+		}
 	}
 	return jobs, cleanup.String()
 }
@@ -137,6 +172,7 @@ func (m *Manager) Accept(result Result) string {
 	if e.failed {
 		return ""
 	}
+	e.avatar = result.avatar
 	return result.Raw
 }
 
@@ -171,13 +207,20 @@ func (m *Manager) Fetch(job Job) Result {
 	defer func() { <-m.slots }()
 	ctx, cancel := context.WithTimeout(job.ctx, 12*time.Second)
 	defer cancel()
-	imageData, err := m.download(ctx, job.Request.URL)
-	if err != nil {
-		result.Err = errors.New("image unavailable")
-		return result
+	picture := job.avatar
+	if picture == nil {
+		imageData, err := m.download(ctx, job.Request.URL)
+		if err != nil {
+			result.Err = errors.New("image unavailable")
+			return result
+		}
+		picture, err = prepare(imageData, job.Request)
+		if err != nil {
+			result.Err = errors.New("image unavailable")
+			return result
+		}
 	}
-	picture, err := prepare(imageData, job.Request)
-	if err != nil || ctx.Err() != nil {
+	if ctx.Err() != nil {
 		result.Err = errors.New("image unavailable")
 		return result
 	}
@@ -191,7 +234,24 @@ func (m *Manager) Fetch(job Job) Result {
 		return result
 	}
 	result.Raw = raw.String()
+	if job.Request.Ring != "" {
+		result.avatar = picture
+	}
 	return result
+}
+
+func AvatarURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || u.Host != "avatars.githubusercontent.com" || u.User != nil || u.Fragment != "" {
+		return raw
+	}
+	query, err := url.ParseQuery(u.RawQuery)
+	if err != nil || query.Has("s") {
+		return raw
+	}
+	query.Set("s", "96")
+	u.RawQuery = query.Encode()
+	return u.String()
 }
 
 func (m *Manager) validURL(u *url.URL) bool {

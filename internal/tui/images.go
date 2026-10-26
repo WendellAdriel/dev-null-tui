@@ -11,7 +11,7 @@ import (
 )
 
 func (m AppModel) avatarRequest(url, lane string, cols, rows int) graphics.Request {
-	return graphics.Request{URL: url, Ring: lane, Cols: cols, Rows: rows}
+	return graphics.Request{URL: graphics.AvatarURL(url), Ring: lane, Cols: cols, Rows: rows}
 }
 
 func imageRequests(images []api.Image, width int) []graphics.Request {
@@ -33,7 +33,7 @@ func imageRequests(images []api.Image, width int) []graphics.Request {
 }
 
 func (m *AppModel) syncImages() tea.Cmd {
-	var requests []graphics.Request
+	var requests, avatars []graphics.Request
 	if m.connected && !m.accountOpen && m.images.Enabled && m.account.width >= 30 && m.account.height >= 10 {
 		p := colors(m.account.dark)
 		f := &m.feeds[m.active]
@@ -41,27 +41,27 @@ func (m *AppModel) syncImages() tea.Cmd {
 			if i >= len(f.starts) || f.ends[i] <= f.viewport.YOffset() || f.starts[i] >= f.viewport.YOffset()+f.viewport.Height() || c.DeletedAt != nil || c.Author == nil {
 				continue
 			}
-			requests = append(requests, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 4, 2))
+			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 4, 2))
 			requests = append(requests, imageRequests(c.Images, max(1, f.viewport.Width()-9))...)
 			if c.Quote != nil && c.Quote.DeletedAt == nil && c.Quote.Author != nil {
-				requests = append(requests, m.avatarRequest(c.Quote.Author.AvatarURL, authorColor(c.Quote.Author, p), 2, 1))
+				avatars = append(avatars, m.avatarRequest(c.Quote.Author.AvatarURL, authorColor(c.Quote.Author, p), 2, 1))
 			}
 			if c.ReplyPreview != nil {
 				for _, reply := range c.ReplyPreview.Data {
 					if reply.DeletedAt == nil && reply.Author != nil {
-						requests = append(requests, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
+						avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
 					}
 				}
 			}
 		}
 		u := m.account.user
-		requests = append(requests, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
+		avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
 		_, _, aside := m.columns()
 		if aside > 0 {
-			requests = append(requests, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+			avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
 		}
 	}
-	jobs, cleanup := m.images.Plan(m.account.life.ctx, requests)
+	jobs, cleanup := m.images.Plan(m.account.life.ctx, append(requests, avatars...))
 	var commands []tea.Cmd
 	if cleanup != "" {
 		commands = append(commands, tea.Raw(cleanup))
@@ -74,7 +74,7 @@ func (m *AppModel) syncImages() tea.Cmd {
 
 func smallAvatar(author *api.Author, p palette, manager *graphics.Manager) string {
 	if manager != nil {
-		row := manager.Row(graphics.Request{URL: author.AvatarURL, Ring: authorColor(author, p), Cols: 2, Rows: 1}, 0)
+		row := manager.Row(graphics.Request{URL: graphics.AvatarURL(author.AvatarURL), Ring: authorColor(author, p), Cols: 2, Rows: 1}, 0)
 		if row != "" {
 			return row + " "
 		}

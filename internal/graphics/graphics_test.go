@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/charmbracelet/x/ansi"
@@ -124,13 +125,83 @@ func TestVisibleImageBudgetAndTmuxWrapping(t *testing.T) {
 		requests = append(requests, Request{URL: "https://example.test/" + strings.Repeat("x", i+1), Cols: 4, Rows: 2})
 	}
 	jobs, _ := m.Plan(t.Context(), requests)
-	if len(jobs) != MaxImages {
-		t.Fatal("image resource budget exceeded")
+	if len(jobs) > 2 || len(m.entries) > MaxImages {
+		t.Fatal("image concurrency or resource budget exceeded")
+	}
+	for len(jobs) > 0 {
+		for _, job := range jobs {
+			m.Accept(Result{Job: job, Err: io.EOF})
+		}
+		jobs, _ = m.Plan(t.Context(), requests)
+	}
+	if len(m.entries) != MaxImages {
+		t.Fatal("visible image budget did not cap the pending request list")
 	}
 	if !strings.HasPrefix(m.Probe(), "\x1bPtmux;") {
 		t.Fatal("tmux graphics must use passthrough")
 	}
 	if !strings.Contains(m.Clear(), "tmux;") && len(m.entries) != 0 {
 		t.Fatal("cleanup did not empty image state")
+	}
+}
+
+func TestDownloadsStartInVisiblePriorityOrderWithoutAvatarBacklog(t *testing.T) {
+	m := New("https://example.test")
+	m.Enabled = true
+	requests := []Request{{URL: "https://example.test/photo", Cols: 40, Rows: 12}}
+	for _, name := range []string{"ada", "lin", "sam", "kenji"} {
+		requests = append(requests, Request{URL: "https://example.test/" + name, Cols: 4, Rows: 2, Ring: "#ff8a4c"})
+	}
+	jobs, _ := m.Plan(t.Context(), requests)
+	if len(jobs) != 2 || jobs[0].Request != requests[0] || jobs[1].Request != requests[1] {
+		t.Fatalf("expected photo and first avatar without queued goroutines, got %d jobs", len(jobs))
+	}
+	if next, _ := m.Plan(t.Context(), requests); len(next) != 0 {
+		t.Fatal("pending work exceeded the two active downloads")
+	}
+	m.Accept(Result{Job: jobs[1], Err: io.EOF})
+	next, _ := m.Plan(t.Context(), requests)
+	if len(next) != 1 || next[0].Request != requests[2] {
+		t.Fatal("finishing an image did not start the next visible request")
+	}
+}
+
+func TestAvatarSizesReuseOneDownloadAndKeepAFreePhotoSlot(t *testing.T) {
+	var downloads atomic.Int32
+	data := picture(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { downloads.Add(1); _, _ = w.Write(data) }))
+	defer server.Close()
+	m := New(server.URL)
+	m.Enabled = true
+	small := Request{URL: server.URL + "/avatar", Cols: 2, Rows: 1, Ring: "#ff8a4c"}
+	large := small
+	large.Cols, large.Rows = 4, 2
+	jobs, _ := m.Plan(t.Context(), []Request{small, large})
+	if len(jobs) != 1 {
+		t.Fatal("two avatar sizes must not occupy both download slots")
+	}
+	photo := Request{URL: server.URL + "/photo", Cols: 40, Rows: 12}
+	next, _ := m.Plan(t.Context(), []Request{photo, small, large})
+	if len(next) != 1 || next[0].Request != photo {
+		t.Fatal("visible photo waited behind the second avatar size")
+	}
+	if m.Accept(m.Fetch(jobs[0])) == "" {
+		t.Fatal("avatar did not load")
+	}
+	next, _ = m.Plan(t.Context(), []Request{large})
+	if len(next) != 1 || next[0].Request != large {
+		t.Fatal("second placement was not scheduled")
+	}
+	if m.Accept(m.Fetch(next[0])) == "" || m.Row(large, 0) == "" {
+		t.Fatal("reused avatar did not render")
+	}
+	if downloads.Load() != 1 {
+		t.Fatalf("avatar variants downloaded %d times", downloads.Load())
+	}
+	m.Clear()
+	jobs, _ = m.Plan(t.Context(), []Request{small})
+	m.Accept(m.Fetch(jobs[0]))
+	if downloads.Load() != 2 {
+		t.Fatal("session cleanup retained avatar pixels")
 	}
 }
