@@ -71,7 +71,7 @@ go run ./cmd/devnull --version
 
 Press `c` or click **Commit** to open the composer modal over your log. Opening it preserves the reader's size and position. Composing needs at least 48 columns and 18 rows. Text entry owns typing and paste, so letters do not navigate the workspace. Click **Preview**, **Submit**, or **Cancel**, or select a control with `Tab` or `Shift+Tab` and press `Enter`. In the text field, `Enter` inserts a new line. Click to place the caret and drag to select text. Preview uses the signed server endpoint without publishing or storing a commit. Use arrow or page keys to scroll a preview, and **Edit** or `Esc` to return to editing.
 
-`Ctrl+Enter` submits when the terminal delivers it. `Ctrl+S` is the submit fallback, and `Ctrl+P` toggles preview and editing. These shortcuts appear in the composer, alongside `F2` for appearance.
+The modal footer has three actions: **Preview** (`Ctrl+P`), **Submit** (`Ctrl+Enter` or `Ctrl+S`), and **Cancel** (`Esc`). Preview changes to **Edit** while the server preview is open. No duplicate action row or theme hint appears in the modal.
 
 Ghostty binds `Ctrl+Enter` to fullscreen by default, so the app cannot receive it. To send it to the client, add this line to your Ghostty configuration and reload the configuration:
 
@@ -91,7 +91,7 @@ Most successful submissions are **pending**, not public until approved. The orig
 
 Submission results appear as toasts. Pending commits say **Submitted for review**, not published. Click a toast's **×** to dismiss it, or wait for it to expire. Errors keep the draft and recovery details in the composer after the toast disappears. Clicks outside a modal do not activate the workspace or discard text.
 
-Drafts stay in memory only. `Esc` or **Cancel** asks before discarding a nonempty draft, and `Ctrl+C` asks before exiting. Confirmations default to keeping the draft. Closing the terminal or terminating the process loses it. Exiting during submission cannot guarantee that the server cancels publication.
+Drafts stay in memory only. `Esc` or **Cancel** asks before discarding a nonempty draft, and `Ctrl+C` asks before exiting. In Draft Protection, **Keep draft** (`Ctrl+K`) closes the composer and retains the text for later. Press `c` to reopen it. **Discard draft** (`Ctrl+D`) removes the text and also exits if you requested exit. **Back** (`Esc`) returns to editing. Confirmations default to keeping the draft. Closing the terminal or terminating the process loses it. Exiting during submission cannot guarantee that the server cancels publication.
 
 ## Build a binary
 

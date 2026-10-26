@@ -74,12 +74,21 @@ The modal keeps the log visible without changing its reading position. It needs 
 | `Ctrl+S` | Submit without requiring an enhanced Enter key |
 | `Ctrl+P` | Toggle preview and editing |
 | `Ctrl+Shift+P` | Preview alias in terminals that distinguish it |
-| `F2` | Switch between light and dark without losing the draft |
 | Left click | Place the caret, choose an emoji, or activate a control |
 | Drag | Select text in the editor |
 | Mouse wheel | Move the editor caret by one line, choose an emoji, or scroll the preview |
 
-The mouse wheel in the editor moves the caret and scrolls to keep it visible. Clicks and wheel events outside the composer do not change the log. **Cancel** and the modal's **×** protect nonempty drafts with a separate confirmation. Click **Keep draft** to continue editing or **Discard draft** to remove it.
+The modal footer shows **Preview** (`Ctrl+P`), **Submit** (`Ctrl+Enter` or `Ctrl+S`), and **Cancel** (`Esc`). Preview becomes **Edit** while previewing. The mouse wheel in the editor moves the caret and scrolls to keep it visible. Clicks and wheel events outside the composer do not change the log. **Cancel** and the modal's **×** protect nonempty drafts with a separate confirmation.
+
+Draft Protection has three footer actions:
+
+| Action | Shortcut | Result |
+| --- | --- | --- |
+| Keep draft | `Ctrl+K` | Close the composer and keep the in-memory text. Press `c` to reopen it |
+| Discard draft | `Ctrl+D` | Remove the text. Also exit if you requested exit |
+| Back | `Esc` | Return to editing |
+
+These shortcuts belong to the confirmation, not the editor. The separate duplicate-risk confirmation uses **Submit again** (`Ctrl+S`) instead of Discard draft. It never submits through `Ctrl+D`.
 
 Account action buttons and account-screen footer shortcuts also accept clicks. Shortcut help has a clickable **×**. All toasts expire after three seconds, including refresh progress and errors. Click a toast's **×** to dismiss it sooner. Errors keep the draft and recovery message after the toast expires. Pending submissions say **Submitted for review** because they are not public yet.
 
