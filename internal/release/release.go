@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const Version = "v0.1.1"
+const Version = "v0.1.2"
 const Repository = "WendellAdriel/dev-null-tui"
 
 var stableVersion = regexp.MustCompile(`^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`)
