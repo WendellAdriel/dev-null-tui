@@ -33,6 +33,7 @@ func mapProse(body string, fn func(string) string) string {
 }
 
 func NormalizeBody(body string) string {
+	body = strings.ReplaceAll(body, "\x00", "")
 	body = strings.TrimFunc(body, func(r rune) bool { return r == 0 || unicode.IsSpace(r) || strings.ContainsRune(invisibleTrim, r) })
 	body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\r", "\n")
 	return mapProse(body, func(prose string) string { return blankLines.ReplaceAllString(prose, "\n\n") })
