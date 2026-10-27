@@ -14,7 +14,7 @@ type Thread struct {
 	Ancestors []Commit `json:"ancestors"`
 }
 
-type Replies struct {
+type CommitPage struct {
 	Data []Commit `json:"data"`
 	Meta struct {
 		NextCursor *string `json:"next_cursor"`
@@ -53,34 +53,41 @@ func (c *Client) Thread(ctx context.Context, id string) (Thread, error) {
 	return thread, nil
 }
 
-func (c *Client) Replies(ctx context.Context, id, cursor string) (Replies, error) {
+func (c *Client) Replies(ctx context.Context, id, cursor string) (CommitPage, error) {
 	path, err := commitPath(id)
 	if err != nil {
-		return Replies{}, err
+		return CommitPage{}, err
 	}
-	path += "/replies"
+	query := url.Values{}
 	if cursor != "" {
-		path += "?cursor=" + url.QueryEscape(cursor)
+		query.Set("cursor", cursor)
 	}
-	var replies Replies
-	if err := c.transport.GetJSON(ctx, path, &replies); err != nil {
-		return Replies{}, err
+	return c.commitPage(ctx, path+"/replies", query, cursor)
+}
+
+func (c *Client) commitPage(ctx context.Context, path string, query url.Values, cursor string) (CommitPage, error) {
+	if len(query) > 0 {
+		path += "?" + query.Encode()
 	}
-	if replies.Data == nil {
-		return Replies{}, errors.New("server returned invalid replies")
+	var page CommitPage
+	if err := c.transport.GetJSON(ctx, path, &page); err != nil {
+		return CommitPage{}, err
 	}
-	for _, reply := range replies.Data {
-		if !validCommit(reply) {
-			return Replies{}, errors.New("server returned an invalid commit")
+	if page.Data == nil {
+		return CommitPage{}, errors.New("server returned an invalid commit page")
+	}
+	for _, commit := range page.Data {
+		if !validCommit(commit) {
+			return CommitPage{}, errors.New("server returned an invalid commit")
 		}
 	}
-	if replies.Meta.NextCursor != nil {
-		replies.Next = *replies.Meta.NextCursor
+	if page.Meta.NextCursor != nil {
+		page.Next = *page.Meta.NextCursor
 	}
-	if replies.Next != "" && replies.Next == cursor {
-		return Replies{}, errors.New("server repeated a pagination cursor")
+	if page.Next != "" && page.Next == cursor {
+		return CommitPage{}, errors.New("server repeated a pagination cursor")
 	}
-	return replies, nil
+	return page, nil
 }
 
 func (c *Client) DeleteCommit(ctx context.Context, id string) error {

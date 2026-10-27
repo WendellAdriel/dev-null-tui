@@ -58,17 +58,17 @@ func threadApp(t *testing.T) AppModel {
 		parent := replyTo("p2", "p1", "Ancestor body")
 		return api.Thread{Commit: root, Ancestors: []api.Commit{{ID: "p1", DeletedAt: &deleted, Replies: 1}, parent}}, nil
 	}
-	m.loadReplies = func(_ context.Context, id, _ string) (api.Replies, error) {
+	m.loadReplies = func(_ context.Context, id, _ string) (api.CommitPage, error) {
 		if id == "r1" {
 			child := replyTo("c1", "r1", "Nested child")
 			child.Replies = 1
-			return api.Replies{Data: []api.Commit{child}}, nil
+			return api.CommitPage{Data: []api.Commit{child}}, nil
 		}
 		first := replyTo("r1", id, "First reply")
 		first.Replies = 1
 		quote := replyTo("q1", "", "Quoting this")
 		quote.ParentID, quote.QuotedID = nil, &id
-		return api.Replies{Data: []api.Commit{first, quote}}, nil
+		return api.CommitPage{Data: []api.Commit{first, quote}}, nil
 	}
 	return m
 }
@@ -384,7 +384,9 @@ func TestViewerPanelScrollsToEveryReply(t *testing.T) {
 	for i := range 30 {
 		replies = append(replies, replyTo(fmt.Sprintf("r%d", i), "pics", fmt.Sprintf("Reply number %d", i)))
 	}
-	m.loadReplies = func(context.Context, string, string) (api.Replies, error) { return api.Replies{Data: replies}, nil }
+	m.loadReplies = func(context.Context, string, string) (api.CommitPage, error) {
+		return api.CommitPage{Data: replies}, nil
+	}
 	m, cmd := m.handleKey("v")
 	m = deliver(m, runAll(cmd))
 	for range 200 {
@@ -516,8 +518,8 @@ func TestViewerPanelDrawsTheReplyGraph(t *testing.T) {
 	pictured := fixtureCommit("pics")
 	pictured.Images = []api.Image{{URL: "https://cdn.example.test/1.png"}}
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{pictured}})
-	m.loadReplies = func(context.Context, string, string) (api.Replies, error) {
-		return api.Replies{Data: []api.Commit{replyTo("r1", "pics", "First answer"), replyTo("r2", "pics", "Second answer")}}, nil
+	m.loadReplies = func(context.Context, string, string) (api.CommitPage, error) {
+		return api.CommitPage{Data: []api.Commit{replyTo("r1", "pics", "First answer"), replyTo("r2", "pics", "Second answer")}}, nil
 	}
 	m, cmd := m.handleKey("v")
 	m = deliver(m, runAll(cmd))

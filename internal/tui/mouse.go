@@ -125,6 +125,10 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				if area.action == "notifications" {
 					return m.openNotifications()
 				}
+				if area.action == "profile" {
+					cmd := m.openProfile(m.account.user.Handle)
+					return m, cmd
+				}
 				return m.mouseKey(area.action)
 			}
 		}
@@ -146,7 +150,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if !m.notificationsOpen && len(m.threads) == 0 && (uiRect{left + nav + 1, 5, center, 1}).contains(msg.X, msg.Y) {
+	if !m.notificationsOpen && len(m.threads) == 0 && len(m.profiles) == 0 && (uiRect{left + nav + 1, 5, center, 1}).contains(msg.X, msg.Y) {
 		return m.mouseKey("c")
 	}
 	return m.handleFeedMouse(msg)

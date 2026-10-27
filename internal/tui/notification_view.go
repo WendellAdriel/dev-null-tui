@@ -257,6 +257,11 @@ func (m *AppModel) renderNotifications() {
 			bodyWidth = max(1, bodyWidth-2)
 		}
 		rows := m.notificationRows(n, bodyWidth, p, member)
+		if i == f.selected && n.Actor != nil {
+			chip := text(p.ink).Render("Profile") + " " + keyChip("u", p)
+			f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines) + len(rows), lipgloss.Width(chip), 1}, "u", i})
+			rows = append(rows, chip)
+		}
 		ring := len(rows)
 		if !member {
 			rows = append(rows, "")
@@ -393,7 +398,11 @@ func (m *AppModel) notificationControl(key string) tea.Cmd {
 }
 
 func (m *AppModel) openNotificationAt(i int) tea.Cmd {
-	n := m.notificationEntries()[i].notification
+	entry := m.notificationEntries()[i]
+	n := entry.notification
+	if profileRow(entry) {
+		return m.openProfile(n.Actor.Handle)
+	}
 	if n.Commit == nil {
 		m.notice = "This notification has no commit to open."
 		return nil

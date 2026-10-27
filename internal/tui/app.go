@@ -71,7 +71,7 @@ type AppModel struct {
 	submit                                 func(context.Context, api.NewCommit) (api.Commit, error)
 	preview                                func(context.Context, string) (api.Preview, error)
 	loadThread                             func(context.Context, string) (api.Thread, error)
-	loadReplies                            func(context.Context, string, string) (api.Replies, error)
+	loadReplies                            func(context.Context, string, string) (api.CommitPage, error)
 	deleteCommit                           func(context.Context, string) error
 	threads                                []threadState
 	threadGeneration                       int
@@ -93,10 +93,18 @@ type AppModel struct {
 	notificationCountGeneration            int
 	notificationCountCancel                context.CancelFunc
 	deletedNotificationCommits             map[string]time.Time
+	loadProfile                            func(context.Context, string) (api.Profile, error)
+	loadUserCommits                        func(context.Context, string, bool, string) (api.CommitPage, error)
+	loadConnections                        func(context.Context, string, api.Connections, string) (api.People, error)
+	setFollow                              func(context.Context, string, bool) error
+	profiles                               []profileState
+	profileGeneration                      int
+	follow                                 followState
+	icons                                  iconSet
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
-	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63}
+	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
 	m.images = graphics.New(origin)
 	m.images.Tmux = os.Getenv("TMUX") != ""
 	for i := range m.feeds {
@@ -123,6 +131,10 @@ func (m AppModel) Close() error {
 			f.cancel()
 		}
 	}
+	if m.follow.cancel != nil {
+		m.follow.cancel()
+	}
+	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
 	return m.account.Close()
@@ -180,6 +192,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deleteResult:
 		cmd := m.acceptDelete(msg)
 		return m, cmd
+	case profileResult:
+		return m, m.acceptProfile(msg)
+	case profileListResult:
+		return m, m.acceptProfileList(msg)
+	case followResult:
+		return m, m.acceptFollow(msg)
 	case uv.KittyGraphicsEvent:
 		if msg.Options.ID == m.images.ProbeID && string(msg.Payload) == "OK" {
 			m.graphicsSupported = true
@@ -193,8 +211,11 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.notificationsOpen {
 			m.renderNotifications()
 		}
-		if len(m.threads) > 0 {
+		if m.threadOnTop() {
 			m.renderThread(&m.threads[len(m.threads)-1])
+		}
+		if s := m.topProfile(); s != nil {
+			m.renderProfile(s)
 		}
 		if raw != "" {
 			return m, tea.Raw(raw)
@@ -420,6 +441,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
 		}
+		if m.loadProfile == nil {
+			m.loadProfile, m.loadUserCommits, m.loadConnections, m.setFollow = client.Profile, client.UserCommits, client.Connections, client.SetFollow
+		}
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
@@ -460,6 +484,11 @@ func (m *AppModel) leaveApplication() {
 	m.composer.open, m.composer.sending, m.composer.loadingPreview = false, false, false
 	m.composer.generation++
 	m.connected, m.accountOpen, m.help = false, false, false
+	if m.follow.cancel != nil {
+		m.follow.cancel()
+	}
+	m.follow = followState{generation: m.follow.generation + 1}
+	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
 	m.deleting, m.deletingID = deleteConfirm{}, ""
@@ -565,7 +594,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.helpScroll = max(0, min(m.helpMaxScroll(), m.helpScroll))
 		return m, nil
 	}
-	if len(m.threads) > 0 {
+	if m.threadOnTop() {
 		next, cmd, handled := m.threadKey(pressed)
 		if handled || (pressed != "c" && pressed != "a") {
 			return next, cmd
@@ -576,6 +605,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.resetSequence()
 		switch pressed {
 		case "g":
+			if m.profileOnTop() {
+				return m, m.selectProfileEntry(0)
+			}
 			return m.selectCommit(0)
 		case "l":
 			return m.switchLog(m.lastLog)
@@ -583,7 +615,16 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.switchLog(2)
 		case "n":
 			return m.openNotifications()
+		case "p":
+			return m, m.openProfile(m.account.user.Handle)
 		}
+	}
+	if m.profileOnTop() {
+		next, cmd, handled := m.profileKey(pressed)
+		if handled || (pressed != "c" && pressed != "a" && pressed != "g") {
+			return next, cmd
+		}
+		m = next
 	}
 	if m.notificationsOpen && pressed != "c" && pressed != "a" && pressed != "g" {
 		return m.notificationKey(pressed)
@@ -592,7 +633,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	case "c":
 		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
-	case "enter", "r", "q", "v", "D", "s", "p":
+	case "enter", "r", "q", "v", "D", "s", "p", "u":
 		f := &m.feeds[m.active]
 		if len(f.commits) == 0 {
 			return m, nil
@@ -611,6 +652,11 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		case "D":
 			m.confirmDelete(selected)
 			return m, nil
+		case "u":
+			if selected.DeletedAt != nil || selected.Author == nil {
+				return m, nil
+			}
+			return m, m.openProfile(selected.Author.Handle)
 		}
 		return m, m.openThread(selected)
 	case "g":
@@ -703,8 +749,11 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if x < 0 || x >= center {
 		return m, nil
 	}
-	if len(m.threads) > 0 {
+	if m.threadOnTop() {
 		return m.threadMouse(x, msg.Y)
+	}
+	if m.profileOnTop() {
+		return m.profileMouse(x, msg.Y)
 	}
 	if m.notificationsOpen {
 		return m.notificationMouse(x, msg.Y)
@@ -739,14 +788,15 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	wasNotifications := m.notificationsOpen
-	if wasNotifications {
+	left := m.notificationsOpen || len(m.profiles) > 0
+	if left {
 		m.cancelNotifications()
 		m.notificationsOpen = false
+		m.closeAllProfiles()
 		m.closeAllThreads()
 		m.closeViewer()
 	}
-	if index == m.active && !wasNotifications {
+	if index == m.active && !left {
 		return m, nil
 	}
 	if m.toast.kind == "info" {
@@ -787,11 +837,14 @@ func (m *AppModel) revealSelection() {
 
 func (m AppModel) feedStatus() string {
 	f := m.feeds[m.active]
-	if len(m.threads) > 0 && m.notice == "" {
+	if m.threadOnTop() && m.notice == "" {
 		return m.threadStatus()
 	}
 	if m.pendingG {
-		return "g ...  l Log  e Trending  n Notifications  (1 second)"
+		return "g ...  l Log  e Trending  n Notifications  p Profile  (1 second)"
+	}
+	if m.profileOnTop() && m.notice == "" {
+		return m.profileStatus()
 	}
 	if m.notice != "" {
 		return m.notice

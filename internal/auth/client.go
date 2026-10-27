@@ -163,6 +163,11 @@ func (c *Client) PostJSON(ctx context.Context, target string, body []byte, resul
 	return nil
 }
 
+func (c *Client) Post(ctx context.Context, target string) error {
+	_, err := c.send(ctx, http.MethodPost, target, nil)
+	return err
+}
+
 func (c *Client) Delete(ctx context.Context, target string) error {
 	_, err := c.send(ctx, http.MethodDelete, target, nil)
 	return err

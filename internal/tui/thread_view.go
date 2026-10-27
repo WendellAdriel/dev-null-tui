@@ -231,6 +231,9 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	} else if navigation.key != "" {
 		actions = append(actions, navigation)
 	}
+	if commit.Author.Handle != "" && !strings.EqualFold(commit.Author.Handle, m.profileHandle()) {
+		actions = append(actions, commitAction{"Profile", "u"})
+	}
 	if len(commit.Images) > 0 {
 		actions = append(actions, commitAction{"View", "v"})
 	}

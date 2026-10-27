@@ -27,7 +27,13 @@ type engagementResult struct {
 }
 
 func (m AppModel) focusedEngagementCommit() (api.Commit, bool) {
-	if len(m.threads) > 0 {
+	if s := m.topProfile(); s != nil {
+		if entries := s.entries(); !s.people && s.lists[s.tab].selected < len(entries) {
+			return entries[s.lists[s.tab].selected], true
+		}
+		return api.Commit{}, false
+	}
+	if m.threadOnTop() {
 		t := m.threads[len(m.threads)-1]
 		entries := t.entries()
 		if t.selected < len(entries) {
@@ -171,6 +177,15 @@ func (m *AppModel) reconcileEngagement(receipt api.Commit, kind string) {
 		for _, list := range t.children {
 			for j := range list {
 				update(&list[j])
+			}
+		}
+	}
+	for i := range m.profiles {
+		s := &m.profiles[i]
+		update(s.profile.Pinned)
+		for l := range s.lists {
+			for j := range s.lists[l].commits {
+				update(&s.lists[l].commits[j])
 			}
 		}
 	}

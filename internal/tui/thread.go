@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"slices"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
@@ -52,7 +53,7 @@ type repliesResult struct {
 	session, generation int
 	viewer              bool
 	parent, cursor      string
-	replies             api.Replies
+	replies             api.CommitPage
 	err                 error
 }
 
@@ -289,6 +290,10 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 		m.confirmDelete(entry.commit)
 	case "v":
 		return m, m.openViewer(entry.commit, 0), true
+	case "u":
+		if entry.commit.DeletedAt == nil && entry.commit.Author != nil {
+			return m, m.openProfile(entry.commit.Author.Handle), true
+		}
 	case "y":
 		return m, m.copyCommitLink(entry.commit), true
 	case "ctrl+r":
@@ -444,6 +449,27 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 		m.renderFeed(i)
 	}
 	m.revealSelection()
+	deleted := func(c api.Commit) bool { return c.ID == msg.id }
+	for i := range m.profiles {
+		s := &m.profiles[i]
+		if s.people {
+			continue
+		}
+		for l := range s.lists {
+			list := &s.lists[l]
+			if j := slices.IndexFunc(s.entriesOf(l), deleted); j >= 0 && j < list.selected {
+				list.selected--
+			}
+			list.commits = slices.DeleteFunc(list.commits, deleted)
+		}
+		if s.profile.Pinned != nil && deleted(*s.profile.Pinned) {
+			s.profile.Pinned = nil
+		}
+		for l := range s.lists {
+			s.lists[l].selected = max(0, min(s.lists[l].selected, len(s.entriesOf(l))-1))
+		}
+		m.renderProfile(s)
+	}
 	m.deleteNotificationCommit(msg.id)
 	if m.viewer.commit.ID == msg.id {
 		m.closeViewer()

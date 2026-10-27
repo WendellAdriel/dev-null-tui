@@ -40,7 +40,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	p := colors(m.account.dark)
 	var requests, avatars []graphics.Request
 	var stars []graphics.Request
-	if !m.notificationsOpen || len(m.threads) > 0 || m.viewer.open {
+	if !m.notificationsOpen || len(m.threads) > 0 || len(m.profiles) > 0 || m.viewer.open {
 		stars = []graphics.Request{starIconRequest(false, p.muted), starIconRequest(true, p.muted)}
 	}
 	if m.viewer.open {
@@ -53,12 +53,19 @@ func (m AppModel) visibleMedia() []graphics.Request {
 				avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
 			}
 		}
-	} else if m.notificationsOpen && len(m.threads) == 0 {
+	} else if m.notificationsOpen && len(m.threads) == 0 && len(m.profiles) == 0 {
 		avatars = append(avatars, m.notificationMedia()...)
 	} else {
 		f := &m.feeds[m.active]
 		commits, starts, ends, widths, view := f.commits, f.starts, f.ends, []int(nil), f.viewport
-		if len(m.threads) > 0 {
+		if s := m.topProfile(); s != nil {
+			commits, starts, ends, view = nil, s.starts, s.ends, s.viewport
+			avatars = append(avatars, m.profileAvatars(s, p)...)
+			if !s.people {
+				commits = s.entries()
+			}
+		}
+		if m.threadOnTop() {
 			t := m.threads[len(m.threads)-1]
 			commits, starts, ends, widths, view = nil, t.starts, t.ends, t.widths, t.viewport
 			for _, entry := range t.entries() {

@@ -392,6 +392,7 @@ func (m *AppModel) reflow() {
 		}
 	}
 	m.sizeThreads()
+	m.sizeProfiles()
 	if m.notificationsOpen {
 		m.sizeNotifications()
 	}
@@ -406,68 +407,17 @@ func (m *AppModel) renderFeed(index int) {
 		gutter = 7
 	}
 	contentWidth := max(1, width-gutter-2)
-	lines := []string{}
-	f.starts, f.ends, f.pictures, f.actions = nil, nil, nil, nil
 	day := ""
-	for i, c := range f.commits {
-		lane := authorColor(c.Author, p)
-		if c.DeletedAt != nil {
-			lane = p.muted
-		}
+	list := m.commitList(nil, f.commits, f.selected, width, func(_ int, c api.Commit) []string {
 		date := dayLabel(c.CreatedAt, m.now)
-		if index != 2 && date != day {
-			lines = append(lines, "    "+text(p.muted).Render(fit(date, contentWidth)), text(p.hairline).Render(strings.Repeat("─", width)))
-			day = date
+		if index == 2 || date == day {
+			return nil
 		}
-		f.starts = append(f.starts, len(lines))
-		previews := previewReplies(c)
-		c.ReplyPreview = nil
-		rows, pictures := commitLayout(c, "", contentWidth, p, m.now, m.images, m.statsStyle())
-		for _, picture := range pictures {
-			picture.x += gutter
-			picture.y += len(lines)
-			picture.entry = i
-			f.pictures = append(f.pictures, picture)
-		}
-		ring := -1
-		if c.DeletedAt == nil && c.Author != nil && len(rows) > 1 {
-			ring = len(rows) - 1
-		}
-		if i == f.selected {
-			chips, areas := m.commitActions(c, commitAction{"Thread", "enter"}, contentWidth, p)
-			for _, area := range areas {
-				area.x += gutter
-				area.y += len(lines) + len(rows)
-				f.actions = append(f.actions, area)
-			}
-			rows = append(rows, chips...)
-		}
-		var heads []int
-		if len(previews) > 0 {
-			rows = append(rows, "")
-		}
-		for _, reply := range previews {
-			heads = append(heads, len(rows))
-			rows = append(rows, replyPreview(reply, contentWidth, p, m.images)...)
-		}
-		for _, line := range m.feedRail(c, rows, ring, heads, gutter, lane, p) {
-			if i == f.selected {
-				line = text(p.blue).Render("▌") + ansi.Cut(line, 1, width)
-			}
-			line = lipgloss.NewStyle().Width(width).MaxWidth(width).Render(line)
-			if i == f.selected {
-				line = withBackground(line, p.wash)
-			}
-			lines = append(lines, line)
-		}
-		blank := strings.Repeat(" ", width)
-		if i == f.selected {
-			blank = withBackground(blank, p.wash)
-		}
-		lines = append(lines, blank)
-		f.ends = append(f.ends, len(lines))
-		lines = append(lines, text(p.hairline).Render(strings.Repeat("─", width)))
-	}
+		day = date
+		return []string{"    " + text(p.muted).Render(fit(date, contentWidth)), text(p.hairline).Render(strings.Repeat("─", width))}
+	})
+	lines := list.lines
+	f.starts, f.ends, f.pictures, f.actions = list.starts, list.ends, list.pictures, list.actions
 	if len(f.commits) == 0 && f.loaded {
 		lines = append(lines, "", "     "+text(p.ink).Bold(true).Render("A quiet log."), "", "     "+text(p.muted).Render("Tab to explore another log."))
 		if index == 0 && len(f.suggestions) > 0 {
@@ -488,4 +438,79 @@ func (m *AppModel) renderFeed(index int) {
 		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(ending), "")
 	}
 	f.viewport.SetContent(strings.Join(lines, "\n"))
+}
+
+type commitList struct {
+	lines        []string
+	starts, ends []int
+	pictures     []pictureArea
+	actions      []hitArea
+}
+
+// commitList appends railed commits to lines, with the selected commit's actions and optional headings above each.
+func (m AppModel) commitList(lines []string, commits []api.Commit, selected, width int, heading func(int, api.Commit) []string) commitList {
+	p := colors(m.account.dark)
+	gutter := 5
+	if m.images.Enabled {
+		gutter = 7
+	}
+	contentWidth := max(1, width-gutter-2)
+	list := commitList{}
+	for i, c := range commits {
+		lane := authorColor(c.Author, p)
+		if c.DeletedAt != nil {
+			lane = p.muted
+		}
+		lines = append(lines, heading(i, c)...)
+		list.starts = append(list.starts, len(lines))
+		previews := previewReplies(c)
+		c.ReplyPreview = nil
+		rows, pictures := commitLayout(c, "", contentWidth, p, m.now, m.images, m.statsStyle())
+		for _, picture := range pictures {
+			picture.x += gutter
+			picture.y += len(lines)
+			picture.entry = i
+			list.pictures = append(list.pictures, picture)
+		}
+		ring := -1
+		if c.DeletedAt == nil && c.Author != nil && len(rows) > 1 {
+			ring = len(rows) - 1
+		}
+		if i == selected {
+			chips, areas := m.commitActions(c, commitAction{"Thread", "enter"}, contentWidth, p)
+			for _, area := range areas {
+				area.x += gutter
+				area.y += len(lines) + len(rows)
+				list.actions = append(list.actions, area)
+			}
+			rows = append(rows, chips...)
+		}
+		var heads []int
+		if len(previews) > 0 {
+			rows = append(rows, "")
+		}
+		for _, reply := range previews {
+			heads = append(heads, len(rows))
+			rows = append(rows, replyPreview(reply, contentWidth, p, m.images)...)
+		}
+		for _, line := range m.feedRail(c, rows, ring, heads, gutter, lane, p) {
+			if i == selected {
+				line = text(p.blue).Render("▌") + ansi.Cut(line, 1, width)
+			}
+			line = lipgloss.NewStyle().Width(width).MaxWidth(width).Render(line)
+			if i == selected {
+				line = withBackground(line, p.wash)
+			}
+			lines = append(lines, line)
+		}
+		blank := strings.Repeat(" ", width)
+		if i == selected {
+			blank = withBackground(blank, p.wash)
+		}
+		lines = append(lines, blank)
+		list.ends = append(list.ends, len(lines))
+		lines = append(lines, text(p.hairline).Render(strings.Repeat("─", width)))
+	}
+	list.lines = lines
+	return list
 }

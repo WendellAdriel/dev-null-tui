@@ -21,8 +21,20 @@ func TestReferenceGeometryAndCompactSidebar(t *testing.T) {
 		if m.mainHeight() != m.account.height-1 {
 			t.Fatal("reference has one bottom status row")
 		}
-		if !strings.Contains(ansi.Strip(m.navigation(nav, 23, colors(true))), "◉") {
+		if !strings.Contains(ansi.Strip(m.navigation(nav, 23, colors(true))), m.icons.log) {
 			t.Fatal("compact navigation lost the log icon")
+		}
+	}
+}
+
+func TestNavigationUsesTheChosenIconSet(t *testing.T) {
+	for set, icons := range map[string]iconSet{"nerd": nerdIcons, "plain": plainIcons} {
+		m := fixtureApp(t).WithIcons(set)
+		nav := ansi.Strip(m.navigation(25, 23, colors(true)))
+		for _, want := range []string{icons.log + "  Log", icons.notifications + "  Notifications", icons.profile + "  Profile", icons.commit + "  Commit", "g l"} {
+			if !strings.Contains(nav, want) {
+				t.Fatalf("%s navigation lacks %q:\n%s", set, want, nav)
+			}
 		}
 	}
 }
