@@ -45,6 +45,12 @@ type disconnectedResult struct {
 	err        error
 }
 
+type termsResult struct {
+	generation int
+	user       auth.User
+	err        error
+}
+
 type verificationNoticeExpired struct {
 	generation int
 }
@@ -175,6 +181,9 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else if msg.user.ID != "" {
 			m.state, m.status = "connected", verificationNotice
 			m.approvalRequired = false
+			if msg.user.TermsVersion != "" && !msg.user.TermsAccepted {
+				m.state, m.status = "terms", ""
+			}
 		} else {
 			m.state, m.status = "idle", "Connect your existing /dev/null account."
 		}
@@ -204,6 +213,23 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.actionFocus = 0
 		flow, ctx, generation := m.flow, m.attemptCtx, m.generation
 		return m, tea.Batch(m.life.command(func() tea.Msg { link, err := flow.Wait(ctx); return linkResult{generation, link, err} }), m.openBrowser())
+	case termsResult:
+		if msg.generation != m.generation || m.state != "accepting-terms" {
+			return m, nil
+		}
+		if msg.err != nil {
+			var failure *auth.APIError
+			if errors.As(msg.err, &failure) && (failure.Status == 401 || failure.Code == "banned") {
+				return m.Update(accountResult{generation: m.generation, err: msg.err})
+			}
+			m.state, m.status = "terms", msg.err.Error()+". Verify to refresh the terms version."
+			return m, nil
+		}
+		if msg.user.ID != m.user.ID {
+			m.state, m.status = "terms", "Account identity changed; verify the connection before accepting."
+			return m, nil
+		}
+		return m.Update(accountResult{generation: m.generation, user: msg.user})
 	case linkResult:
 		if msg.generation != m.generation || m.state != "waiting" {
 			return m, nil
@@ -293,11 +319,22 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		switch pressed {
+		case "t":
+			if m.state == "terms" {
+				return m, m.openPolicy("terms")
+			}
+		case "a":
+			if m.state == "terms" {
+				return m.acceptTerms()
+			}
 		case "u":
 			if m.state == "waiting" {
 				m.showURL = !m.showURL
 			}
 		case "p":
+			if m.state == "terms" {
+				return m, m.openPolicy("privacy")
+			}
 			if m.state == "waiting" {
 				m.pasting = true
 				m.showURL = false
@@ -322,7 +359,7 @@ func (m AccountModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.showURL = false
 			}
 		case "v":
-			if m.key != nil && (m.state == "connected" || m.state == "failed") {
+			if m.key != nil && (m.state == "connected" || m.state == "failed" || m.state == "terms") {
 				return m.verify()
 			}
 		case "i":
@@ -427,6 +464,32 @@ func (m AccountModel) verify() (tea.Model, tea.Cmd) {
 	})
 }
 
+func (m AccountModel) openPolicy(path string) tea.Cmd {
+	raw, generation := m.origin+"/"+path, m.generation
+	return m.life.command(func() tea.Msg {
+		ctx, cancel := context.WithTimeout(m.life.ctx, 10*time.Second)
+		defer cancel()
+		return browserResult{generation, auth.OpenBrowser(ctx, raw)}
+	})
+}
+
+func (m AccountModel) acceptTerms() (tea.Model, tea.Cmd) {
+	if m.key == nil || m.user.TermsVersion == "" || m.width < 60 || m.height < 18 {
+		return m, nil
+	}
+	m.generation++
+	m.state, m.status = "accepting-terms", "Saving your consent..."
+	key, origin, version, generation := m.key, m.origin, m.user.TermsVersion, m.generation
+	return m, m.life.work(func() tea.Msg {
+		client, err := auth.NewClient(origin, key)
+		if err != nil {
+			return termsResult{generation: generation, err: err}
+		}
+		user, err := client.AcceptTerms(m.life.ctx, version)
+		return termsResult{generation: generation, user: user, err: err}
+	})
+}
+
 func (m AccountModel) disconnect() (tea.Model, tea.Cmd) {
 	m.generation++
 	m.state, m.status = "disconnecting", "Deleting the local device key..."
@@ -459,6 +522,11 @@ func (m AccountModel) bindings() accountKeys {
 		return accountKeys{bindings}
 	}
 	switch m.state {
+	case "terms":
+		add("t", "terms")
+		add("p", "privacy")
+		add("v", "verify")
+		add("a", "agree")
 	case "idle":
 		add("enter", "connect")
 	case "failed":

@@ -17,7 +17,7 @@ import (
 )
 
 func fixtureCommit(id string) api.Commit {
-	return api.Commit{ID: id, Hash: id, Body: strings.Repeat("Unicode 界 👩🏽‍💻 and readable content. ", 4), URL: "https://example.test/commit/" + id, CreatedAt: time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC), Author: &api.Author{Name: "Ada Fixture", Username: "ada", Lane: []byte("4")}, Status: "approved"}
+	return api.Commit{ID: id, Hash: id, Body: strings.Repeat("Unicode 界 👩🏽‍💻 and readable content. ", 4), URL: "https://example.test/commit/" + id, CreatedAt: time.Date(2026, 10, 23, 10, 0, 0, 0, time.UTC), Author: &api.Author{Name: "Ada Fixture", Handle: "ada", Lane: []byte("4")}, Status: "approved"}
 }
 
 func fixtureApp(t *testing.T) AppModel {
@@ -29,7 +29,7 @@ func fixtureApp(t *testing.T) AppModel {
 		return api.Page{Log: api.Following, Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}}, nil
 	}
 	key, _ := auth.GenerateKey()
-	updated, _ := m.Update(accountResult{key: key, user: auth.User{ID: "fixture", Username: "fixture", Name: "Fixture"}})
+	updated, _ := m.Update(accountResult{key: key, user: auth.User{ID: "fixture", Handle: "fixture", Name: "Fixture"}})
 	return updated.(AppModel)
 }
 

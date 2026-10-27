@@ -30,7 +30,7 @@ func TestAccountStatesFitAndKeepActionsVisible(t *testing.T) {
 				m := NewAccount(theme, auth.Store{}, auth.DefaultOrigin, context.Background())
 				m.state, m.key = state, key
 				m.flow = &auth.Flow{Key: key, Attempt: attempt}
-				m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Synthetic Developer", Username: "fixture"}
+				m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Synthetic Developer", Handle: "fixture"}
 				updated, _ := m.Update(size)
 				view := updated.View()
 				if lipgloss.Width(view.Content) > size.Width || lipgloss.Height(view.Content) > size.Height {
@@ -59,7 +59,7 @@ func TestAccountStatesFitAndKeepActionsVisible(t *testing.T) {
 func TestAccountIgnoresStaleResultsAndTypingOwnsKeys(t *testing.T) {
 	m := NewAccount("dark", auth.Store{}, auth.DefaultOrigin, context.Background())
 	m.generation = 2
-	updated, _ := m.Update(accountResult{generation: 1, user: auth.User{ID: "01900000-0000-7000-8000-000000000001", Username: "wrong"}})
+	updated, _ := m.Update(accountResult{generation: 1, user: auth.User{ID: "01900000-0000-7000-8000-000000000001", Handle: "wrong"}})
 	m = updated.(AccountModel)
 	if m.user.ID != "" {
 		t.Fatal("stale request established an account")
@@ -84,7 +84,7 @@ func TestAccountIgnoresStaleResultsAndTypingOwnsKeys(t *testing.T) {
 func TestRemoteIdentityCannotInjectTerminalControls(t *testing.T) {
 	m := NewAccount("dark", auth.Store{}, auth.DefaultOrigin, context.Background())
 	m.state = "connected"
-	m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Test\x1b]52;c;c2VjcmV0\a\r\nName", Username: "fixture\x1b[2J"}
+	m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Test\x1b]52;c;c2VjcmV0\a\r\nName", Handle: "fixture\x1b[2J"}
 	content := m.View().Content
 	if strings.Contains(content, "\x1b]52") || strings.Contains(content, "\x1b[2J") || strings.Contains(content, "\r") {
 		t.Fatal("remote terminal control escaped sanitization")
@@ -202,7 +202,7 @@ func TestDisconnectConfirmationDefaultsToKeepingTheKey(t *testing.T) {
 	m := NewAccount("dark", auth.Store{}, auth.DefaultOrigin, t.Context())
 	defer func() { _ = m.Close() }()
 	m.state = "connected"
-	m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Username: "fixture"}
+	m.user = auth.User{ID: "01900000-0000-7000-8000-000000000001", Handle: "fixture"}
 	updated, _ := m.Update(tea.KeyPressMsg{Code: 'd', Text: "d"})
 	updated, cmd := updated.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	if updated.(AccountModel).state != "connected" || cmd != nil {
@@ -259,7 +259,7 @@ func TestAutomaticThemeReadsOriginalBackgroundBeforeSettingCanvas(t *testing.T) 
 func TestSuccessfulVerificationShowsConfirmationWithoutClearingLaterErrors(t *testing.T) {
 	m := NewAccount("dark", auth.Store{}, auth.DefaultOrigin, t.Context())
 	defer func() { _ = m.Close() }()
-	user := auth.User{ID: "01900000-0000-7000-8000-000000000001", Username: "fixture"}
+	user := auth.User{ID: "01900000-0000-7000-8000-000000000001", Handle: "fixture"}
 	updated, notice := m.Update(accountResult{user: user})
 	m = updated.(AccountModel)
 	if notice == nil || !strings.Contains(ansi.Strip(m.View().Content), "Connection verified just now") {
@@ -298,7 +298,7 @@ func TestConnectedFingerprintIsToggleableAndApprovalFingerprintStaysVisible(t *t
 		for _, size := range []tea.WindowSizeMsg{{Width: 160, Height: 45}, {Width: 120, Height: 35}, {Width: 80, Height: 24}, {Width: 60, Height: 18}} {
 			m := NewAccount(theme, auth.Store{}, auth.DefaultOrigin, t.Context())
 			m.width, m.height, m.key = size.Width, size.Height, key
-			updated, _ := m.Update(accountResult{user: auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Synthetic Developer", Username: "fixture"}})
+			updated, _ := m.Update(accountResult{user: auth.User{ID: "01900000-0000-7000-8000-000000000001", Name: "Synthetic Developer", Handle: "fixture"}})
 			m = updated.(AccountModel)
 			if strings.Contains(ansi.Strip(m.View().Content), key.Fingerprint()) {
 				t.Fatal("connected fingerprint is not collapsed by default")

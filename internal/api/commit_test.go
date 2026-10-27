@@ -26,7 +26,7 @@ func TestCreateAndPreviewTextContracts(t *testing.T) {
 					return
 				}
 				w.WriteHeader(http.StatusCreated)
-				_, _ = io.WriteString(w, `{"data":{"id":"synthetic","body":"Synthetic draft","author":{"id":"fixture","username":"fixture"},"status":"`+status+`"}}`)
+				_, _ = io.WriteString(w, `{"data":{"id":"synthetic","body":"Synthetic draft","author":{"id":"fixture","handle":"fixture"},"status":"`+status+`"}}`)
 			}))
 			defer server.Close()
 			key, _ := auth.GenerateKey()

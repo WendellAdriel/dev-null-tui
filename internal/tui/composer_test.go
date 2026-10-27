@@ -263,7 +263,7 @@ func TestReconnectionDoesNotExposeOrMutateAnotherOwnersDraft(t *testing.T) {
 	m.composer.input.SetValue("Original private draft")
 	next, _ := m.Update(logResult{index: 0, generation: m.feeds[0].generation, err: &auth.APIError{Status: 401}})
 	m = next.(AppModel)
-	next, _ = m.Update(accountResult{generation: m.account.generation, user: auth.User{ID: "other", Username: "other"}})
+	next, _ = m.Update(accountResult{generation: m.account.generation, user: auth.User{ID: "other", Handle: "other"}})
 	m = next.(AppModel)
 	m = pressApp(m, "c")
 	if m.composer.input.Focused() {
@@ -327,7 +327,7 @@ func TestPreviewRevocationRecoversDraftAndRejectsOldResult(t *testing.T) {
 		t.Fatal("preview revocation did not keep draft for reconnection")
 	}
 	key, _ := auth.GenerateKey()
-	next, _ = m.Update(accountResult{generation: m.account.generation, key: key, user: auth.User{ID: "fixture", Username: "fixture"}})
+	next, _ = m.Update(accountResult{generation: m.account.generation, key: key, user: auth.User{ID: "fixture", Handle: "fixture"}})
 	m = next.(AppModel)
 	m = pressApp(m, "c")
 	old.err = nil

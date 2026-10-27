@@ -29,7 +29,7 @@ func TestLogContractPaginationAndRankedCounts(t *testing.T) {
 			_, _ = io.WriteString(w, `{"log":"latest","is_ranked":false,"data":[],"links":{"next":null},"meta":{"next_cursor":null}}`)
 			return
 		}
-		_, _ = io.WriteString(w, `{"log":"latest","is_ranked":false,"new_commits_count":2,"data":[{"id":"01900000-0000-7000-8000-000000000001","body":"Synthetic fixture","short_hash":"0000001","html_url":"https://example.test/@fixture/commit/1","created_at":"2026-10-23T10:00:00Z","status":"pending","author":{"id":"user-1","username":"fixture","name":"Fixture","lane":4},"body_segments":[{"type":"text","text":"Synthetic fixture"}],"quoted_commit_id":"hidden","quoted_commit":null,"reply_preview":{"data":[],"next_cursor":null}}],"suggestions":[],"links":{"next":"/api/v1/log/latest?cursor=opaque%2B%2F%3D"},"meta":{"next_cursor":"opaque+/="}}`)
+		_, _ = io.WriteString(w, `{"log":"latest","is_ranked":false,"new_commits_count":2,"data":[{"id":"01900000-0000-7000-8000-000000000001","body":"Synthetic fixture","short_hash":"0000001","html_url":"https://example.test/@fixture/commit/1","created_at":"2026-10-23T10:00:00Z","status":"pending","author":{"id":"user-1","handle":"fixture","name":"Fixture","lane":4},"body_segments":[{"type":"text","text":"Synthetic fixture"}],"quoted_commit_id":"hidden","quoted_commit":null,"reply_preview":{"data":[],"next_cursor":null}}],"suggestions":[],"links":{"next":"/api/v1/log/latest?cursor=opaque%2B%2F%3D"},"meta":{"next_cursor":"opaque+/="}}`)
 	}))
 	defer server.Close()
 	key, _ := auth.GenerateKey()
@@ -38,7 +38,7 @@ func TestLogContractPaginationAndRankedCounts(t *testing.T) {
 		t.Fatal(err)
 	}
 	page, err := client.Log(t.Context(), Latest, "", "seen")
-	if err != nil || len(page.Data) != 1 || page.NewCount != 2 || string(page.Data[0].Author.Lane) != "4" || page.Data[0].Status != "pending" {
+	if err != nil || len(page.Data) != 1 || page.NewCount != 2 || page.Data[0].Author.Handle != "fixture" || string(page.Data[0].Author.Lane) != "4" || page.Data[0].Status != "pending" {
 		t.Fatalf("contract decode: %+v %v", page, err)
 	}
 	last, err := client.Log(t.Context(), Latest, page.Next, "")

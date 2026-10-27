@@ -22,7 +22,7 @@ const DefaultOrigin = "https://dev-null.sh"
 type User struct {
 	ID               string          `json:"id"`
 	Name             string          `json:"name"`
-	Username         string          `json:"username"`
+	Handle           string          `json:"handle"`
 	AvatarURL        string          `json:"avatar_url"`
 	Bio              string          `json:"bio"`
 	Company          string          `json:"company"`
@@ -33,6 +33,8 @@ type User struct {
 	Lane             json.RawMessage `json:"lane"`
 	PasteisMode      bool            `json:"pasteis_mode"`
 	PasteisRemaining *int            `json:"pasteis_remaining"`
+	TermsVersion     string          `json:"terms_version"`
+	TermsAccepted    bool            `json:"terms_accepted"`
 }
 
 type APIError struct {
@@ -102,6 +104,26 @@ func (c *Client) Me(ctx context.Context) (User, error) {
 	return c.request(ctx, http.MethodGet, "/api/v1/me", nil)
 }
 
+func (c *Client) AcceptTerms(ctx context.Context, version string) (User, error) {
+	if version == "" {
+		return User{}, errors.New("verify the current terms version before accepting")
+	}
+	body, err := json.Marshal(struct {
+		Version string `json:"version"`
+	}{version})
+	if err != nil {
+		return User{}, err
+	}
+	user, err := c.request(ctx, http.MethodPut, "/api/v1/me/terms", body)
+	if err != nil {
+		return User{}, err
+	}
+	if !user.TermsAccepted || user.TermsVersion != version {
+		return User{}, errors.New("server did not confirm the displayed terms version; verify the connection")
+	}
+	return user, nil
+}
+
 func (c *Client) request(ctx context.Context, method, path string, body []byte) (User, error) {
 	data, err := c.send(ctx, method, path, body)
 	if err != nil {
@@ -110,7 +132,7 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 	var result struct {
 		Data User `json:"data"`
 	}
-	if err := json.Unmarshal(data, &result); err != nil || result.Data.ID == "" || result.Data.Username == "" {
+	if err := json.Unmarshal(data, &result); err != nil || result.Data.ID == "" || result.Data.Handle == "" {
 		return User{}, errors.New("account server returned an invalid identity")
 	}
 	return result.Data, nil

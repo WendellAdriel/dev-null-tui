@@ -43,7 +43,7 @@ func TestAccountAsideUsesOnlyReturnedProfileFields(t *testing.T) {
 func TestAsideCentersIdentityAndCountsButNotProfileDetails(t *testing.T) {
 	m := fixtureApp(t)
 	m.account.user.Name = "Ada Fixture"
-	m.account.user.Username = "ada"
+	m.account.user.Handle = "ada"
 	m.account.user.Commits = new(31)
 	m.account.user.Following = new(48)
 	m.account.user.Followers = new(5)

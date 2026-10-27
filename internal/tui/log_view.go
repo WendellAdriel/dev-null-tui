@@ -138,7 +138,7 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 	return lines
 }
 
-// commitLayout renders a commit, with an optional tag such as "quoted" after the username.
+// commitLayout renders a commit, with an optional tag such as "quoted" after the handle.
 func commitLayout(commit api.Commit, tag string, width int, p palette, now time.Time, manager *graphics.Manager) ([]string, []pictureArea) {
 	if commit.DeletedAt != nil {
 		return []string{text(p.muted).Render("Commit deleted")}, nil
@@ -148,10 +148,10 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	}
 	name := safeText(commit.Author.Name)
 	if name == "" {
-		name = safeText(commit.Author.Username)
+		name = safeText(commit.Author.Handle)
 	}
 	stamp := relativeAge(commit.CreatedAt, now)
-	meta := text(p.ink).Bold(true).Render(name) + " " + text(p.muted).Render("@"+safeText(commit.Author.Username))
+	meta := text(p.ink).Bold(true).Render(name) + " " + text(p.muted).Render("@"+safeText(commit.Author.Handle))
 	if tag != "" {
 		meta += " " + text(p.blue).Render(tag)
 	}
@@ -179,9 +179,9 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 			lines = append(lines, text(p.hairline).Render("╭"+strings.Repeat("─", max(0, width-2))+"╮"))
 			quotedName := safeText(quote.Author.Name)
 			if quotedName == "" {
-				quotedName = safeText(quote.Author.Username)
+				quotedName = safeText(quote.Author.Handle)
 			}
-			header := smallAvatar(quote.Author, p, manager) + text(p.ink).Bold(true).Render(quotedName) + " " + text(p.muted).Render("@"+safeText(quote.Author.Username))
+			header := smallAvatar(quote.Author, p, manager) + text(p.ink).Bold(true).Render(quotedName) + " " + text(p.muted).Render("@"+safeText(quote.Author.Handle))
 			quoteLines := []string{fit(header, quoteWidth)}
 			body := strings.Split(ansi.Wrap(bodyText(*quote, p), quoteWidth, ""), "\n")
 			if len(body) > 5 {
@@ -250,7 +250,7 @@ func previewReplies(commit api.Commit) []api.Commit {
 
 // replyPreview renders a reply's author line and up to three body lines aligned under the name.
 func replyPreview(reply api.Commit, width int, p palette, manager *graphics.Manager) []string {
-	lines := []string{fit(smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Username)), width)}
+	lines := []string{fit(smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Handle)), width)}
 	body := strings.Split(ansi.Wrap(bodyText(reply, p), max(1, width-3), ""), "\n")
 	if len(body) > 4 {
 		body = append(body[:3], "…")

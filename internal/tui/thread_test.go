@@ -42,7 +42,7 @@ func deliver(m AppModel, msgs []tea.Msg) AppModel {
 func replyTo(id, parent, body string) api.Commit {
 	c := fixtureCommit(id)
 	c.Body, c.ParentID = body, &parent
-	c.Author = &api.Author{ID: "other", Name: "Grace Fixture", Username: "grace", Lane: []byte("2"), AvatarURL: "https://example.test/grace.png"}
+	c.Author = &api.Author{ID: "other", Name: "Grace Fixture", Handle: "grace", Lane: []byte("2"), AvatarURL: "https://example.test/grace.png"}
 	return c
 }
 

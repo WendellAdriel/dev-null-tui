@@ -117,14 +117,14 @@ func (m AppModel) composerView(width int, p palette) string {
 	if c.previewing {
 		label = "Preview"
 	}
-	rows := []string{"  " + marker + "  " + text(p.ink).Bold(true).Render(label) + " " + text(p.muted).Render("@"+safeText(m.account.user.Username))}
+	rows := []string{"  " + marker + "  " + text(p.ink).Bold(true).Render(label) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))}
 	if c.mode != "" && c.target.Author != nil {
 		action := "↩ Replying to @"
 		if c.mode == "quote" {
 			action = "❝ Quoting @"
 		}
 		excerpt := strings.SplitN(ansi.Strip(bodyText(c.target, p)), "\n", 2)[0]
-		rows = append(rows, "     "+text(p.blue).Render(fit(action+safeText(c.target.Author.Username), inner)), "     "+text(p.muted).Render(fit(excerpt, inner)))
+		rows = append(rows, "     "+text(p.blue).Render(fit(action+safeText(c.target.Author.Handle), inner)), "     "+text(p.muted).Render(fit(excerpt, inner)))
 	}
 	body := c.input.View()
 	if c.previewing {

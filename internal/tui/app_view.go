@@ -252,7 +252,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	}
 	bottom := "  " + avatar
 	if width >= 12 {
-		bottom += text(p.muted).Render(fit("@"+safeText(user.Username), inner-4))
+		bottom += text(p.muted).Render(fit("@"+safeText(user.Handle), inner-4))
 	}
 	gap := max(1, height-lipgloss.Height(top)-lipgloss.Height(bottom))
 	content := top + strings.Repeat("\n", gap) + bottom + "\n"
@@ -282,7 +282,7 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		avatar = top + "\n" + bottom
 	}
 	centered := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
-	identity := centered.Render(avatar + "\n" + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner)) + "\n" + text(p.muted).Render(fit("@"+safeText(u.Username), inner)))
+	identity := centered.Render(avatar + "\n" + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner)) + "\n" + text(p.muted).Render(fit("@"+safeText(u.Handle), inner)))
 	content := "\n" + identity + "\n\n"
 	var stats []string
 	for _, stat := range []struct {

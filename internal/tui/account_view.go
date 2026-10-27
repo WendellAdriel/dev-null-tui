@@ -16,6 +16,8 @@ type accountAction struct {
 
 func (m AccountModel) actions() []accountAction {
 	switch m.state {
+	case "terms":
+		return []accountAction{{"t", "Terms", "Terms"}, {"p", "Privacy", "Privacy"}, {"v", "Verify connection", "Verify"}, {"a", "Agree", "Agree"}}
 	case "idle":
 		return []accountAction{{"enter", "Connect in browser", "Connect in browser"}}
 	case "waiting":
@@ -123,7 +125,7 @@ func (m AccountModel) accountMasthead(width int, p palette) string {
 
 func (m AccountModel) connectionStep() int {
 	switch m.state {
-	case "connected", "confirm", "disconnecting":
+	case "connected", "confirm", "disconnecting", "terms", "accepting-terms":
 		return 3
 	case "verifying":
 		return 2
@@ -171,6 +173,24 @@ func (m AccountModel) accountSteps(p palette) string {
 }
 
 func (m AccountModel) accountBodyLayout(width int, p palette) (string, []hitArea) {
+	if (m.state == "terms" || m.state == "accepting-terms") && !m.help {
+		lines := []string{
+			text(p.ink).Bold(true).Render("Review terms and privacy"),
+			"Version " + safeText(m.user.TermsVersion),
+			"Terms: " + m.origin + "/terms",
+			"Privacy: " + m.origin + "/privacy",
+			"Agree accepts both policies.",
+		}
+		if m.status != "" {
+			lines = append(lines, lipgloss.NewStyle().Width(width).MaxHeight(2).Foreground(lipgloss.Color(p.lanes[0])).Render(safeText(m.status)))
+		}
+		body := lipgloss.NewStyle().Width(width).Render(strings.Join(lines, "\n"))
+		actions, areas := m.accountActionsLayout(width, p)
+		for i := range areas {
+			areas[i].y += lipgloss.Height(body) + 1
+		}
+		return body + "\n\n" + actions, areas
+	}
 	compact := m.height <= 24
 	title, lead := "Connect your account", "Approve this terminal in your browser."
 	detail := "Sign in through GitHub, then approve the device on /dev/null."
@@ -188,7 +208,7 @@ func (m AccountModel) accountBodyLayout(width int, p palette) (string, []hitArea
 	case "disconnecting":
 		title, lead, detail = "Disconnecting locally", "Deleting this terminal's private key.", "Server approval is unchanged."
 	case "connected":
-		title, lead, detail = "Account connected", safeText(m.user.Name)+"  @"+safeText(m.user.Username), "This terminal can sign requests as your account."
+		title, lead, detail = "Account connected", safeText(m.user.Name)+"  @"+safeText(m.user.Handle), "This terminal can sign requests as your account."
 		if m.workspace {
 			detail += " Press Esc to return to your workspace."
 		}

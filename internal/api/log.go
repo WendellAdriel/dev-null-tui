@@ -20,7 +20,7 @@ const (
 
 type Author struct {
 	ID        string          `json:"id"`
-	Username  string          `json:"username"`
+	Handle    string          `json:"handle"`
 	Name      string          `json:"name"`
 	Lane      json.RawMessage `json:"lane"`
 	AvatarURL string          `json:"avatar_url"`

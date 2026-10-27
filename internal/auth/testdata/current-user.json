@@ -1,7 +1,7 @@
 {
   "data": {
     "id": "01900000-0000-7000-8000-000000000001",
-    "username": "fixture",
+    "handle": "fixture",
     "name": "Synthetic Developer",
     "avatar_url": null,
     "bio": null,
@@ -19,6 +19,9 @@
     "pasteis_mode": false,
     "preferred_lane": null,
     "automatic_lane": 0,
+    "terms_version": "2026-10-25T00:00:00Z",
+    "terms_accepted_at": "2026-10-26T00:00:00Z",
+    "terms_accepted": true,
     "remotes": null
   },
   "unread_notifications_count": 0

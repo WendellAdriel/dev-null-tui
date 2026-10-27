@@ -94,7 +94,7 @@ func TestSignedEnrollmentAndIdentityUseTransmittedBytes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user, err := client.Enroll(t.Context(), "synthetic-code", "synthetic-verifier"); err != nil || user.Username != "fixture" || user.ID != "01900000-0000-7000-8000-000000000001" {
+	if user, err := client.Enroll(t.Context(), "synthetic-code", "synthetic-verifier"); err != nil || user.Handle != "fixture" || user.ID != "01900000-0000-7000-8000-000000000001" {
 		t.Fatalf("enrollment: %v", err)
 	}
 	if _, err := client.Me(t.Context()); err != nil {
@@ -171,9 +171,9 @@ func TestClientDoesNotFollowRedirectsOrRetryRevokedKeys(t *testing.T) {
 func TestMalformedIdentityCannotEstablishAnAccount(t *testing.T) {
 	key, _ := GenerateKey()
 	for _, body := range []string{
-		`{"data":{"id":1,"username":"fixture"}}`,
-		`{"data":{"id":null,"username":"fixture"}}`,
-		`{"data":{"id":"","username":"fixture"}}`,
+		`{"data":{"id":1,"handle":"fixture"}}`,
+		`{"data":{"id":null,"handle":"fixture"}}`,
+		`{"data":{"id":"","handle":"fixture"}}`,
 		`{"data":{"id":"01900000-0000-7000-8000-000000000001"}}`,
 		`{"unexpected":"synthetic-do-not-log"}`,
 	} {

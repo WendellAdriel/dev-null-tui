@@ -156,7 +156,7 @@ func TestSavedConnectionOpensApplicationAndReadsSignedLogs(t *testing.T) {
 		}
 		switch r.URL.Path {
 		case "/api/v1/me":
-			_, _ = io.WriteString(w, `{"data":{"id":"fixture","username":"fixture","name":"Fixture"}}`)
+			_, _ = io.WriteString(w, `{"data":{"id":"fixture","handle":"fixture","name":"Fixture"}}`)
 		default:
 			log := strings.TrimPrefix(r.URL.Path, "/api/v1/log/")
 			w.Header().Set("Content-Type", "application/json")

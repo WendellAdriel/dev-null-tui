@@ -28,7 +28,7 @@ func TestThreadReadsCommitAncestorsAndTombstones(t *testing.T) {
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/commits/c1" || r.Header.Get("X-SSH-Signature") == "" {
 			t.Errorf("unexpected request %s %s", r.Method, r.URL)
 		}
-		_, _ = io.WriteString(w, `{"data":{"id":"c1","parent_id":"p2","body":"Focused","author":{"id":"u","username":"ada"},"replies_count":3},"ancestors":[{"id":"p1","parent_id":null,"deleted_at":"2026-10-26T10:00:00Z","replies_count":1},{"id":"p2","parent_id":"p1","body":"Parent","author":{"id":"u","username":"ada"}}]}`)
+		_, _ = io.WriteString(w, `{"data":{"id":"c1","parent_id":"p2","body":"Focused","author":{"id":"u","handle":"ada"},"replies_count":3},"ancestors":[{"id":"p1","parent_id":null,"deleted_at":"2026-10-26T10:00:00Z","replies_count":1},{"id":"p2","parent_id":"p1","body":"Parent","author":{"id":"u","handle":"ada"}}]}`)
 	})
 	thread, err := client.Thread(t.Context(), "c1")
 	if err != nil || thread.Commit.ID != "c1" || thread.Commit.ParentID == nil || *thread.Commit.ParentID != "p2" || len(thread.Ancestors) != 2 {
@@ -59,9 +59,9 @@ func TestRepliesFollowTheServerCursorAndRefuseRepeats(t *testing.T) {
 		}
 		cursor := r.URL.Query().Get("cursor")
 		cursors = append(cursors, cursor)
-		page := `{"data":[{"id":"r1","parent_id":"c1","body":"Reply","author":{"id":"u","username":"ada"}}],"meta":{"next_cursor":"abc"}}`
+		page := `{"data":[{"id":"r1","parent_id":"c1","body":"Reply","author":{"id":"u","handle":"ada"}}],"meta":{"next_cursor":"abc"}}`
 		if cursor == "abc" {
-			page = `{"data":[{"id":"r2","parent_id":"c1","body":"Reply","author":{"id":"u","username":"ada"}}],"meta":{"next_cursor":null}}`
+			page = `{"data":[{"id":"r2","parent_id":"c1","body":"Reply","author":{"id":"u","handle":"ada"}}],"meta":{"next_cursor":null}}`
 		}
 		_, _ = io.WriteString(w, page)
 	})
@@ -88,7 +88,7 @@ func TestReplyAndQuotePayloadsAreMutuallyExclusive(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&payload)
 		payloads = append(payloads, payload)
 		w.WriteHeader(http.StatusCreated)
-		_, _ = io.WriteString(w, `{"data":{"id":"new","body":"Hi","author":{"id":"u","username":"ada"},"status":"pending"}}`)
+		_, _ = io.WriteString(w, `{"data":{"id":"new","body":"Hi","author":{"id":"u","handle":"ada"},"status":"pending"}}`)
 	})
 	for _, draft := range []NewCommit{{Body: "Hi"}, {Body: "Hi", ParentID: "p"}, {Body: "Hi", QuotedID: "q"}} {
 		if _, err := client.CreateCommit(t.Context(), draft); err != nil {

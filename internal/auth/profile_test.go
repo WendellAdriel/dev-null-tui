@@ -9,7 +9,7 @@ import (
 
 func TestSignedIdentityIncludesOptionalPublicProfileFields(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, `{"data":{"id":"fixture","name":"Synthetic Developer","username":"fixture","bio":"Building tools","company":"Fixture Labs","location":"Porto","commits_count":31,"following_count":48,"followers_count":0,"lane":"#123abc","pasteis_mode":true,"pasteis_remaining":10}}`)
+		_, _ = io.WriteString(w, `{"data":{"id":"fixture","name":"Synthetic Developer","handle":"fixture","bio":"Building tools","company":"Fixture Labs","location":"Porto","commits_count":31,"following_count":48,"followers_count":0,"lane":"#123abc","pasteis_mode":true,"pasteis_remaining":10}}`)
 	}))
 	defer server.Close()
 	key, _ := GenerateKey()

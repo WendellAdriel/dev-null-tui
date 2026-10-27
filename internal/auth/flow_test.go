@@ -51,7 +51,7 @@ func TestFlowVerifiesIdentityAndPreservesKeyAfterUncertainEnrollment(t *testing.
 			requests++
 			w.WriteHeader(status)
 			if status == http.StatusOK {
-				_, _ = w.Write([]byte(`{"data":{"id":"01900000-0000-7000-8000-000000000001","username":"fixture","name":"Synthetic"}}`))
+				_, _ = w.Write([]byte(`{"data":{"id":"01900000-0000-7000-8000-000000000001","handle":"fixture","name":"Synthetic"}}`))
 			} else {
 				_, _ = w.Write([]byte(`{"code":"invalid_grant"}`))
 			}
@@ -65,7 +65,7 @@ func TestFlowVerifiesIdentityAndPreservesKeyAfterUncertainEnrollment(t *testing.
 			t.Fatal(err)
 		}
 		user, err := flow.Redeem(t.Context(), RedirectURI+"?code=synthetic-code&state="+flow.Attempt.State)
-		if status == http.StatusOK && (err != nil || user.Username != "fixture" || requests != 2) {
+		if status == http.StatusOK && (err != nil || user.Handle != "fixture" || requests != 2) {
 			t.Fatalf("enrollment did not verify /me: %v, requests=%d", err, requests)
 		}
 		if status != http.StatusOK && (err == nil || requests != 1) {
