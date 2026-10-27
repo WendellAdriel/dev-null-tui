@@ -6,14 +6,38 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 )
 
 const lsregister = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
 func (h *Handler) macApp() string { return filepath.Join(h.store.Dir, "connection-"+h.state+".app") }
 
+// macOwnerScript prints the bundle identifier that opens devnull:// links, or nothing when no app claims the scheme.
+const macOwnerScript = `use framework "AppKit"
+set target to current application's NSURL's URLWithString:"devnull://auth/callback"
+set owner to current application's NSWorkspace's sharedWorkspace()'s URLForApplicationToOpenURL:target
+if owner is missing value then return ""
+set identifier to (current application's NSBundle's bundleWithURL:owner)'s bundleIdentifier()
+if identifier is missing value then return "unknown"
+return identifier as text`
+
 func macOwner(ctx context.Context) (string, error) {
-	return tool(ctx, "osascript", "-l", "JavaScript", "-e", `ObjC.import('CoreServices'); var owner = $.LSCopyDefaultHandlerForURLScheme($('devnull')); owner.isNil() ? '' : ObjC.unwrap(owner);`)
+	return tool(ctx, "osascript", "-e", macOwnerScript)
+}
+
+// awaitMacOwner polls because LaunchServices can apply a registration after lsregister returns.
+func awaitMacOwner(ctx context.Context, want string) error {
+	for {
+		if owner, err := macOwner(ctx); err == nil && owner == want {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return errors.New("macOS did not select the temporary handler")
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
 }
 
 func (h *Handler) install(ctx context.Context) error {
@@ -42,11 +66,7 @@ func (h *Handler) install(ctx context.Context) error {
 	if _, err := tool(ctx, lsregister, "-f", h.macApp()); err != nil {
 		return err
 	}
-	owner, err = macOwner(ctx)
-	if err != nil || owner != "sh.dev-null.cli.auth."+h.state {
-		return errors.New("macOS did not select the temporary handler")
-	}
-	return nil
+	return awaitMacOwner(ctx, "sh.dev-null.cli.auth."+h.state)
 }
 
 func (h *Handler) uninstall(ctx context.Context) error {
