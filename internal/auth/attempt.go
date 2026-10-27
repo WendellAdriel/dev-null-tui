@@ -19,6 +19,7 @@ var ErrDenied = errors.New("browser approval was canceled; try connecting again"
 
 type Attempt struct {
 	URL, State, Verifier string
+	redirect             string
 	mu                   sync.Mutex
 	spent                bool
 	expires              time.Time
@@ -37,12 +38,27 @@ func NewAttempt(origin, fingerprint, device string) (*Attempt, error) {
 	if _, err := rand.Read(state); err != nil {
 		return nil, err
 	}
-	a := &Attempt{State: hex.EncodeToString(state), Verifier: base64.RawURLEncoding.EncodeToString(verifier), expires: time.Now().Add(10 * time.Minute)}
+	a := &Attempt{State: hex.EncodeToString(state), Verifier: base64.RawURLEncoding.EncodeToString(verifier), redirect: RedirectURI, expires: time.Now().Add(10 * time.Minute)}
 	challenge := sha256.Sum256([]byte(a.Verifier))
 	base.Path = "/mobile/authorize"
 	base.RawQuery = url.Values{"fingerprint": {fingerprint}, "device_name": {device}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}, "code_challenge_method": {"S256"}, "state": {a.State}, "redirect_uri": {RedirectURI}}.Encode()
 	a.URL = base.String()
 	return a, nil
+}
+
+// returnTo sends the browser back to redirect instead of RedirectURI, such as the loopback listener of this attempt.
+func (a *Attempt) returnTo(redirect string) error {
+	u, err := url.Parse(a.URL)
+	if err != nil {
+		return err
+	}
+	q := u.Query()
+	q.Set("redirect_uri", redirect)
+	u.RawQuery = q.Encode()
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.URL, a.redirect = u.String(), redirect
+	return nil
 }
 
 func (a *Attempt) Cancel() {
@@ -70,8 +86,8 @@ func (a *Attempt) accept(raw string) (string, error) {
 		return "", errors.New("this connection attempt ended; start again")
 	}
 	u, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || len(raw) > 2048 || strings.Contains(raw, "#") || u.Scheme != "devnull" || u.Host != "auth" || u.Path != "/callback" || u.RawPath != "" || u.User != nil || u.Fragment != "" || u.Opaque != "" {
-		return "", errors.New("paste the complete devnull://auth/callback link")
+	if err != nil || len(raw) > 2048 || strings.Contains(raw, "#") || u.Scheme+"://"+u.Host+u.Path != a.redirect || u.RawPath != "" || u.User != nil || u.Fragment != "" || u.Opaque != "" {
+		return "", errors.New("paste the complete callback link")
 	}
 	q, err := url.ParseQuery(u.RawQuery)
 	if err != nil || len(q["state"]) != 1 || subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(a.State)) != 1 {

@@ -64,7 +64,7 @@ func TestFlowVerifiesIdentityAndPreservesKeyAfterUncertainEnrollment(t *testing.
 		if err != nil {
 			t.Fatal(err)
 		}
-		user, err := flow.Redeem(t.Context(), RedirectURI+"?code=synthetic-code&state="+flow.Attempt.State)
+		user, err := flow.Redeem(t.Context(), flow.callback.URI+"?code=synthetic-code&state="+flow.Attempt.State)
 		if status == http.StatusOK && (err != nil || user.Handle != "fixture" || requests != 2) {
 			t.Fatalf("enrollment did not verify /me: %v, requests=%d", err, requests)
 		}

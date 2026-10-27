@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"sync"
-	"time"
 )
 
 type Flow struct {
@@ -44,11 +43,11 @@ func Begin(ctx context.Context, store Store, origin string, key *Key) (_ *Flow, 
 	if err != nil {
 		return nil, err
 	}
+	// The browser returns to a loopback listener (RFC 8252, section 7.3) instead of the devnull:// scheme, which
+	// another app, such as /dev/null for Mac, may own.
 	f.callback, err = ListenCallback(store, f.Attempt.State)
 	if err == nil {
-		handlerCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		f.handler, err = InstallHandler(handlerCtx, store, f.Attempt.State)
-		cancel()
+		err = f.Attempt.returnTo(f.callback.URI)
 	}
 	if err != nil {
 		f.Notice = "Automatic return unavailable. Paste the full callback link."

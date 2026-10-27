@@ -26,6 +26,7 @@ type callbackAddress struct {
 
 type Callback struct {
 	Links  chan string
+	URI    string
 	server *http.Server
 	path   string
 	once   sync.Once
@@ -73,11 +74,44 @@ func ListenCallback(store Store, state string) (*Callback, error) {
 		_ = listener.Close()
 		return nil, err
 	}
-	callback := &Callback{Links: make(chan string, 1), path: path}
+	host := "127.0.0.1:" + strconv.Itoa(address.Port)
+	callback := &Callback{Links: make(chan string, 1), URI: "http://" + host + "/callback", path: path}
 	var mu sync.Mutex
 	delivered := false
+	deliver := func(link string) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		if delivered {
+			return false
+		}
+		delivered = true
+		callback.Links <- link
+		return true
+	}
 	callback.server = &http.Server{ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 3 * time.Second, WriteTimeout: 3 * time.Second, MaxHeaderBytes: 4096, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != "127.0.0.1:"+strconv.Itoa(address.Port) || subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+address.Secret)) != 1 {
+		if r.Host != host {
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		// The browser comes back here from the authorize page, as the redirect_uri of this attempt.
+		if r.Method == http.MethodGet && r.URL.Path == "/callback" && r.Header.Get("Authorization") == "" {
+			q, err := url.ParseQuery(r.URL.RawQuery)
+			if err != nil || len(r.URL.RawQuery) > 2048 || len(q["state"]) != 1 || subtle.ConstantTimeCompare([]byte(q.Get("state")), []byte(state)) != 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Cache-Control", "no-store")
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			if !deliver(callback.URI + "?" + r.URL.RawQuery) {
+				w.WriteHeader(http.StatusConflict)
+				_, _ = io.WriteString(w, "This connection attempt already received its answer. Return to your terminal.\n")
+				return
+			}
+			_, _ = io.WriteString(w, "Done. You can close this tab and return to your terminal.\n")
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(r.Header.Get("Authorization")), []byte("Bearer "+address.Secret)) != 1 {
 			w.WriteHeader(http.StatusForbidden)
 			return
 		}
@@ -99,14 +133,10 @@ func ListenCallback(store Store, state string) (*Callback, error) {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		mu.Lock()
-		defer mu.Unlock()
-		if delivered {
+		if !deliver(string(data)) {
 			w.WriteHeader(http.StatusConflict)
 			return
 		}
-		delivered = true
-		callback.Links <- string(data)
 		w.WriteHeader(http.StatusNoContent)
 	})}
 	go func() { _ = callback.server.Serve(listener) }()

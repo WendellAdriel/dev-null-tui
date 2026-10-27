@@ -230,7 +230,7 @@ func (m AccountModel) accountBodyLayout(width int, p palette) (string, []hitArea
 		input := m.input
 		input.SetStyles(textinput.DefaultStyles(m.dark))
 		input.SetWidth(max(1, width-4))
-		return text(p.ink).Bold(true).Render("Paste callback link") + "\n\n" + text(p.muted).Render("Use the full devnull://auth/callback link.") + "\n\n" + input.View() + "\n\n" + text(p.muted).Render("Masked input. Nothing is logged."), nil
+		return text(p.ink).Bold(true).Render("Paste callback link") + "\n\n" + text(p.muted).Render("Use the full link from the browser address bar.") + "\n\n" + input.View() + "\n\n" + text(p.muted).Render("Masked input. Nothing is logged."), nil
 	}
 	if m.showURL && m.flow != nil {
 		return text(p.ink).Bold(true).Render("Open this authorization URL") + "\n\n" + lipgloss.NewStyle().Width(width).Render(m.flow.Attempt.URL) + "\n\n" + text(p.muted).Render("Return here after approval. Never share the callback."), nil
