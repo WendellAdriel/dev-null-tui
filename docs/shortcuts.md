@@ -34,6 +34,8 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), and **Quote** (`q`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. These controls use the same styling as thread actions and follow the selection as you navigate.
+
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
 Neither `r` nor `R` refreshes the workspace. Lowercase `r` replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
