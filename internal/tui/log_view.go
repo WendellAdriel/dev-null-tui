@@ -368,7 +368,7 @@ func (m *AppModel) renderFeed(index int) {
 	}
 	contentWidth := max(1, width-gutter-2)
 	lines := []string{}
-	f.starts, f.ends, f.pictures = nil, nil, nil
+	f.starts, f.ends, f.pictures, f.actions = nil, nil, nil, nil
 	day := ""
 	for i, c := range f.commits {
 		lane := authorColor(c.Author, p)
@@ -393,6 +393,15 @@ func (m *AppModel) renderFeed(index int) {
 		ring := -1
 		if c.DeletedAt == nil && c.Author != nil && len(rows) > 1 {
 			ring = len(rows) - 1
+		}
+		if i == f.selected {
+			chips, areas := m.commitActions(c, commitAction{"Thread", "enter"}, contentWidth, p)
+			for _, area := range areas {
+				area.x += gutter
+				area.y += len(lines) + len(rows)
+				f.actions = append(f.actions, area)
+			}
+			rows = append(rows, chips...)
 		}
 		var heads []int
 		if len(previews) > 0 {

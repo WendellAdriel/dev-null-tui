@@ -54,7 +54,13 @@ func TestReferenceNodesAndDayGroupsSurvivePagination(t *testing.T) {
 		t.Fatal("pagination lost the next day group")
 	}
 	for i, start := range f.starts {
-		stats := f.ends[i] - 2
+		stats := start
+		for stats < f.ends[i] && !strings.Contains(lines[stats], "☆") {
+			stats++
+		}
+		if stats == f.ends[i] {
+			t.Fatalf("commit %d lacks its stats row", i)
+		}
 		if !strings.Contains(lines[stats], "☆") || graphCell(t, lines, stats, 2) != "◉" || graphCell(t, lines, start+1, 2) != "│" {
 			t.Fatalf("commit %d lacks its rail and ring:\n%s", i, strings.Join(lines, "\n"))
 		}

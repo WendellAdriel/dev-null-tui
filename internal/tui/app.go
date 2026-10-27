@@ -28,6 +28,7 @@ type feed struct {
 	viewport             viewport.Model
 	starts, ends         []int
 	pictures             []pictureArea
+	actions              []hitArea
 	next, status         string
 	loadingMode          string
 	loaded, loading      bool
@@ -635,6 +636,11 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	row := msg.Y - feedHeaderHeight + f.viewport.YOffset()
+	for _, area := range f.actions {
+		if area.contains(x, row) {
+			return m.mouseKey(area.action)
+		}
+	}
 	for _, picture := range f.pictures {
 		if picture.contains(x, row) {
 			m, _ = m.selectCommit(picture.entry)

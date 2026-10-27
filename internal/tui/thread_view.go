@@ -6,6 +6,8 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/api"
 )
 
 const threadHeaderHeight = 3
@@ -63,7 +65,11 @@ func (m *AppModel) renderThread(t *threadState) {
 		}
 		nodes, stats = append(nodes, len(bodies)), append(stats, len(bodies)+len(rows)-1)
 		if i == t.selected {
-			chips, areas := m.threadActions(entry, contentWidth, p)
+			navigation := commitAction{}
+			if entry.depth < 2 && (entry.kind == "focus" || entry.commit.Replies > 0) {
+				navigation = commitAction{"Replies", "space"}
+			}
+			chips, areas := m.commitActions(entry.commit, navigation, contentWidth, p)
 			for _, area := range areas {
 				area.x += indent
 				area.y += len(bodies) + len(rows)
@@ -200,19 +206,23 @@ func (m *AppModel) renderThread(t *threadState) {
 	t.viewport.SetContent(strings.Join(lines, "\n"))
 }
 
-func (m AppModel) threadActions(entry threadEntry, width int, p palette) ([]string, []hitArea) {
-	if entry.commit.DeletedAt != nil || entry.commit.Author == nil {
+type commitAction struct{ label, key string }
+
+func (m AppModel) commitActions(commit api.Commit, navigation commitAction, width int, p palette) ([]string, []hitArea) {
+	if commit.DeletedAt != nil || commit.Author == nil {
 		return []string{text(p.muted).Render(fit("Deleted commits cannot be replied to.", width))}, nil
 	}
-	actions := []struct{ label, key string }{{"Reply", "r"}, {"Quote", "q"}}
-	if entry.depth < 2 && (entry.kind == "focus" || entry.commit.Replies > 0) {
-		actions = append(actions, struct{ label, key string }{"Replies", "space"})
+	actions := []commitAction{{"Reply", "r"}, {"Quote", "q"}}
+	if navigation.key == "enter" {
+		actions = append([]commitAction{navigation}, actions...)
+	} else if navigation.key != "" {
+		actions = append(actions, navigation)
 	}
-	if len(entry.commit.Images) > 0 {
-		actions = append(actions, struct{ label, key string }{"View", "v"})
+	if len(commit.Images) > 0 {
+		actions = append(actions, commitAction{"View", "v"})
 	}
-	if m.ownCommit(entry.commit) {
-		actions = append(actions, struct{ label, key string }{"Delete", "D"})
+	if m.ownCommit(commit) {
+		actions = append(actions, commitAction{"Delete", "D"})
 	}
 	var rows []string
 	var areas []hitArea
