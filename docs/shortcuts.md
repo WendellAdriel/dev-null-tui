@@ -123,6 +123,8 @@ The modal keeps the log visible without changing its reading position. It needs 
 | Drag | Select text in the editor |
 | Mouse wheel | Move the editor caret by one line, choose an emoji, or scroll the preview |
 
+The modal header shows the commit, reply, or quote title once, beside your lane dot and handle. Replies and quotes show their target in a callout below the header. The textarea aligns with the modal content, and the character counter sits at the footer's right edge.
+
 The modal footer shows **Preview** (`Ctrl+P`), **Submit** (`Ctrl+Enter` or `Ctrl+S`), and **Cancel** (`Esc`). Preview becomes **Edit** while previewing. The mouse wheel in the editor moves the caret and scrolls to keep it visible. Clicks and wheel events outside the composer do not change the log. **Cancel** and the modal's **×** protect nonempty drafts with a separate confirmation.
 
 Draft Protection has three footer actions:
