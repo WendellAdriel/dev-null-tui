@@ -118,6 +118,10 @@ func (m AppModel) View() tea.View {
 		content, r := m.toastView()
 		v.Content = m.overlayToast(v.Content, content, r)
 	}
+	if m.connected && !m.accountOpen && m.account.width > 0 && m.account.height > 0 {
+		// Overlays and the viewer bypass canvas, so repaint whatever they reset.
+		v.Content = withBackground(v.Content, p.shell)
+	}
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
@@ -161,8 +165,7 @@ func (m AppModel) workspaceView() tea.View {
 		}
 		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + m.workspaceFooter(w)
 	}
-	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(w).Height(h).MaxWidth(w).MaxHeight(h)
-	page = frame.Render(page)
+	page = canvas(page, p, w, h)
 	if m.help && w >= 30 && h >= 10 {
 		modal := m.helpModal(p)
 		page = overlay(page, modal, m.helpBounds(), p, w, h)

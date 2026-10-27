@@ -52,10 +52,35 @@ func laneColor(raw json.RawMessage, p palette) string {
 	return p.muted
 }
 
+var sgrSequence = regexp.MustCompile(`\x1b\[([0-9;:]*)m`)
+
 func withBackground(line, color string) string {
 	background := ansi.Style{}.BackgroundColor(lipgloss.Color(color)).String()
-	// Nested foreground styles reset the background as well.
-	return background + strings.ReplaceAll(line, ansi.ResetStyle, ansi.ResetStyle+background) + ansi.ResetStyle
+	// Nested styles reset the background, and composited layers ask for the default one.
+	return background + sgrSequence.ReplaceAllStringFunc(line, func(sgr string) string {
+		if clearsBackground(sgr[2 : len(sgr)-1]) {
+			return sgr + background
+		}
+		return sgr
+	}) + ansi.ResetStyle
+}
+
+func clearsBackground(params string) bool {
+	values := strings.Split(params, ";")
+	for i := 0; i < len(values); i++ {
+		switch values[i] {
+		case "", "0", "49":
+			return true
+		case "38", "48", "58":
+			// Skip extended colour arguments, whose components can look like 0 or 49.
+			if i+1 < len(values) && values[i+1] == "5" {
+				i += 2
+			} else if i+1 < len(values) && values[i+1] == "2" {
+				i += 4
+			}
+		}
+	}
+	return false
 }
 
 func relativeAge(created, now time.Time) string {

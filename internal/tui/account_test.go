@@ -16,8 +16,10 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
+	uv "github.com/charmbracelet/ultraviolet"
 	"github.com/charmbracelet/x/ansi"
 
+	"github.com/WendellAdriel/dev-null-cli/internal/api"
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
@@ -324,6 +326,68 @@ func TestConnectedFingerprintIsToggleableAndApprovalFingerprintStaysVisible(t *t
 				t.Fatal("approval fingerprint was hidden")
 			}
 			_ = m.Close()
+		}
+	}
+}
+
+func assertPainted(t *testing.T, name, content string, width, height int) {
+	t.Helper()
+	buffer := uv.NewScreenBuffer(width, height)
+	lipgloss.NewLayer(content).Draw(&buffer, buffer.Bounds())
+	for y := range height {
+		for x := range width {
+			if cell := buffer.CellAt(x, y); cell != nil && cell.Width > 0 && cell.Style.Bg == nil {
+				t.Errorf("%s: cell %d,%d falls back to the terminal background", name, x, y)
+				return
+			}
+		}
+	}
+}
+
+func TestScreensPaintEveryCellWithoutRelyingOnTerminalBackground(t *testing.T) {
+	for _, theme := range []string{"dark", "light"} {
+		for _, state := range []string{"idle", "waiting", "connected", "failed", "confirm"} {
+			key, _ := auth.GenerateKey()
+			attempt, _ := auth.NewAttempt(auth.DefaultOrigin, key.Fingerprint(), "dev-null-cli")
+			m := NewAccount(theme, auth.Store{}, auth.DefaultOrigin, context.Background())
+			m.state, m.key, m.flow = state, key, &auth.Flow{Key: key, Attempt: attempt}
+			for _, size := range []tea.WindowSizeMsg{{Width: 160, Height: 45}, {Width: 70, Height: 20}, {Width: 40, Height: 10}} {
+				updated, _ := m.Update(size)
+				assertPainted(t, theme+" account "+state, updated.View().Content, size.Width, size.Height)
+			}
+		}
+
+		screens := map[string]func(AppModel) AppModel{
+			"log":      func(m AppModel) AppModel { return m },
+			"help":     func(m AppModel) AppModel { m.help = true; return m },
+			"composer": func(m AppModel) AppModel { return pressApp(m, "c") },
+			"toast":    func(m AppModel) AppModel { m.showToast("info", "Refreshing log", "Checking Following."); return m },
+			"delete":   func(m AppModel) AppModel { m.deleting.id = "a"; return m },
+			"viewer": func(m AppModel) AppModel {
+				m.viewer.open = true
+				m.viewer.commit = fixtureCommit("a")
+				m.viewer.commit.Images = []api.Image{{URL: "https://example.test/a.png", Description: "Fixture"}}
+				return m
+			},
+			"small": func(m AppModel) AppModel { m.account.width, m.account.height = 25, 8; return m },
+		}
+		for name, open := range screens {
+			app := fixtureApp(t)
+			app.account.dark = theme == "dark"
+			app = applyPage(app, 0, api.Page{Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}})
+			app = open(app)
+			assertPainted(t, theme+" "+name, app.View().Content, app.account.width, app.account.height)
+		}
+	}
+}
+
+func TestBackgroundFillOnlyFollowsSequencesThatClearIt(t *testing.T) {
+	for params, want := range map[string]bool{
+		"": true, "0": true, "49": true, "39;49": true, "1;0": true,
+		"38;2;10;49;0": false, "38;5;49": false, "48;2;0;0;0": false, "1": false, "39": false,
+	} {
+		if clearsBackground(params) != want {
+			t.Errorf("clearsBackground(%q) = %v", params, !want)
 		}
 	}
 }

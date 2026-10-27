@@ -49,8 +49,7 @@ func (m AccountModel) actions() []accountAction {
 func (m AccountModel) View() tea.View {
 	p := colors(m.dark)
 	page, _ := m.accountScreen(p)
-	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(max(0, m.width)).Height(max(0, m.height)).MaxWidth(max(0, m.width)).MaxHeight(max(0, m.height))
-	view := tea.NewView(frame.Render(page))
+	view := tea.NewView(canvas(page, p, max(0, m.width), max(0, m.height)))
 	view.AltScreen = true
 	if m.profile >= colorprofile.ANSI && (m.theme != "auto" || m.backgroundKnown) {
 		view.BackgroundColor = lipgloss.Color(p.shell)

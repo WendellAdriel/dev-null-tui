@@ -41,3 +41,9 @@ func (m *AccountModel) toggleTheme() {
 	m.theme = m.nextTheme()
 	m.dark = !m.dark
 }
+
+// canvas paints every cell so screens never depend on the terminal honouring OSC 11.
+func canvas(page string, p palette, width, height int) string {
+	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(width).Height(height).MaxWidth(width).MaxHeight(height)
+	return withBackground(frame.Render(page), p.shell)
+}
