@@ -13,6 +13,7 @@
 A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, and follow developers.
 
 - [Get started](#get-started)
+- [Screenshots](#screenshots)
 - [Documentation](#documentation)
 - [MVP roadmap](#mvp-roadmap)
 - [License](#license)
@@ -38,6 +39,37 @@ devnull
 On the first launch, press `Enter` to connect your account. Approve the device in your browser, then return to the terminal. Later launches verify your saved connection and open the workspace.
 
 Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a commit. Press `?` for help or `Ctrl+C` to exit. If your font is missing icons, run `devnull --icons plain`.
+
+## Screenshots
+
+<details>
+<summary>View screenshots</summary>
+
+### Log
+
+![Following log](docs/images/screenshots/log.png)
+
+### Notifications
+
+![Notification inbox](docs/images/screenshots/notifications.png)
+
+### Profile
+
+![Profile and commit activity](docs/images/screenshots/profile.png)
+
+### Commit
+
+![Commit composer with emoji suggestions](docs/images/screenshots/commit.png)
+
+### Reply
+
+![Reply composer](docs/images/screenshots/reply.png)
+
+### Quote
+
+![Quote composer](docs/images/screenshots/quote.png)
+
+</details>
 
 ## Documentation
 
