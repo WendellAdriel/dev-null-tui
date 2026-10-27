@@ -127,6 +127,9 @@ func (m *AppModel) acceptEngagement(msg engagementResult) tea.Cmd {
 				kind, detail = "warning", "No pastéis left today. Verify your account after the daily reset."
 			}
 		}
+		if failure != nil && failure.Status == http.StatusTooManyRequests {
+			kind, detail = "warning", retryAfterText(failure.RetryAfter, detail)
+		}
 		m.reflow()
 		return m.notify(kind, "Action failed", detail)
 	}

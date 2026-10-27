@@ -4,13 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 func starredApp(t *testing.T) (AppModel, *[]string) {
@@ -173,6 +176,32 @@ func TestStarredSidebarAndResponsiveFrames(t *testing.T) {
 				if ansi.StringWidth(line) > size[0] {
 					t.Fatal("frame overflow")
 				}
+			}
+		}
+	}
+}
+
+func TestActionRateLimitToastsUseRetryAfter(t *testing.T) {
+	for _, header := range []string{"90", "Wed, 28 Oct 2026 10:30:00 GMT", ""} {
+		for _, kind := range []string{"follow", "star", "pastel"} {
+			m, _ := starredApp(t)
+			failure := &auth.APIError{Status: http.StatusTooManyRequests, RetryAfter: header}
+			if kind == "follow" {
+				m.follow = followState{handle: "ada", generation: 1, cancel: func() {}}
+				m.acceptFollow(followResult{session: m.session, generation: 1, handle: "ada", follow: true, err: failure})
+			} else {
+				m.engagement = engagementState{id: "s1", kind: kind, generation: 1}
+				m.acceptEngagement(engagementResult{session: m.session, generation: 1, id: "s1", kind: kind, err: failure})
+			}
+			if m.toast.kind != "warning" {
+				t.Fatalf("%s not a warning", kind)
+			}
+			want := "90 seconds"
+			if _, err := http.ParseTime(header); err == nil {
+				want = time.Date(2026, 10, 28, 10, 30, 0, 0, time.UTC).Format("2 Jan 2006 15:04 MST")
+			}
+			if header != "" && !strings.Contains(m.toast.detail, want) {
+				t.Fatalf("%s %q: %+v", kind, header, m.toast)
 			}
 		}
 	}

@@ -447,7 +447,7 @@ func (m *AppModel) acceptFollow(msg followResult) tea.Cmd {
 		var failure *auth.APIError
 		switch {
 		case errors.As(msg.err, &failure) && failure.Status == http.StatusTooManyRequests:
-			return m.notify("warning", verb+" rate limited", "Too many follows. Try again in a minute.")
+			return m.notify("warning", verb+" rate limited", retryAfterText(failure.RetryAfter, "Too many follows. Try again in a minute."))
 		case errors.As(msg.err, &failure) && failure.Status == http.StatusForbidden:
 			return m.notify("error", verb+" failed", "You can't follow @"+safeText(msg.handle)+".")
 		case errors.As(msg.err, &failure) && failure.Status >= 400 && failure.Status < 500 && failure.Status != http.StatusRequestTimeout:
