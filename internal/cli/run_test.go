@@ -38,6 +38,30 @@ func TestInvalidArgumentsDoNotStartApplication(t *testing.T) {
 	}
 }
 
+func TestUpdateCommandDoesNotStartApplication(t *testing.T) {
+	called := false
+	err := runCommands([]string{"update"}, io.Discard, io.Discard, commands{update: func(output io.Writer) error {
+		called = true
+		return nil
+	}})
+	if err != nil || !called {
+		t.Fatalf("update not dispatched: %v", err)
+	}
+	if err := runCommands([]string{"update", "extra"}, io.Discard, io.Discard, commands{}); err == nil {
+		t.Fatal("update accepted arguments")
+	}
+}
+
+func TestFirstReleaseVersion(t *testing.T) {
+	var output bytes.Buffer
+	if err := runCommands([]string{"--version"}, &output, io.Discard, commands{}); err != nil {
+		t.Fatal(err)
+	}
+	if output.String() != "devnull v0.1.0\n" {
+		t.Fatalf("unexpected version %q", &output)
+	}
+}
+
 func TestDefaultStartupPassesAppearanceAndServer(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	called := false

@@ -7,17 +7,24 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
+	"github.com/WendellAdriel/dev-null-cli/internal/release"
 	"github.com/WendellAdriel/dev-null-cli/internal/tui"
+	"github.com/WendellAdriel/dev-null-cli/internal/update"
 )
 
-var Version = "dev"
+var Version = release.Version
 
 func Run(args []string, stdout, stderr io.Writer) error {
-	return runCommands(args, stdout, stderr, commands{app: startApp, callback: func(raw string) error {
+	return runCommands(args, stdout, stderr, commands{app: startApp, update: func(output io.Writer) error {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		return update.Run(ctx, Version, output)
+	}, callback: func(raw string) error {
 		store, err := auth.DefaultStore()
 		if err != nil {
 			return err
@@ -32,9 +39,16 @@ func Run(args []string, stdout, stderr io.Writer) error {
 type commands struct {
 	app      func(io.Writer, string, string, string) error
 	callback func(string) error
+	update   func(io.Writer) error
 }
 
 func runCommands(args []string, stdout, stderr io.Writer, actions commands) error {
+	if len(args) > 0 && args[0] == "update" {
+		if len(args) != 1 {
+			return errors.New("usage: devnull update")
+		}
+		return actions.update(stdout)
+	}
 	if len(args) > 0 && args[0] == "callback" {
 		if len(args) != 2 {
 			return errors.New("usage: devnull callback <complete callback link>")
@@ -52,7 +66,7 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	}
 	icons := flags.String("icons", defaultIcons, "icon set: nerd (needs a Nerd Font) or plain; defaults to $DEVNULL_ICONS")
 	flags.Usage = func() {
-		_, _ = fmt.Fprint(stdout, "Usage: devnull [--theme auto|light|dark] [--icons nerd|plain] [--server origin]\n\n/dev/null terminal client. Opens your account and application.\n\n")
+		_, _ = fmt.Fprint(stdout, "Usage: devnull [--theme auto|light|dark] [--icons nerd|plain] [--server origin]\n       devnull update\n\n/dev/null terminal client. Opens your account and application.\n\n")
 		flags.SetOutput(stdout)
 		flags.PrintDefaults()
 		flags.SetOutput(stderr)
