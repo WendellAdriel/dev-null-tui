@@ -2,7 +2,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs, threads, and notifications, view commit images, submit text commits, reply, quote, and delete your own commits. You can also star commits and give pastéis. Follows are not available yet.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs, threads, and notifications, view commit images, submit text commits, reply, quote, and delete your own commits. You can also star commits, give pastéis, open profiles, and follow people.
 
 ## Connect an account
 
@@ -42,9 +42,12 @@ With Go **1.27.3** installed, run these commands from the project root:
 go run ./cmd/devnull
 go run ./cmd/devnull --theme light
 go run ./cmd/devnull --theme dark
+go run ./cmd/devnull --icons plain
 ```
 
 The default `auto` theme follows the terminal's background when the terminal reports it. The client uses your terminal font and requires at least 30 columns and 10 rows. Below 100 columns, navigation becomes an icon strip. The account aside appears at 124 columns.
+
+Navigation and profile details use Nerd Font icons that match the web app. If your terminal font has no Nerd Font glyphs, pass `--icons plain` or set `DEVNULL_ICONS=plain` to use plain Unicode symbols instead.
 
 Press `F2` to switch between dark and light while reading, composing, connecting, or confirming an action. The on-screen hint names the theme you switch to. This overrides automatic appearance for the current session without writing a preference file.
 
@@ -81,9 +84,15 @@ Opening the inbox marks every notification category read on the server, even whe
 
 The six category buttons are independent toggles. Click them or press `1` through `6` for Replies, Quotes, Stars, Mentions, Follows, and Moderation. Notifications above `HEAD@{last visit}` are new since the inbox request's read boundary. Older notifications appear below it. Day labels and lane-colored rails follow the web inbox.
 
-Move with `j` and `k`. Press `Space` or click a group's count to expand or collapse its members. Press `n` for older members of the selected expanded group, or older notifications otherwise. `Enter` or a row click opens the referenced commit's thread. `Esc` returns to the same notification and reading position. Notifications without a commit remain readable but have no destination until profiles are available.
+Move with `j` and `k`. Press `Space` or click a group's count to expand or collapse its members. Press `n` for older members of the selected expanded group, or older notifications otherwise. `Enter` or a row click opens the referenced commit's thread. On a single follow, it opens the follower's profile. `u` opens the selected notification's actor, which is the newest actor on a group. `Esc` returns to the same notification and reading position.
 
 `Ctrl+R` reloads the first page and selects the first notification after success. A failed refresh keeps your position. `Esc` from the inbox returns to the log. The unread badge checks `/api/v1/me` once a minute while focused. Background checks never open or mark the inbox read. Notification data stays in memory only.
+
+## Read a profile
+
+Press `u` on a commit or notification to open its author's profile, or `g p` for your own. The sidebar's **Profile** entry also opens yours. The profile follows the web page: the header with level, rank, and **Follows you**, then commit activity, streaks, achievements, and the Commits and Replies tabs. A pinned commit comes first. `Tab`, `1`, or `2` switches tabs. `3` and `4` open the Followers and Following lists, which you can also reach by clicking their counts.
+
+Press `f` to follow or unfollow. Counts change only after the server confirms. A rate limit or refusal leaves the profile unchanged. An unknown outcome reloads the profile. In the Followers and Following lists, `f` follows the selected person and `Enter` opens their profile. `Esc` goes back one screen at a time. The README tab and handle search are not available in the terminal.
 
 ## View images
 

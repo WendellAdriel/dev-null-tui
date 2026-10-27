@@ -13,6 +13,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g l` | Return to the most recently selected chronological log |
 | `g e` | Open Trending |
 | `g n` | Open Notifications and mark all categories read |
+| `g p` | Open your profile |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
@@ -24,6 +25,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `a` | Open account connection controls |
 | `c` | Open the composer modal |
 | `Enter` | Open the selected commit's thread |
+| `u` | Open the selected commit author's profile |
 | `r` | Reply to the selected commit |
 | `q` | Quote the selected commit |
 | `v` | View the selected commit's images |
@@ -37,7 +39,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
-The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), and **Quote** (`q`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
 
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
@@ -55,7 +57,8 @@ Opening Notifications marks all categories read, including categories excluded b
 | `j`, `k`, `Down`, `Up`, mouse wheel | Select a notification or expanded member |
 | `Space` | Expand or collapse the selected group |
 | `n` | Load older members of the selected expanded group, or older notifications otherwise |
-| `Enter` | Open the referenced commit's thread, when available |
+| `Enter` | Open the referenced commit's thread, when available. On a single follow, or a member of an expanded follow group, open the follower's profile |
+| `u` | Open the selected notification's actor profile. On a group, this is its newest actor |
 | `r`, `q` | Reply to or quote the referenced commit |
 | `y` | Copy the referenced commit's link |
 | `v` | View attached images when returned by the API |
@@ -65,7 +68,7 @@ Opening Notifications marks all categories read, including categories excluded b
 | `Esc`, `g l` | Return to the log |
 | Left click | Toggle a category, expand a group, load older entries, or open a referenced commit |
 
-`HEAD@{last visit}` separates new notifications above from older notifications below. Returning from a thread restores the same notification and scroll position. Follow notifications have no commit destination. Profile navigation and follow actions are not implemented yet. `c`, `a`, `F2`, `?`, and `Ctrl+C` keep their workspace meanings.
+`HEAD@{last visit}` separates new notifications above from older notifications below. Returning from a thread restores the same notification and scroll position. The selected notification shows a clickable **Profile** (`u`) action. `Enter` on a grouped follow still does nothing, so use `Space` to expand it. Profiles opened from the inbox never mark it read. `c`, `a`, `F2`, `?`, and `Ctrl+C` keep their workspace meanings.
 
 ## Thread
 
@@ -85,6 +88,7 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 | `s` | Star or unstar the selected entry |
 | `p` | Give the selected entry a pastél, when available |
 | `y` | Copy the selected entry's link |
+| `u` | Open the selected entry author's profile |
 | `Ctrl+R` | Reload the thread |
 | `c` | Open the composer |
 | `Esc` | Go back |
@@ -93,6 +97,42 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 Replies hang off a dashed line below their parent, with each author's avatar on its node when the terminal supports graphics. Quotes carry a **quoted** tag after the author. Nesting shows one inline level. `Space` on a nested reply asks you to press `Enter` to open its thread.
 
 Delete confirmation offers **Keep commit** (`Esc`) and **Delete commit** (`Ctrl+D`). `Tab`, `Shift+Tab`, `Left`, and `Right` move between them. `Enter` activates the focused action, which starts on Keep commit. A **Deleting commit** toast stays until the server answers, then the result toast replaces it. A commit that is already gone counts as deleted.
+
+## Profile
+
+A profile replaces the center column, like a thread. `Esc` returns to the screen you opened it from, with the same selection. Threads opened from a profile stack above it.
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `Down`, `Up` | Select the next or previous commit |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
+| `g g`, `Home`, `G`, `End` | Select the first or last loaded commit |
+| `Tab`, `Shift+Tab`, `1`, `2` | Switch between Commits and Replies |
+| `3`, `4` | Open the Followers or Following list |
+| `f` | Follow or unfollow this person |
+| `Enter` | Open the selected commit's thread |
+| `u` | Open the selected commit author's profile, when it is someone else |
+| `r`, `q`, `s`, `p`, `v`, `D`, `y` | Act on the selected commit, as in the log |
+| `n` | Load older commits |
+| `Ctrl+R` | Reload the profile and the current tab |
+| `Esc` | Go back |
+| Left click | Follow, open a list from its count, switch tabs, select or open a commit, activate an action, or view an image |
+
+The header follows the web profile: avatar, name, handle, level and rank, **Follows you** and **Muted** labels, bio, company, location, website, GitHub, join date, and counts. Below it are the commit activity graph, streaks, and achievements. A pinned commit leads the Commits tab with a **Pinned** label. The README tab is web only.
+
+Your own profile has no follow action. Follow changes wait for the server. Only one runs at a time. A rate limit or a refused follow leaves the profile unchanged and shows a toast. When the outcome is unknown, the profile reloads to show the real state.
+
+### Followers and Following
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `Down`, `Up` | Select the next or previous person |
+| `Tab`, `Shift+Tab`, `1`, `2`, `3`, `4` | Switch between Followers and Following |
+| `Enter`, `u` | Open the selected person's profile |
+| `f` | Follow or unfollow the selected person |
+| `n` | Load more people |
+| `Ctrl+R` | Reload the list |
+| `Esc` | Return to the profile |
 
 ## Image viewer
 
@@ -172,4 +212,4 @@ While emoji suggestions are open, `Up` and `Down` select an emoji, `Enter` or `T
 
 Ghostty's default `Ctrl+Enter` fullscreen binding intercepts submission. Set `keybind = ctrl+enter=unbind` in Ghostty and reload its configuration, or use `Ctrl+S`. The client never changes your terminal configuration.
 
-`r` and `q` reopen a kept draft with its original target instead of starting another. Search shortcuts are not active yet. Later phases add them alongside their features.
+`r` and `q` reopen a kept draft with its original target instead of starting another. Search and handle lookup are not active yet. Later phases add them alongside their features.
