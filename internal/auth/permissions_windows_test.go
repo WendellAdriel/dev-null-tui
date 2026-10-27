@@ -2,8 +2,8 @@ package auth
 
 import (
 	"path/filepath"
-	"strings"
 	"testing"
+	"unsafe"
 
 	"golang.org/x/sys/windows"
 )
@@ -86,7 +86,9 @@ func TestWindowsStorageUsesCurrentUserOwnerAndProtectedACL(t *testing.T) {
 		if err := windows.GetAce(acl, 0, &ace); err != nil {
 			t.Fatal(err)
 		}
-		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || !strings.HasSuffix(sd.String(), ";;;"+user.User.Sid.String()+")") {
+		// #nosec G103 -- Windows stores the complete ACE trustee SID starting at SidStart.
+		aceSID := (*windows.SID)(unsafe.Pointer(&ace.SidStart))
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE || !aceSID.Equals(user.User.Sid) {
 			t.Fatalf("unexpected storage ACL: %s", sd.String())
 		}
 	}
