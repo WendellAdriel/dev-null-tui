@@ -32,6 +32,7 @@ type Request struct {
 	URL        string
 	Cols, Rows int
 	Ring       string
+	Icon       string
 }
 type Job struct {
 	Request Request
@@ -52,7 +53,7 @@ type entry struct {
 	avatar        *image.NRGBA
 }
 
-type avatarKey struct{ url, ring string }
+type avatarKey struct{ url, ring, icon string }
 
 type sourceCache struct {
 	mu    sync.Mutex
@@ -162,7 +163,9 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 			break
 		}
 		u, err := url.Parse(req.URL)
-		if err == nil && m.validURL(u) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
+		local := req.URL == "" && req.Ring != "" && validIcon(req.Icon)
+		remote := req.Icon == "" && err == nil && m.validURL(u)
+		if (local || remote) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
 			wanted[req] = true
 			ordered = append(ordered, req)
 		}
@@ -170,7 +173,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 	avatars := make(map[avatarKey]*image.NRGBA)
 	for req, e := range m.entries {
 		if e.ready && e.avatar != nil {
-			avatars[avatarKey{req.URL, req.Ring}] = e.avatar
+			avatars[avatarKey{req.URL, req.Ring, req.Icon}] = e.avatar
 		}
 	}
 	var cleanup strings.Builder
@@ -193,7 +196,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		if !e.ready && !e.failed {
 			active++
 			if req.Ring != "" {
-				loading[avatarKey{req.URL, req.Ring}] = true
+				loading[avatarKey{req.URL, req.Ring, req.Icon}] = true
 			}
 		}
 	}
@@ -204,7 +207,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		if _, ok := m.entries[req]; ok {
 			continue
 		}
-		key := avatarKey{req.URL, req.Ring}
+		key := avatarKey{req.URL, req.Ring, req.Icon}
 		if req.Ring != "" && loading[key] {
 			continue
 		}
@@ -276,6 +279,13 @@ func (m *Manager) Fetch(job Job) Result {
 	ctx, cancel := context.WithTimeout(job.ctx, 12*time.Second)
 	defer cancel()
 	picture := job.avatar
+	if picture == nil && job.Request.Icon != "" {
+		if job.Request.URL != "" || !validIcon(job.Request.Icon) {
+			result.Err = errors.New("icon unavailable")
+			return result
+		}
+		picture = notificationIcon(job.Request.Icon, job.Request.Ring)
+	}
 	if picture == nil {
 		var err error
 		imageData := m.sources.get(job.Request.URL)

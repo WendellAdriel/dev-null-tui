@@ -56,7 +56,7 @@ func (m *AppModel) renderThread(t *threadState) {
 		if entry.kind == "quote" {
 			commit.QuotedID, tag = nil, "quoted"
 		}
-		rows, pictures := commitLayout(commit, tag, contentWidth, p, m.now, m.images)
+		rows, pictures := commitLayout(commit, tag, contentWidth, p, m.now, m.images, m.statsStyle())
 		for _, picture := range pictures {
 			picture.x += indent
 			picture.y += len(bodies)
@@ -213,6 +213,19 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 		return []string{text(p.muted).Render(fit("Deleted commits cannot be replied to.", width))}, nil
 	}
 	actions := []commitAction{{"Reply", "r"}, {"Quote", "q"}}
+	if m.canStar(commit) {
+		label := "Toggle star"
+		if commit.Starred != nil {
+			label = "Star"
+			if *commit.Starred {
+				label = "Unstar"
+			}
+		}
+		actions = append(actions, commitAction{label, "s"})
+	}
+	if m.canGivePastel(commit) {
+		actions = append(actions, commitAction{"Pastél", "p"})
+	}
 	if navigation.key == "enter" {
 		actions = append([]commitAction{navigation}, actions...)
 	} else if navigation.key != "" {
@@ -228,7 +241,11 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	var areas []hitArea
 	line := ""
 	for _, action := range actions {
-		chip := text(p.ink).Render(action.label) + " " + keyChip(action.key, p)
+		label := text(p.ink).Render(action.label)
+		if action.key == "s" {
+			label += strings.Repeat(" ", max(0, len("Unstar")-lipgloss.Width(label)))
+		}
+		chip := label + " " + keyChip(action.key, p)
 		if line != "" && lipgloss.Width(line)+2+lipgloss.Width(chip) > width {
 			rows, line = append(rows, line), ""
 		}

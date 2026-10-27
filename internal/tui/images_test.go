@@ -6,6 +6,7 @@ import (
 	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/kitty"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
@@ -136,5 +138,41 @@ func TestGitHubAvatarRequestsUseThumbnailSizes(t *testing.T) {
 	m.images.Accept(graphics.Result{Job: jobs[0], Raw: "ready"})
 	if !strings.Contains(smallAvatar(author, colors(true), m.images), string(kitty.Placeholder)) {
 		t.Fatal("small avatars do not use the same thumbnail URL as their downloads")
+	}
+}
+
+func TestStatsStarUsesCellSizedIconInLogThreadAndViewer(t *testing.T) {
+	m := fixtureApp(t)
+	m.images.Enabled = true
+	c := fixtureCommit("starred")
+	c.Starred, c.Stars = new(true), 2
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{c}})
+	p := colors(m.account.dark)
+	req := starIconRequest(true, p.muted)
+	if req.Cols != 2 || req.Rows != 1 || !slices.Contains(m.visibleMedia(), req) {
+		t.Fatalf("filled star icon not requested: %+v", req)
+	}
+	m.images.Clear()
+	jobs, _ := m.images.Plan(t.Context(), []graphics.Request{req})
+	m.images.Accept(graphics.Result{Job: jobs[0], Raw: "ready"})
+	m.reflow()
+	starred := func(lines []string) bool {
+		for _, line := range lines {
+			if strings.Contains(line, string(kitty.Placeholder)) && strings.Contains(ansi.Strip(line), " 2 ") {
+				return true
+			}
+		}
+		return false
+	}
+	if !starred(strings.Split(m.feeds[0].viewport.GetContent(), "\n")) {
+		t.Fatal("log stats keep the text star")
+	}
+	m.viewer.commit = c
+	if !starred(m.viewerPanelLines(60, p)) {
+		t.Fatal("viewer stats keep the text star")
+	}
+	m.images.Clear()
+	if lines, _ := commitLayout(c, "", 60, p, m.now, nil, m.statsStyle()); !strings.Contains(ansi.Strip(strings.Join(lines, "\n")), "★ 2") {
+		t.Fatal("stats lost the text fallback without graphics")
 	}
 }

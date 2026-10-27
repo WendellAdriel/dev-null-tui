@@ -79,10 +79,24 @@ type AppModel struct {
 	deleting                               deleteConfirm
 	deletingID                             string
 	toast                                  toastNotice
+	engagement                             engagementState
+	setStar                                func(context.Context, string, bool) (api.Commit, error)
+	givePastel                             func(context.Context, string) (api.Pastel, error)
+	notificationsOpen                      bool
+	notificationMask                       uint8
+	notificationFeeds                      map[string]*notificationFeed
+	notificationGeneration                 int
+	fetchNotifications                     func(context.Context, string, string) (api.Notifications, error)
+	fetchNotificationGroup                 func(context.Context, string, string, string) (api.Notifications, error)
+	fetchNotificationCount                 func(context.Context) (int, error)
+	unreadNotifications                    int
+	notificationCountGeneration            int
+	notificationCountCancel                context.CancelFunc
+	deletedNotificationCommits             map[string]time.Time
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
-	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now()}
+	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63}
 	m.images = graphics.New(origin)
 	m.images.Tmux = os.Getenv("TMUX") != ""
 	for i := range m.feeds {
@@ -96,6 +110,11 @@ func (m AppModel) Init() tea.Cmd { return tea.Batch(m.account.Init(), tea.Raw(m.
 
 func (m AppModel) GraphicsCleanup() string { return m.images.Clear() }
 func (m AppModel) Close() error {
+	if m.engagement.cancel != nil {
+		m.engagement.cancel()
+	}
+	m.cancelNotifications()
+	m.invalidateNotificationCount()
 	if m.composer.cancel != nil {
 		m.composer.cancel()
 	}
@@ -120,6 +139,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case engagementResult:
+		cmd := m.acceptEngagement(msg)
+		return m, cmd
+	case notificationResult:
+		return m, m.acceptNotifications(msg)
+	case notificationGroupResult:
+		return m, m.acceptNotificationGroup(msg)
+	case notificationCountResult:
+		if msg.session != m.session || msg.generation != m.notificationCountGeneration || !m.connected {
+			return m, nil
+		}
+		if m.notificationCountCancel != nil {
+			m.notificationCountCancel()
+			m.notificationCountCancel = nil
+		}
+		if msg.err != nil {
+			m.revoked(msg.err)
+			return m, nil
+		}
+		m.unreadNotifications = msg.count
+		return m, nil
 	case toastExpired:
 		if msg.session == m.session && msg.id == m.toast.id {
 			m.toast.visible = false
@@ -150,6 +190,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case graphics.Result:
 		raw := m.images.Accept(msg)
 		m.renderFeed(m.active)
+		if m.notificationsOpen {
+			m.renderNotifications()
+		}
 		if len(m.threads) > 0 {
 			m.renderThread(&m.threads[len(m.threads)-1])
 		}
@@ -207,11 +250,18 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.feeds {
 			m.renderFeed(i)
 		}
+		if m.notificationsOpen {
+			m.renderNotifications()
+		}
 		var cmd tea.Cmd
-		if m.focused && !m.accountOpen && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
+		if m.focused && !m.accountOpen && !m.notificationsOpen && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
 			cmd = m.load("count")
 		}
-		return m, tea.Batch(cmd, m.poll())
+		var count tea.Cmd
+		if m.focused && !m.accountOpen {
+			count = m.loadNotificationCount()
+		}
+		return m, tea.Batch(cmd, count, m.poll())
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -364,12 +414,17 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetch = client.Log
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
+		m.setStar, m.givePastel = client.SetStar, client.GivePastel
+		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
 		}
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
+		if m.account.user.UnreadNotifications != nil {
+			m.unreadNotifications = max(0, *m.account.user.UnreadNotifications)
+		}
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
@@ -379,6 +434,19 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *AppModel) leaveApplication() {
+	if m.engagement.cancel != nil {
+		m.engagement.cancel()
+	}
+	m.engagement = engagementState{generation: m.engagement.generation + 1}
+	m.setStar, m.givePastel = nil, nil
+	m.cancelNotifications()
+	m.invalidateNotificationCount()
+	m.notificationsOpen = false
+	m.notificationFeeds = nil
+	m.deletedNotificationCommits = nil
+	m.notificationMask = 63
+	m.unreadNotifications = 0
+	m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = nil, nil, nil
 	m.toast.visible = false
 	if m.composer.cancel != nil {
 		m.composer.cancel()
@@ -512,19 +580,28 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.switchLog(m.lastLog)
 		case "e":
 			return m.switchLog(2)
+		case "n":
+			return m.openNotifications()
 		}
+	}
+	if m.notificationsOpen && pressed != "c" && pressed != "a" && pressed != "g" {
+		return m.notificationKey(pressed)
 	}
 	switch pressed {
 	case "c":
 		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
-	case "enter", "r", "q", "v", "D":
+	case "enter", "r", "q", "v", "D", "s", "p":
 		f := &m.feeds[m.active]
 		if len(f.commits) == 0 {
 			return m, nil
 		}
 		selected := f.commits[f.selected]
 		switch pressed {
+		case "s":
+			return m, m.startEngagement(selected, "star")
+		case "p":
+			return m, m.startEngagement(selected, "pastel")
 		case "r", "q":
 			mode := map[string]string{"r": "reply", "q": "quote"}[pressed]
 			return m, m.composeTo(mode, selected)
@@ -628,6 +705,9 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if len(m.threads) > 0 {
 		return m.threadMouse(x, msg.Y)
 	}
+	if m.notificationsOpen {
+		return m.notificationMouse(x, msg.Y)
+	}
 	if msg.Y == 1 || msg.Y == 2 {
 		return m.switchLog(min(2, x/(center/3)))
 	}
@@ -658,7 +738,14 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	if index == m.active {
+	wasNotifications := m.notificationsOpen
+	if wasNotifications {
+		m.cancelNotifications()
+		m.notificationsOpen = false
+		m.closeAllThreads()
+		m.closeViewer()
+	}
+	if index == m.active && !wasNotifications {
 		return m, nil
 	}
 	if m.toast.kind == "info" {
@@ -703,10 +790,13 @@ func (m AppModel) feedStatus() string {
 		return m.threadStatus()
 	}
 	if m.pendingG {
-		return "g ...  l Log  e Trending  (1 second)"
+		return "g ...  l Log  e Trending  n Notifications  (1 second)"
 	}
 	if m.notice != "" {
 		return m.notice
+	}
+	if m.notificationsOpen {
+		return m.notificationStatus()
 	}
 	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status

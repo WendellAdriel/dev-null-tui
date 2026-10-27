@@ -45,6 +45,8 @@ type Commit struct {
 	Author       *Author         `json:"author"`
 	Status       string          `json:"status"`
 	Stars        int             `json:"stars_count"`
+	Starred      *bool           `json:"starred"`
+	Pasteis      *int            `json:"pasteis_count"`
 	Replies      int             `json:"replies_count"`
 	Segments     []Segment       `json:"body_segments"`
 	Preview      []Segment       `json:"preview_segments"`

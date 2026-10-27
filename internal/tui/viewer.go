@@ -243,7 +243,7 @@ func (m AppModel) viewerPanelLines(width int, p palette) []string {
 	contentWidth := max(1, width-3-gutter)
 	commit := v.commit
 	commit.Images, commit.ReplyPreview = nil, nil
-	rows := commitLines(commit, contentWidth, p, m.now)
+	rows, _ := commitLayout(commit, "", contentWidth, p, m.now, nil, m.statsStyle())
 	ring := -1
 	if commit.DeletedAt == nil && commit.Author != nil && len(rows) > 1 {
 		ring = len(rows) - 1
@@ -260,7 +260,7 @@ func (m AppModel) viewerPanelLines(width int, p palette) []string {
 			node = smallAvatar(reply.Author, p, m.images)
 		}
 		heads = append(heads, len(rows))
-		replyRows, _ := commitLayout(reply, tag, max(1, contentWidth-3), p, m.now, nil)
+		replyRows, _ := commitLayout(reply, tag, max(1, contentWidth-3), p, m.now, nil, m.statsStyle())
 		for i, line := range replyRows {
 			if i == 0 {
 				rows = append(rows, node+line)

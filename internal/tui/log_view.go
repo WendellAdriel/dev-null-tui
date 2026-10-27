@@ -134,12 +134,43 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 	if len(managers) > 0 {
 		manager = managers[0]
 	}
-	lines, _ := commitLayout(commit, "", width, p, now, manager)
+	lines, _ := commitLayout(commit, "", width, p, now, manager, statsStyle{icons: manager})
 	return lines
 }
 
+// statsStyle controls the stats row, separately from media, so the viewer can draw icons without thumbnails.
+type statsStyle struct {
+	pasteis bool
+	icons   *graphics.Manager
+}
+
+func (m AppModel) statsStyle() statsStyle {
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images}
+}
+
+func starIconRequest(filled bool, ink string) graphics.Request {
+	kind := "stats-star"
+	if filled {
+		kind = "stats-starred"
+	}
+	return graphics.Request{Icon: kind, Ring: ink, Cols: 2, Rows: 1}
+}
+
+func statsStar(commit api.Commit, p palette, icons *graphics.Manager) string {
+	starred := commit.Starred != nil && *commit.Starred
+	if icons != nil {
+		if icon := icons.Row(starIconRequest(starred, p.muted), 0); icon != "" {
+			return icon
+		}
+	}
+	if starred {
+		return text(p.muted).Render("★")
+	}
+	return text(p.muted).Render("☆")
+}
+
 // commitLayout renders a commit, with an optional tag such as "quoted" after the handle.
-func commitLayout(commit api.Commit, tag string, width int, p palette, now time.Time, manager *graphics.Manager) ([]string, []pictureArea) {
+func commitLayout(commit api.Commit, tag string, width int, p palette, now time.Time, manager *graphics.Manager, style statsStyle) ([]string, []pictureArea) {
 	if commit.DeletedAt != nil {
 		return []string{text(p.muted).Render("Commit deleted")}, nil
 	}
@@ -224,7 +255,12 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	if commit.Replies == 1 {
 		label = "reply"
 	}
-	lines = append(lines, fit(text(p.muted).Render(fmt.Sprintf("☆ %-5d ↩ %d %s", commit.Stars, commit.Replies, label)), width))
+	stats := fmt.Sprintf(" %-5d ", commit.Stars)
+	if style.pasteis && commit.Pasteis != nil {
+		stats += fmt.Sprintf("◍ %-3d ", *commit.Pasteis)
+	}
+	stats += fmt.Sprintf("↩ %d %s", commit.Replies, label)
+	lines = append(lines, fit(statsStar(commit, p, style.icons)+text(p.muted).Render(stats), width))
 	for _, reply := range previewReplies(commit) {
 		preview := replyPreview(reply, width-3, p, manager)
 		lines = append(lines, fit(text(authorColor(commit.Author, p)).Render("╰─ ")+preview[0], width))
@@ -356,6 +392,9 @@ func (m *AppModel) reflow() {
 		}
 	}
 	m.sizeThreads()
+	if m.notificationsOpen {
+		m.sizeNotifications()
+	}
 }
 
 func (m *AppModel) renderFeed(index int) {
@@ -383,7 +422,7 @@ func (m *AppModel) renderFeed(index int) {
 		f.starts = append(f.starts, len(lines))
 		previews := previewReplies(c)
 		c.ReplyPreview = nil
-		rows, pictures := commitLayout(c, "", contentWidth, p, m.now, m.images)
+		rows, pictures := commitLayout(c, "", contentWidth, p, m.now, m.images, m.statsStyle())
 		for _, picture := range pictures {
 			picture.x += gutter
 			picture.y += len(lines)

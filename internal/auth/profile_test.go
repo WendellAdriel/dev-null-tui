@@ -19,3 +19,16 @@ func TestSignedIdentityIncludesOptionalPublicProfileFields(t *testing.T) {
 		t.Fatalf("profile decode failed: %v", err)
 	}
 }
+
+func TestSignedIdentityDecodesNotificationCountOutsideUserResource(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"id":"fixture","handle":"fixture","remotes":{"unread_count":12}},"unread_notifications_count":3}`)
+	}))
+	defer server.Close()
+	key, _ := GenerateKey()
+	client, _ := NewClient(server.URL, key)
+	user, err := client.Me(t.Context())
+	if err != nil || user.UnreadNotifications == nil || *user.UnreadNotifications != 3 {
+		t.Fatalf("notification count metadata: %+v %v", user, err)
+	}
+}

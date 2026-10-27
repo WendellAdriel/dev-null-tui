@@ -20,21 +20,22 @@ import (
 const DefaultOrigin = "https://dev-null.sh"
 
 type User struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	Handle           string          `json:"handle"`
-	AvatarURL        string          `json:"avatar_url"`
-	Bio              string          `json:"bio"`
-	Company          string          `json:"company"`
-	Location         string          `json:"location"`
-	Commits          *int            `json:"commits_count"`
-	Following        *int            `json:"following_count"`
-	Followers        *int            `json:"followers_count"`
-	Lane             json.RawMessage `json:"lane"`
-	PasteisMode      bool            `json:"pasteis_mode"`
-	PasteisRemaining *int            `json:"pasteis_remaining"`
-	TermsVersion     string          `json:"terms_version"`
-	TermsAccepted    bool            `json:"terms_accepted"`
+	ID                  string          `json:"id"`
+	Name                string          `json:"name"`
+	Handle              string          `json:"handle"`
+	AvatarURL           string          `json:"avatar_url"`
+	Bio                 string          `json:"bio"`
+	Company             string          `json:"company"`
+	Location            string          `json:"location"`
+	Commits             *int            `json:"commits_count"`
+	Following           *int            `json:"following_count"`
+	Followers           *int            `json:"followers_count"`
+	Lane                json.RawMessage `json:"lane"`
+	PasteisMode         bool            `json:"pasteis_mode"`
+	PasteisRemaining    *int            `json:"pasteis_remaining"`
+	TermsVersion        string          `json:"terms_version"`
+	TermsAccepted       bool            `json:"terms_accepted"`
+	UnreadNotifications *int            `json:"-"`
 }
 
 type APIError struct {
@@ -130,11 +131,13 @@ func (c *Client) request(ctx context.Context, method, path string, body []byte) 
 		return User{}, err
 	}
 	var result struct {
-		Data User `json:"data"`
+		Data                User `json:"data"`
+		UnreadNotifications *int `json:"unread_notifications_count"`
 	}
 	if err := json.Unmarshal(data, &result); err != nil || result.Data.ID == "" || result.Data.Handle == "" {
 		return User{}, errors.New("account server returned an invalid identity")
 	}
+	result.Data.UnreadNotifications = result.UnreadNotifications
 	return result.Data, nil
 }
 
@@ -163,6 +166,17 @@ func (c *Client) PostJSON(ctx context.Context, target string, body []byte, resul
 func (c *Client) Delete(ctx context.Context, target string) error {
 	_, err := c.send(ctx, http.MethodDelete, target, nil)
 	return err
+}
+
+func (c *Client) DeleteJSON(ctx context.Context, target string, result any) error {
+	data, err := c.send(ctx, http.MethodDelete, target, nil)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(data, result); err != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
 }
 
 func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {

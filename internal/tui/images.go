@@ -39,6 +39,10 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	}
 	p := colors(m.account.dark)
 	var requests, avatars []graphics.Request
+	var stars []graphics.Request
+	if !m.notificationsOpen || len(m.threads) > 0 || m.viewer.open {
+		stars = []graphics.Request{starIconRequest(false, p.muted), starIconRequest(true, p.muted)}
+	}
 	if m.viewer.open {
 		requests = []graphics.Request{m.viewerRequest()}
 		if c := m.viewer.commit; c.Author != nil && c.DeletedAt == nil {
@@ -49,6 +53,8 @@ func (m AppModel) visibleMedia() []graphics.Request {
 				avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
 			}
 		}
+	} else if m.notificationsOpen && len(m.threads) == 0 {
+		avatars = append(avatars, m.notificationMedia()...)
 	} else {
 		f := &m.feeds[m.active]
 		commits, starts, ends, widths, view := f.commits, f.starts, f.ends, []int(nil), f.viewport
@@ -90,7 +96,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if _, _, aside := m.columns(); aside > 0 {
 		avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
 	}
-	return append(requests, avatars...)
+	return append(append(requests, avatars...), stars...)
 }
 
 func (m *AppModel) syncImages() tea.Cmd {
@@ -113,6 +119,15 @@ func smallAvatar(author *api.Author, p palette, manager *graphics.Manager) strin
 		}
 	}
 	return text(authorColor(author, p)).Render("● ")
+}
+
+// largeAvatar returns both rows of a 4x2 avatar, or a lane dot when it is not ready.
+func (m AppModel) largeAvatar(author *api.Author, p palette) (string, string) {
+	req := m.avatarRequest(author.AvatarURL, authorColor(author, p), 4, 2)
+	if top := m.images.Row(req, 0); top != "" {
+		return top + " ", m.images.Row(req, 1) + " "
+	}
+	return text(authorColor(author, p)).Render("● "), "  "
 }
 
 func pictureLines(images []api.Image, width int, p palette, manager *graphics.Manager) []string {

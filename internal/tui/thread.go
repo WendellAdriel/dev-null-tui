@@ -252,6 +252,10 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 	entry := entries[t.selected]
 	move := func(delta int) { m.selectEntry(t, t.selected+delta) }
 	switch pressed {
+	case "s":
+		return m, m.startEngagement(entry.commit, "star"), true
+	case "p":
+		return m, m.startEngagement(entry.commit, "pastel"), true
 	case "esc":
 		m.closeThread()
 	case "j", "down":
@@ -440,6 +444,7 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 		m.renderFeed(i)
 	}
 	m.revealSelection()
+	m.deleteNotificationCommit(msg.id)
 	if m.viewer.commit.ID == msg.id {
 		m.closeViewer()
 	}
