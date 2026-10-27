@@ -101,6 +101,10 @@ type AppModel struct {
 	profileGeneration                      int
 	follow                                 followState
 	icons                                  iconSet
+	starredOpen                            bool
+	starred                                feed
+	starredRemoved                         map[string]bool
+	loadStarred                            func(context.Context, string) (api.CommitPage, error)
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -122,6 +126,7 @@ func (m AppModel) Close() error {
 		m.engagement.cancel()
 	}
 	m.cancelNotifications()
+	m.closeStarred()
 	m.invalidateNotificationCount()
 	if m.composer.cancel != nil {
 		m.composer.cancel()
@@ -151,6 +156,9 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case starredResult:
+		cmd := m.acceptStarred(msg)
+		return m, cmd
 	case engagementResult:
 		cmd := m.acceptEngagement(msg)
 		return m, cmd
@@ -208,6 +216,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case graphics.Result:
 		raw := m.images.Accept(msg)
 		m.renderFeed(m.active)
+		m.renderStarred()
 		if m.notificationsOpen {
 			m.renderNotifications()
 		}
@@ -271,11 +280,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		for i := range m.feeds {
 			m.renderFeed(i)
 		}
+		m.renderStarred()
 		if m.notificationsOpen {
 			m.renderNotifications()
 		}
 		var cmd tea.Cmd
-		if m.focused && !m.accountOpen && !m.notificationsOpen && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
+		if m.focused && !m.accountOpen && !m.notificationsOpen && !m.starredOpen && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
 			cmd = m.load("count")
 		}
 		var count tea.Cmd
@@ -437,6 +447,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
 		m.setStar, m.givePastel = client.SetStar, client.GivePastel
+		m.loadStarred = client.Starred
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
@@ -464,6 +475,8 @@ func (m *AppModel) leaveApplication() {
 	}
 	m.engagement = engagementState{generation: m.engagement.generation + 1}
 	m.setStar, m.givePastel = nil, nil
+	m.closeStarred()
+	m.loadStarred = nil
 	m.cancelNotifications()
 	m.invalidateNotificationCount()
 	m.notificationsOpen = false
@@ -594,7 +607,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.helpScroll = max(0, min(m.helpMaxScroll(), m.helpScroll))
 		return m, nil
 	}
-	if m.threadOnTop() {
+	if m.threadOnTop() && !m.pendingG && pressed != "g" {
 		next, cmd, handled := m.threadKey(pressed)
 		if handled || (pressed != "c" && pressed != "a") {
 			return next, cmd
@@ -605,8 +618,16 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.resetSequence()
 		switch pressed {
 		case "g":
+			if m.threadOnTop() {
+				m.selectEntry(&m.threads[len(m.threads)-1], 0)
+				return m, nil
+			}
 			if m.profileOnTop() {
 				return m, m.selectProfileEntry(0)
+			}
+			if m.starredOnTop() {
+				cmd := m.selectStarred(0)
+				return m, cmd
 			}
 			return m.selectCommit(0)
 		case "l":
@@ -617,6 +638,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.openNotifications()
 		case "p":
 			return m, m.openProfile(m.account.user.Handle)
+		case "s":
+			return m.openStarred()
 		}
 	}
 	if m.profileOnTop() {
@@ -628,6 +651,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if m.notificationsOpen && pressed != "c" && pressed != "a" && pressed != "g" {
 		return m.notificationKey(pressed)
+	}
+	if m.starredOnTop() && pressed != "c" && pressed != "a" && pressed != "g" {
+		return m.starredKey(pressed)
 	}
 	switch pressed {
 	case "c":
@@ -758,6 +784,9 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.notificationsOpen {
 		return m.notificationMouse(x, msg.Y)
 	}
+	if m.starredOnTop() {
+		return m.starredMouse(x, msg.Y)
+	}
 	if msg.Y == 1 || msg.Y == 2 {
 		return m.switchLog(min(2, x/(center/3)))
 	}
@@ -788,8 +817,9 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	left := m.notificationsOpen || len(m.profiles) > 0
+	left := m.notificationsOpen || m.starredOpen || len(m.profiles) > 0
 	if left {
+		m.closeStarred()
 		m.cancelNotifications()
 		m.notificationsOpen = false
 		m.closeAllProfiles()
@@ -841,7 +871,7 @@ func (m AppModel) feedStatus() string {
 		return m.threadStatus()
 	}
 	if m.pendingG {
-		return "g ...  l Log  e Trending  n Notifications  p Profile  (1 second)"
+		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  (1 second)"
 	}
 	if m.profileOnTop() && m.notice == "" {
 		return m.profileStatus()
@@ -851,6 +881,9 @@ func (m AppModel) feedStatus() string {
 	}
 	if m.notificationsOpen {
 		return m.notificationStatus()
+	}
+	if m.starredOpen {
+		return m.starredStatus()
 	}
 	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status

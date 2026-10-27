@@ -393,6 +393,7 @@ func (m *AppModel) reflow() {
 	}
 	m.sizeThreads()
 	m.sizeProfiles()
+	m.sizeStarred()
 	if m.notificationsOpen {
 		m.sizeNotifications()
 	}

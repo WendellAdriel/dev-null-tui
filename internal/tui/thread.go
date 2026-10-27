@@ -355,6 +355,12 @@ func (m *AppModel) addToThreads(mode, targetID string, commit api.Commit) {
 	if mode != "reply" {
 		return
 	}
+	for i := range m.starred.commits {
+		if m.starred.commits[i].ID == targetID {
+			m.starred.commits[i].Replies++
+		}
+	}
+	m.renderStarred()
 	for i := range m.feeds {
 		for j := range m.feeds[i].commits {
 			if m.feeds[i].commits[j].ID == targetID {
@@ -474,5 +480,6 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 	if m.viewer.commit.ID == msg.id {
 		m.closeViewer()
 	}
-	return m.notify("success", "Commit deleted", "It is gone from your logs. Deletion cannot be undone.")
+	reload := m.removeStarred(msg.id)
+	return tea.Batch(reload, m.notify("success", "Commit deleted", "It is gone from your logs. Deletion cannot be undone."))
 }

@@ -111,6 +111,7 @@ func (m *AppModel) cancelNotifications() {
 }
 
 func (m AppModel) openNotifications() (AppModel, tea.Cmd) {
+	m.closeStarred()
 	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()

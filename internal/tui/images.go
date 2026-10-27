@@ -58,6 +58,10 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	} else {
 		f := &m.feeds[m.active]
 		commits, starts, ends, widths, view := f.commits, f.starts, f.ends, []int(nil), f.viewport
+		if m.starredOpen {
+			s := &m.starred
+			commits, starts, ends, view = s.commits, s.starts, s.ends, s.viewport
+		}
 		if s := m.topProfile(); s != nil {
 			commits, starts, ends, view = nil, s.starts, s.ends, s.viewport
 			avatars = append(avatars, m.profileAvatars(s, p)...)

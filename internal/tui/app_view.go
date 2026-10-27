@@ -48,13 +48,16 @@ func (m AppModel) bindings() appKeys {
 		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind("v", "view commit images"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
 		return appKeys{short, all}
 	}
+	if m.starredOnTop() {
+		return m.starredBindings(bind)
+	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
 	}
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"))
+	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
@@ -139,6 +142,9 @@ func (m AppModel) workspaceView() tea.View {
 		nav, center, aside := m.columns()
 		total := nav + center + aside + 2
 		main := m.feedColumn(center, p)
+		if m.starredOpen && m.manualLink == "" {
+			main = m.starredColumn(center, p)
+		}
 		if m.notificationsOpen && m.manualLink == "" {
 			main = m.notificationColumn(center, p)
 		}
@@ -294,9 +300,10 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		}
 	}
 	ownProfile := m.profileOnTop() && strings.EqualFold(m.profileHandle(), m.account.user.Handle)
-	top := "\n" + logo + "\n\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.notificationsOpen && !m.profileOnTop())
+	top := "\n" + logo + "\n\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
 	top += "\n\n " + navRow(m.icons.notifications, "Notifications", badge, "g n", m.notificationsOpen && !m.profileOnTop())
 	top += "\n\n " + navRow(m.icons.profile, "Profile", "", "g p", ownProfile)
+	top += "\n\n " + navRow(m.icons.starred, "Starred", "", "g s", m.starredOpen && !m.profileOnTop())
 	compose, shortcut := m.icons.commit+"  Commit", "c"
 	if width < 12 {
 		compose, shortcut = m.icons.commit, ""
@@ -305,7 +312,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	buttonY := lipgloss.Height(top) + 1
 	buttonX := (width - lipgloss.Width(button)) / 2
 	top += "\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
-	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{1, 6, inner, 1}, "notifications", 0}, {uiRect{1, 8, inner, 1}, "profile", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
+	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{1, 6, inner, 1}, "notifications", 0}, {uiRect{1, 8, inner, 1}, "profile", 0}, {uiRect{1, 10, inner, 1}, "starred", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
 	avatar := m.images.Row(m.avatarRequest(user.AvatarURL, lane, 2, 1), 0)

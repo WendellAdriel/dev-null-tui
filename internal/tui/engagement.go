@@ -43,6 +43,12 @@ func (m AppModel) focusedEngagementCommit() (api.Commit, bool) {
 	if m.notificationsOpen {
 		return api.Commit{}, false
 	}
+	if m.starredOnTop() {
+		if f := m.starred; f.selected < len(f.commits) {
+			return f.commits[f.selected], true
+		}
+		return api.Commit{}, false
+	}
 	f := m.feeds[m.active]
 	if f.selected < len(f.commits) {
 		return f.commits[f.selected], true
@@ -128,6 +134,10 @@ func (m *AppModel) acceptEngagement(msg engagementResult) tea.Cmd {
 		m.account.user.PasteisRemaining = msg.remaining
 	}
 	m.reconcileEngagement(msg.commit, msg.kind)
+	var reload tea.Cmd
+	if msg.kind == "star" && msg.commit.Starred != nil && !*msg.commit.Starred {
+		reload = m.removeStarred(msg.id)
+	}
 	m.reflow()
 	if msg.kind == "pastel" {
 		return m.notify("success", "Pastél awarded", "You awarded a pastél")
@@ -135,7 +145,7 @@ func (m *AppModel) acceptEngagement(msg engagementResult) tea.Cmd {
 	if *msg.commit.Starred {
 		return m.notify("success", "Star", "You starred the commit")
 	}
-	return m.notify("success", "Unstar", "You unstarred the commit")
+	return tea.Batch(reload, m.notify("success", "Unstar", "You unstarred the commit"))
 }
 
 func (m *AppModel) reconcileEngagement(receipt api.Commit, kind string) {
@@ -188,6 +198,9 @@ func (m *AppModel) reconcileEngagement(receipt api.Commit, kind string) {
 				update(&s.lists[l].commits[j])
 			}
 		}
+	}
+	for i := range m.starred.commits {
+		update(&m.starred.commits[i])
 	}
 	for _, f := range m.notificationFeeds {
 		for _, n := range f.items {
