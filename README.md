@@ -14,7 +14,15 @@ A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, an
 
 Login needs a terminal with at least 60 columns and 18 rows. Your device key is stored unencrypted. Read [account security](docs/account.md#device-key-storage) before connecting.
 
-With `devnull` on your `PATH`, start the app:
+### Install on Linux, macOS, or WSL
+
+```shell
+curl -fsSL https://raw.githubusercontent.com/WendellAdriel/dev-null-tui/main/scripts/install.sh | sh
+```
+
+For Windows and other installation options, see [installation and updates](docs/installation.md).
+
+### Start the app
 
 ```shell
 devnull
@@ -24,12 +32,11 @@ On the first launch, press `Enter` to connect your account. Approve the device i
 
 Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a commit. Press `?` for help or `Ctrl+C` to exit. If your font is missing icons, run `devnull --icons plain`.
 
-For now, see [building from source](docs/development.md#build-from-source) to obtain the executable. Binary installation instructions are not available yet.
-
 ## Documentation
 
 ### Using the app
 
+- [Installation and updates](docs/installation.md)
 - [Account setup and security](docs/account.md)
 - [Using the TUI](docs/usage.md)
 - [Controls and shortcuts](docs/shortcuts.md)
@@ -38,6 +45,7 @@ For now, see [building from source](docs/development.md#build-from-source) to ob
 ### Development
 
 - [Source builds, quality checks, and CI](docs/development.md)
+- [Preparing and publishing releases](docs/releases.md)
 
 ## MVP roadmap
 

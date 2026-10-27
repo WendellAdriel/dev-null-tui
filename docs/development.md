@@ -30,13 +30,13 @@ go build -trimpath -o bin/ ./cmd/devnull
 
 Run `./bin/devnull` on Linux or macOS. In Windows PowerShell, run `./bin/devnull.exe`. Compiled binaries do not require Go or the quality tools at runtime.
 
-The default version is `dev`. To set the reported version, pass the version variable through `-ldflags`:
+The source version is defined in `internal/release/release.go`. Release builds set the reported version through `-ldflags`:
 
 ```shell
-go build -trimpath -ldflags "-X github.com/WendellAdriel/dev-null-cli/internal/cli.Version=0.1.0" -o bin/ ./cmd/devnull
+go build -trimpath -ldflags "-X github.com/WendellAdriel/dev-null-cli/internal/cli.Version=v0.1.0" -o bin/ ./cmd/devnull
 ```
 
-`0.1.0` is an example, not a published release. Packaging and binary installation instructions are not available yet.
+See [preparing and publishing releases](releases.md) for release assets and publication. To label a development build explicitly, set the same variable to `dev`. Such builds cannot self-update.
 
 ## Cross-platform builds
 
