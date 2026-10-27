@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 func clickText(t *testing.T, m AppModel, label string) (AppModel, tea.Cmd) {
@@ -155,7 +157,7 @@ func TestToastExpiryCannotDismissANewerNoticeAndErrorsKeepDraft(t *testing.T) {
 	cmd := m.startSubmission()
 	next, _ = m.Update(cmd())
 	m = next.(AppModel)
-	if !m.toast.visible || m.toast.kind != "error" || m.composer.input.Value() != "Retain this draft" || !m.composer.uncertain {
+	if !m.toast.visible || m.toast.kind != "warning" || m.composer.input.Value() != "Retain this draft" || !m.composer.uncertain {
 		t.Fatal("failure toast lost draft or outcome uncertainty")
 	}
 	next, _ = m.Update(toastExpired{id: m.toast.id, session: m.session})
@@ -412,5 +414,48 @@ func TestToastsAutoDismissAfterThreeSeconds(t *testing.T) {
 				t.Fatal("scheduled expiry did not dismiss toast")
 			}
 		})
+	}
+}
+
+func TestToastKindsUseDistinctColors(t *testing.T) {
+	m := fixtureApp(t)
+	for _, dark := range []bool{true, false} {
+		m.account.dark = dark
+		p := colors(dark)
+		for kind, ink := range map[string]string{"info": p.blue, "success": p.success, "warning": p.warning, "error": p.danger} {
+			m.showToast(kind, "Title", "Detail")
+			view, _ := m.toastView()
+			var r, g, b int
+			_, _ = fmt.Sscanf(ink, "#%02x%02x%02x", &r, &g, &b)
+			if !strings.Contains(view, fmt.Sprintf("38;2;%d;%d;%d", r, g, b)) {
+				t.Fatalf("%s toast is not drawn in %s", kind, ink)
+			}
+		}
+	}
+	if p := colors(true); len(map[string]bool{p.blue: true, p.success: true, p.warning: true, p.danger: true}) != 4 {
+		t.Fatal("toast colors are not distinct")
+	}
+}
+
+func TestRateLimitedRefreshWarns(t *testing.T) {
+	m := fixtureApp(t)
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a")}})
+	m.fetch = func(context.Context, api.Log, string, string) (api.Page, error) {
+		return api.Page{}, &auth.APIError{Status: http.StatusTooManyRequests, RetryAfter: "30"}
+	}
+	m, cmd := m.handleKey("ctrl+r")
+	next, _ := m.Update(logResponse(t, cmd))
+	m = next.(AppModel)
+	if m.toast.kind != "warning" || m.toast.title != "Refresh failed" || !strings.Contains(m.toast.detail, "Retry after 30") {
+		t.Fatalf("rate limit toast: %+v", m.toast)
+	}
+}
+
+func TestToastSitsAtBottomRightAboveTheFooter(t *testing.T) {
+	m := fixtureApp(t)
+	m.notify("success", "Log refreshed", "Following is up to date.")
+	_, r := m.toastView()
+	if r.x+r.w != m.account.width-1 || r.y+r.h != m.account.height-2 {
+		t.Fatalf("toast is not at the bottom right: %+v in %dx%d", r, m.account.width, m.account.height)
 	}
 }

@@ -99,10 +99,7 @@ func (m AppModel) toastView() (string, uiRect) {
 	background := p.shell
 	w := max(1, min(46, m.account.width-2))
 	inner := max(1, w-4)
-	ink := p.blue
-	if m.toast.kind == "error" {
-		ink = p.danger
-	}
+	ink := map[string]string{"info": p.blue, "success": p.success, "warning": p.warning, "error": p.danger}[m.toast.kind]
 	title := fit(m.toast.title, max(1, inner-3))
 	line := text(ink).Background(lipgloss.Color(background)).Bold(true).Render(title) + strings.Repeat(" ", max(1, inner-ansi.StringWidth(title)-1)) + text(p.muted).Background(lipgloss.Color(background)).Render("×")
 	if !m.composer.open || m.account.width >= 120 {
@@ -111,5 +108,6 @@ func (m AppModel) toastView() (string, uiRect) {
 	}
 	view := lipgloss.NewStyle().Width(w).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(ink)).BorderBackground(lipgloss.Color(background)).Padding(0, 1).Background(lipgloss.Color(background)).Foreground(lipgloss.Color(p.ink)).Render(line)
 	view = withBackground(view, background)
-	return view, uiRect{max(0, m.account.width-lipgloss.Width(view)-1), 0, lipgloss.Width(view), lipgloss.Height(view)}
+	// Bottom right, leaving the shadow row and the status footer visible.
+	return view, uiRect{max(0, m.account.width-lipgloss.Width(view)-1), max(0, m.account.height-lipgloss.Height(view)-2), lipgloss.Width(view), lipgloss.Height(view)}
 }

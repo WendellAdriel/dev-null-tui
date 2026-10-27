@@ -275,6 +275,7 @@ func TestImageViewerNavigatesImagesAndRestoresTheRow(t *testing.T) {
 	if m.viewer.open || m.feeds[0].selected != 1 {
 		t.Fatal("closing the viewer lost the log row")
 	}
+	m = deliver(m, []tea.Msg{toastExpired{id: m.toast.id, session: m.session}})
 	m, _ = clickText(t, m, "Second diagram")
 	if !m.viewer.open || m.viewer.index != 1 {
 		t.Fatal("clicking an image did not open it")

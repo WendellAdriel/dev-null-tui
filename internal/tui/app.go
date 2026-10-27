@@ -296,12 +296,13 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				return m, nil
 			}
+			kind := "error"
 			f.status = msg.err.Error() + ". Ctrl+R to retry."
 			if errors.As(msg.err, &failure) && failure.Status == http.StatusTooManyRequests && failure.RetryAfter != "" {
-				f.status = "Rate limited. Retry after " + safeText(failure.RetryAfter) + ". Ctrl+R to retry."
+				kind, f.status = "warning", "Rate limited. Retry after "+safeText(failure.RetryAfter)+". Ctrl+R to retry."
 			}
 			if msg.mode == "refresh" {
-				return m, m.notify("error", "Refresh failed", f.status)
+				return m, m.notify(kind, "Refresh failed", f.status)
 			}
 			return m, nil
 		}

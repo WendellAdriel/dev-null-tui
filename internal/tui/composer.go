@@ -405,14 +405,15 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 		c.focus, c.previewing = 0, false
 		var failure *auth.APIError
 		c.uncertain = !errors.As(result.err, &failure) || failure.Status >= 500 || failure.Status == http.StatusRequestTimeout
+		kind := "error"
 		c.status = m.composerError(result.err)
 		if c.uncertain {
-			c.status = "Outcome unknown. Check the web before retrying to avoid duplicates. Your draft is kept."
+			kind, c.status = "warning", "Outcome unknown. Check the web before retrying to avoid duplicates. Your draft is kept."
 		}
 		if m.reconnectComposer(result.err) {
-			return m.notify("error", "Submission failed", c.status)
+			return m.notify(kind, "Submission failed", c.status)
 		}
-		return tea.Batch(m.focusComposer(), m.notify("error", "Submission failed", c.status))
+		return tea.Batch(m.focusComposer(), m.notify(kind, "Submission failed", c.status))
 	}
 	commit := result.commit
 	if commit.Status == "rejected" {
