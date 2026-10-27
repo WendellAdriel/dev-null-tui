@@ -1,9 +1,13 @@
 # /dev/null CLI
 
+> [!WARNING]
+> Pull requests and issues are disabled until the [MVP roadmap](#mvp-roadmap) is complete.
+
 A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, and follow developers.
 
 - [Get started](#get-started)
 - [Documentation](#documentation)
+- [MVP roadmap](#mvp-roadmap)
 - [License](#license)
 
 ## Get started
@@ -34,6 +38,12 @@ For now, see [building from source](docs/development.md#build-from-source) to ob
 ### Development
 
 - [Source builds, quality checks, and CI](docs/development.md)
+
+## MVP roadmap
+
+- Settings and safety views
+- Polls and image attachments
+- Remotes support
 
 ## License
 
