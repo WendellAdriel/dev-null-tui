@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 
 	tea "charm.land/bubbletea/v2"
 
@@ -29,7 +30,7 @@ func Run(args []string, stdout, stderr io.Writer) error {
 }
 
 type commands struct {
-	app      func(io.Writer, string, string) error
+	app      func(io.Writer, string, string, string) error
 	callback func(string) error
 }
 
@@ -45,8 +46,13 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	server := flags.String("server", auth.DefaultOrigin, "server origin")
 	version := flags.Bool("version", false, "print the version")
 	theme := flags.String("theme", "auto", "appearance: auto, light, or dark")
+	defaultIcons := os.Getenv("DEVNULL_ICONS")
+	if defaultIcons == "" {
+		defaultIcons = "nerd"
+	}
+	icons := flags.String("icons", defaultIcons, "icon set: nerd (needs a Nerd Font) or plain; defaults to $DEVNULL_ICONS")
 	flags.Usage = func() {
-		_, _ = fmt.Fprint(stdout, "Usage: devnull [--theme auto|light|dark] [--server origin]\n\n/dev/null terminal client. Opens your account and application.\n\n")
+		_, _ = fmt.Fprint(stdout, "Usage: devnull [--theme auto|light|dark] [--icons nerd|plain] [--server origin]\n\n/dev/null terminal client. Opens your account and application.\n\n")
 		flags.SetOutput(stdout)
 		flags.PrintDefaults()
 		flags.SetOutput(stderr)
@@ -63,14 +69,17 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	if *theme != "auto" && *theme != "light" && *theme != "dark" {
 		return fmt.Errorf("unknown theme %q: choose auto, light, or dark", *theme)
 	}
+	if *icons != "nerd" && *icons != "plain" {
+		return fmt.Errorf("unknown icon set %q: choose nerd or plain", *icons)
+	}
 	if *version {
 		_, err := fmt.Fprintln(stdout, "devnull", Version)
 		return err
 	}
-	return actions.app(stdout, *theme, *server)
+	return actions.app(stdout, *theme, *server, *icons)
 }
 
-func startApp(output io.Writer, theme, origin string) (err error) {
+func startApp(output io.Writer, theme, origin, icons string) (err error) {
 	if _, err := auth.NewClient(origin, nil); err != nil {
 		return err
 	}
@@ -86,7 +95,7 @@ func startApp(output io.Writer, theme, origin string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	model := tui.NewApp(theme, store, origin, context.Background())
+	model := tui.NewApp(theme, store, origin, context.Background()).WithIcons(icons)
 	defer func() { err = errors.Join(err, model.Close()) }()
 	defer func() {
 		_, cleanupErr := io.WriteString(output, model.GraphicsCleanup())

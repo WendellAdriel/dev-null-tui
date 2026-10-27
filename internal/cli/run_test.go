@@ -12,7 +12,7 @@ func TestInformationalCommandsDoNotStartApplication(t *testing.T) {
 	for _, args := range [][]string{{"--help"}, {"-h"}, {"--version"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			err := runCommands(args, &stdout, &stderr, commands{app: func(io.Writer, string, string) error {
+			err := runCommands(args, &stdout, &stderr, commands{app: func(io.Writer, string, string, string) error {
 				t.Fatal("informational command started the TUI")
 				return nil
 			}})
@@ -24,10 +24,10 @@ func TestInformationalCommandsDoNotStartApplication(t *testing.T) {
 }
 
 func TestInvalidArgumentsDoNotStartApplication(t *testing.T) {
-	for _, args := range [][]string{{"--unknown"}, {"login"}, {"--version", "extra"}, {"--theme=purple"}} {
+	for _, args := range [][]string{{"--unknown"}, {"login"}, {"--version", "extra"}, {"--theme=purple"}, {"--icons=emoji"}} {
 		t.Run(strings.Join(args, " "), func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
-			err := runCommands(args, &stdout, &stderr, commands{app: func(io.Writer, string, string) error {
+			err := runCommands(args, &stdout, &stderr, commands{app: func(io.Writer, string, string, string) error {
 				t.Fatal("invalid arguments started the TUI")
 				return nil
 			}})
@@ -41,10 +41,10 @@ func TestInvalidArgumentsDoNotStartApplication(t *testing.T) {
 func TestDefaultStartupPassesAppearanceAndServer(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	called := false
-	err := runCommands([]string{"--theme=light", "--server=http://127.0.0.1:8080"}, &stdout, &stderr, commands{app: func(output io.Writer, theme, server string) error {
+	err := runCommands([]string{"--theme=light", "--server=http://127.0.0.1:8080"}, &stdout, &stderr, commands{app: func(output io.Writer, theme, server, icons string) error {
 		called = true
-		if output != &stdout || theme != "light" || server != "http://127.0.0.1:8080" {
-			t.Fatalf("unexpected application output or theme: %v, %q", output, theme)
+		if output != &stdout || theme != "light" || server != "http://127.0.0.1:8080" || icons != "nerd" {
+			t.Fatalf("unexpected application output, theme, or icons: %v, %q, %q", output, theme, icons)
 		}
 		return nil
 	}})
@@ -53,9 +53,23 @@ func TestDefaultStartupPassesAppearanceAndServer(t *testing.T) {
 	}
 }
 
+func TestIconsComeFromTheFlagOrTheEnvironment(t *testing.T) {
+	t.Setenv("DEVNULL_ICONS", "plain")
+	for args, want := range map[string]string{"": "plain", "--icons=nerd": "nerd"} {
+		var got string
+		err := runCommands(strings.Fields(args), io.Discard, io.Discard, commands{app: func(_ io.Writer, _, _, icons string) error {
+			got = icons
+			return nil
+		}})
+		if err != nil || got != want {
+			t.Fatalf("run(%q): icons=%q error=%v, want %q", args, got, err, want)
+		}
+	}
+}
+
 func TestDefaultStartupFailureIsReturned(t *testing.T) {
 	want := errors.New("terminal unavailable")
-	err := runCommands(nil, io.Discard, io.Discard, commands{app: func(io.Writer, string, string) error {
+	err := runCommands(nil, io.Discard, io.Discard, commands{app: func(io.Writer, string, string, string) error {
 		return want
 	}})
 	if !errors.Is(err, want) {
@@ -66,7 +80,7 @@ func TestDefaultStartupFailureIsReturned(t *testing.T) {
 func TestStartupOptionsAndPrivateCallbackDelivery(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	called := false
-	err := runCommands([]string{"--theme=light", "--server=http://127.0.0.1:8080"}, &stdout, &stderr, commands{app: func(output io.Writer, theme, server string) error {
+	err := runCommands([]string{"--theme=light", "--server=http://127.0.0.1:8080"}, &stdout, &stderr, commands{app: func(output io.Writer, theme, server, _ string) error {
 		called = true
 		if output != &stdout || theme != "light" || server != "http://127.0.0.1:8080" {
 			t.Fatal("account options not forwarded")
