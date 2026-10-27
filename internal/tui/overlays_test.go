@@ -247,8 +247,7 @@ func TestMouseWheelAndEmojiStayInsideComposer(t *testing.T) {
 		t.Fatal("missing emoji fixture")
 	}
 	want := m.composer.emojis[1].value
-	next, _ = m.Update(tea.MouseClickMsg{Button: tea.MouseLeft, X: r.x + 2, Y: r.y + r.h + 2})
-	m = next.(AppModel)
+	m, _ = clickText(t, m, ":"+m.composer.emojis[1].name+":")
 	if m.composer.input.Value() != want {
 		t.Fatalf("emoji click inserted %q, want %q", m.composer.input.Value(), want)
 	}

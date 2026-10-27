@@ -26,14 +26,18 @@ func (m AppModel) composerBounds() uiRect {
 func (m AppModel) composerUsable() bool { return m.account.width >= 48 && m.account.height >= 18 }
 func (m AppModel) composerEditorBounds() uiRect {
 	r := m.composerBounds()
-	return uiRect{r.x + 7, r.y + 4 + m.composerContextRows(), m.composer.input.Width(), m.composer.input.Height()}
+	return uiRect{r.x + 2, r.y + 3 + m.composerContextRows(), m.composer.input.Width(), m.composer.input.Height()}
 }
 
 func (m AppModel) composerContextRows() int {
-	if m.composer.mode == "" {
+	if m.composer.mode == "" || m.composer.target.Author == nil {
 		return 0
 	}
-	return 2
+	return 3
+}
+
+func (m AppModel) composerStatusRows() int {
+	return max(0, min(3, m.composerHeight()-m.composerContextRows()-1))
 }
 
 func (m AppModel) composerLabels() []string {
@@ -57,13 +61,22 @@ func (m AppModel) composerFooter() (string, []hitArea) {
 	var actions []modalAction
 	for i, label := range m.composerLabels() {
 		shortcut := []string{"ctrl+p", "ctrl+enter/ctrl+s", "esc"}[i]
+		label = fmt.Sprintf("%-*s", len([]string{"Preview", "Sending...", "Cancel"}[i]), label)
 		actions = append(actions, modalAction{label, shortcut, ""})
 	}
 	focus := m.composer.focus
 	if m.composer.sending {
 		focus = 0
 	}
-	foot, areas := modalFooter(actions, max(1, r.w-4), focus, colors(m.account.dark))
+	p := colors(m.account.dark)
+	width := max(1, r.w-4)
+	counter := fmt.Sprintf("%d/%d", api.BodyCharacterCount(m.composer.input.Value()), api.MaxBodyLength)
+	counterWidth := max(len(counter), len(fmt.Sprintf("%d/%d", api.MaxRawBodyLength, api.MaxBodyLength)))
+	foot, areas := modalFooter(actions, max(1, width-counterWidth-2), focus, p)
+	rows := strings.Split(foot, "\n")
+	last := len(rows) - 1
+	rows[last] += strings.Repeat(" ", max(1, width-lipgloss.Width(rows[last])-lipgloss.Width(counter))) + text(p.muted).Render(counter)
+	foot = strings.Join(rows, "\n")
 	for i := range areas {
 		areas[i].x += r.x + 2
 		areas[i].y += r.y + r.h - 1 - lipgloss.Height(foot)
@@ -82,6 +95,11 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	if m.composer.previewing {
 		title = "Preview commit"
 	}
+	marker := "◌"
+	if m.composer.input.Value() != "" {
+		marker = "●"
+	}
+	title = text(laneColor(m.account.user.Lane, p)).Render(marker) + " " + text(p.ink).Bold(true).Render(title) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))
 	footer, _ := m.composerFooter()
 	return panel(title, body, footer, r, p), r
 }
@@ -92,8 +110,8 @@ func (m *AppModel) sizeComposer() {
 		return
 	}
 	width := max(1, m.composerBounds().w-4)
-	c.input.SetWidth(max(1, width-7))
-	c.input.SetHeight(max(1, m.composerHeight()-5-m.composerContextRows()))
+	c.input.SetWidth(width)
+	c.input.SetHeight(max(1, m.composerHeight()-m.composerContextRows()-m.composerStatusRows()))
 	p := colors(m.account.dark)
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
@@ -107,24 +125,19 @@ func (m *AppModel) sizeComposer() {
 
 func (m AppModel) composerView(width int, p palette) string {
 	c := m.composer
-	inner := max(1, width-7)
-	lane := laneColor(m.account.user.Lane, p)
-	marker := text(lane).Render("◌")
-	if c.input.Value() != "" {
-		marker = text(lane).Render("●")
-	}
-	label := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote"}[c.mode]
-	if c.previewing {
-		label = "Preview"
-	}
-	rows := []string{"  " + marker + "  " + text(p.ink).Bold(true).Render(label) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))}
+	inner := max(1, width)
+	var rows []string
 	if c.mode != "" && c.target.Author != nil {
 		action := "↩ Replying to @"
 		if c.mode == "quote" {
 			action = "❝ Quoting @"
 		}
 		excerpt := strings.SplitN(ansi.Strip(bodyText(c.target, p)), "\n", 2)[0]
-		rows = append(rows, "     "+text(p.blue).Render(fit(action+safeText(c.target.Author.Handle), inner)), "     "+text(p.muted).Render(fit(excerpt, inner)))
+		for _, line := range []string{text(p.blue).Bold(true).Render(fit(action+safeText(c.target.Author.Handle), max(1, inner-2))), text(p.muted).Render(fit(excerpt, max(1, inner-2)))} {
+			callout := text(p.blue).Render("│ ") + line
+			rows = append(rows, withBackground(lipgloss.NewStyle().Width(inner).MaxWidth(inner).Render(callout), p.wash))
+		}
+		rows = append(rows, "")
 	}
 	body := c.input.View()
 	if c.previewing {
@@ -136,10 +149,7 @@ func (m AppModel) composerView(width int, p palette) string {
 	if c.owner != m.account.user.ID {
 		body = text(p.muted).Render("Draft belongs to the previous account.")
 	}
-	rows = append(rows, lipgloss.NewStyle().Width(inner).Height(c.input.Height()).MaxHeight(c.input.Height()).MarginLeft(5).Render(body))
-	count := api.BodyCharacterCount(c.input.Value())
-	counter := fmt.Sprintf("%d/%d", count, api.MaxBodyLength)
-	rows = append(rows, "     "+text(p.muted).Render(counter))
+	rows = append(rows, lipgloss.NewStyle().Width(inner).Height(c.input.Height()).MaxHeight(c.input.Height()).Render(body))
 	status := c.status
 	if c.uncertain && c.status == "" {
 		status = "Previous outcome unknown. Check the web before submitting again."
@@ -158,7 +168,9 @@ func (m AppModel) composerView(width int, p palette) string {
 		}
 		statusView = strings.Join(suggestions, "\n")
 	}
-	rows = append(rows, lipgloss.NewStyle().Width(inner).Height(3).MaxHeight(3).MarginLeft(5).Foreground(lipgloss.Color(p.muted)).Render(statusView))
+	if height := m.composerStatusRows(); height > 0 {
+		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
+	}
 	return lipgloss.NewStyle().Width(width).Height(m.composerHeight()).MaxHeight(m.composerHeight()).Render(strings.Join(rows, "\n"))
 }
 

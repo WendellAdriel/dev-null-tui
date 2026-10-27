@@ -179,8 +179,8 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	editor := m.composerEditorBounds()
-	if len(m.composer.emojis) > 0 && (uiRect{editor.x, editor.y + editor.h + 1, editor.w, 3}).contains(msg.X, msg.Y) {
-		index := max(0, min(m.composer.emojiIndex-1, len(m.composer.emojis)-3)) + msg.Y - editor.y - editor.h - 1
+	if len(m.composer.emojis) > 0 && (uiRect{editor.x, editor.y + editor.h, editor.w, m.composerStatusRows()}).contains(msg.X, msg.Y) {
+		index := max(0, min(m.composer.emojiIndex-1, len(m.composer.emojis)-3)) + msg.Y - editor.y - editor.h
 		if index < len(m.composer.emojis) {
 			m.composer.emojiIndex = index
 			m.acceptEmoji()
