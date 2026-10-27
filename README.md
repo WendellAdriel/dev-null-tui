@@ -14,13 +14,15 @@ go run ./cmd/devnull
 
 1. Press `Enter` to start connection.
 2. In your browser, sign in through GitHub if needed. Compare the device fingerprint with the terminal, then approve the device.
-3. Return to the terminal. After a signed `GET /api/v1/me` verifies your identity, the application opens automatically.
+3. Return to the terminal. A signed `GET /api/v1/me` verifies your identity. If you have not accepted the current terms, review the Terms (`t`) and Privacy (`p`) links, then choose **Agree** (`a`). The workspace opens after the server confirms acceptance.
 
 The client temporarily registers a `devnull://` handler when no existing owner is found. It does not replace another application's handler. Linux uses desktop integration utilities, macOS uses built-in application registration utilities, and Windows uses a per-user registry entry. If automatic return is unavailable, press `p` and paste the complete `devnull://auth/callback?...` link. Bare codes are not accepted. On the current website, obtaining the approval callback may require inspecting the approval response's `Location` header in your browser's developer tools. Do not share or save that header. This fallback is less convenient than automatic return.
 
 If the browser does not open, press `u` to display the authorization URL and open it yourself. Press `Esc` to cancel an attempt, or `r` to retry after an error. Attempts expire after ten minutes. Failed enrollment is never retried automatically.
 
 On later launches, the client verifies the saved key with its original server. If a saved device needs attention, the primary action verifies it before starting another browser approval. A revoked device requires reconnection.
+
+The terms screen shows the server's current version and never accepts automatically. `Enter` initially opens Terms, not Agree. Use `v` to verify again if the version changes or acceptance fails. `Ctrl+C` exits without deleting your saved key. Account connection and consent need at least 60 columns and 18 rows.
 
 Press `a` in the workspace to open your account connection. Use **Device details** or `i` to show or hide the fingerprint. It remains visible during browser approval. Press `Esc` from the connected account view to return to the workspace.
 
