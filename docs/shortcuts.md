@@ -12,6 +12,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `1`, `2`, `3` | Open Following, Latest, or Trending |
 | `g l` | Return to the most recently selected chronological log |
 | `g e` | Open Trending |
+| `g n` | Open Notifications and mark all categories read |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
@@ -27,6 +28,8 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `q` | Quote the selected commit |
 | `v` | View the selected commit's images |
 | `D` | Ask to delete your own selected commit |
+| `s` | Star or unstar the selected commit |
+| `p` | Give the selected commit a pastél, when pastéis mode is on and you have some left |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
@@ -34,13 +37,35 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
-The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), and **Quote** (`q`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. These controls use the same styling as thread actions and follow the selection as you navigate.
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), and **Quote** (`q`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
 
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
 Neither `r` nor `R` refreshes the workspace. Lowercase `r` replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
 
 The `g` sequence expires after one second. Changing screens, opening help, or changing focus clears it. Paste never invokes workspace shortcuts. Entering another log cancels the previous log's in-flight request, and stale responses cannot overwrite the active state.
+
+## Notifications
+
+Opening Notifications marks all categories read, including categories excluded by the current filter. The unread badge uses a separate, non-mutating count request once a minute while focused.
+
+| Keys | Action |
+| --- | --- |
+| `1` through `6` | Toggle Replies, Quotes, Stars, Mentions, Follows, or Moderation independently |
+| `j`, `k`, `Down`, `Up`, mouse wheel | Select a notification or expanded member |
+| `Space` | Expand or collapse the selected group |
+| `n` | Load older members of the selected expanded group, or older notifications otherwise |
+| `Enter` | Open the referenced commit's thread, when available |
+| `r`, `q` | Reply to or quote the referenced commit |
+| `y` | Copy the referenced commit's link |
+| `v` | View attached images when returned by the API |
+| `Home`, `G`, `End` | Select the first or last loaded entry |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five entries |
+| `Ctrl+R` | Refresh and select the first notification after success |
+| `Esc`, `g l` | Return to the log |
+| Left click | Toggle a category, expand a group, load older entries, or open a referenced commit |
+
+`HEAD@{last visit}` separates new notifications above from older notifications below. Returning from a thread restores the same notification and scroll position. Follow notifications have no commit destination. Profile navigation and follow actions are not implemented yet. `c`, `a`, `F2`, `?`, and `Ctrl+C` keep their workspace meanings.
 
 ## Thread
 
@@ -57,6 +82,8 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 | `r`, `q` | Reply to or quote the selected entry |
 | `v` | View the selected entry's images |
 | `D` | Ask to delete your own selected entry |
+| `s` | Star or unstar the selected entry |
+| `p` | Give the selected entry a pastél, when available |
 | `y` | Copy the selected entry's link |
 | `Ctrl+R` | Reload the thread |
 | `c` | Open the composer |
@@ -145,4 +172,4 @@ While emoji suggestions are open, `Up` and `Down` select an emoji, `Enter` or `T
 
 Ghostty's default `Ctrl+Enter` fullscreen binding intercepts submission. Set `keybind = ctrl+enter=unbind` in Ghostty and reload its configuration, or use `Ctrl+S`. The client never changes your terminal configuration.
 
-`r` and `q` reopen a kept draft with its original target instead of starting another. Search and engagement shortcuts are not active yet. Later phases add them alongside their features.
+`r` and `q` reopen a kept draft with its original target instead of starting another. Search shortcuts are not active yet. Later phases add them alongside their features.

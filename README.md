@@ -2,7 +2,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs and threads, view commit images, submit text commits, reply, quote, and delete your own commits. Engagement actions are not available yet.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs, threads, and notifications, view commit images, submit text commits, reply, quote, and delete your own commits. You can also star commits and give pastéis. Follows are not available yet.
 
 ## Connect an account
 
@@ -73,7 +73,17 @@ go run ./cmd/devnull --version
 
 Press `Enter`, or click a commit, to open its thread in place of the log. The thread shows up to 20 ancestors, the focused commit, and its replies oldest first. Replies hang off a dashed line below the focused commit, with each author's avatar on its node when the terminal supports graphics. Quotes of the focused commit appear among the replies with a **quoted** tag after the author. Deleted commits appear as **Commit deleted** with no author or text. Press `n` to load more replies and `Ctrl+R` to reload.
 
-Move with `j` and `k`. The selected entry shows its actions: **Reply** (`r`), **Quote** (`q`), **Replies** (`Space`), **View** (`v`) when it has images, and **Delete** (`D`) on your own commits. Click an action or press its key. Click a selected entry to open its thread. `Space` on a reply shows or hides one level of nested replies. Deeper replies open with `Enter` in their own thread. `Esc` returns to the previous thread, then to the same log row and scroll position.
+Move with `j` and `k`. The selected entry shows its actions: **Reply** (`r`), **Quote** (`q`), **Replies** (`Space`), **View** (`v`) when it has images, and **Delete** (`D`) on your own commits. **Star** (`s`) and **Pastél** (`p`) appear on other people's commits. The pastél action needs pastéis mode and pastéis left for the day. Counts update after the server confirms. If a pastél request's outcome is unknown, the action stays hidden until your account is verified again. Click an action or press its key. Click a selected entry to open its thread. `Space` on a reply shows or hides one level of nested replies. Deeper replies open with `Enter` in their own thread. `Esc` returns to the previous thread, then to the same log row and scroll position.
+
+## Read notifications
+
+Opening the inbox marks every notification category read on the server, even when you filter the list. Choose **Notifications** in the sidebar or press `g n` to open it.
+
+The six category buttons are independent toggles. Click them or press `1` through `6` for Replies, Quotes, Stars, Mentions, Follows, and Moderation. Notifications above `HEAD@{last visit}` are new since the inbox request's read boundary. Older notifications appear below it. Day labels and lane-colored rails follow the web inbox.
+
+Move with `j` and `k`. Press `Space` or click a group's count to expand or collapse its members. Press `n` for older members of the selected expanded group, or older notifications otherwise. `Enter` or a row click opens the referenced commit's thread. `Esc` returns to the same notification and reading position. Notifications without a commit remain readable but have no destination until profiles are available.
+
+`Ctrl+R` reloads the first page and selects the first notification after success. A failed refresh keeps your position. `Esc` from the inbox returns to the log. The unread badge checks `/api/v1/me` once a minute while focused. Background checks never open or mark the inbox read. Notification data stays in memory only.
 
 ## View images
 
