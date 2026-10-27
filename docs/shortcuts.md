@@ -1,5 +1,16 @@
 # Controls and shortcuts
 
+- [Workspace](#workspace)
+- [Notifications](#notifications)
+- [Starred](#starred)
+- [Thread](#thread)
+- [Profile](#profile)
+- [Image viewer](#image-viewer)
+- [Account connection](#account-connection)
+- [Composer](#composer)
+
+For setup and feature walkthroughs, see [account setup](account.md) and [using the TUI](usage.md). Terminal requirements and modifier-key workarounds are in [terminal setup](terminal.md).
+
 ## Workspace
 
 Run `devnull`. A verified saved connection opens the workspace. Otherwise, login appears and successful approval opens the workspace automatically.
