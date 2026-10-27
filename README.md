@@ -1,4 +1,11 @@
-# /dev/null CLI
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/dev-null-logo-dark.svg">
+    <img src="docs/images/dev-null-logo-light.svg" alt="/dev/null logo" width="400">
+  </picture>
+</p>
+
+<h1 align="center">/dev/null TUI</h1>
 
 > [!WARNING]
 > Pull requests and issues are disabled until the [MVP roadmap](#mvp-roadmap) is complete.
