@@ -15,7 +15,8 @@ func protectPath(path string, directory bool) error {
 	if info.Mode()&os.ModeSymlink != 0 || info.IsDir() != directory || (!directory && !info.Mode().IsRegular()) {
 		return errors.New("connection storage must not be a link or special file")
 	}
-	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	token := windows.GetCurrentProcessToken()
+	user, err := token.GetTokenUser()
 	if err != nil {
 		return err
 	}
@@ -24,7 +25,10 @@ func protectPath(path string, directory bool) error {
 		return err
 	}
 	owner, _, err := existing.Owner()
-	if err != nil || !owner.Equals(user.User.Sid) {
+	if err != nil {
+		return err
+	}
+	if !storageOwnerAllowed(owner, user.User.Sid, token.IsElevated()) {
 		return errors.New("connection storage must be owned by the current user")
 	}
 	inherit := ""
@@ -39,7 +43,18 @@ func protectPath(path string, directory bool) error {
 	if err != nil {
 		return err
 	}
-	return windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION|windows.PROTECTED_DACL_SECURITY_INFORMATION, nil, nil, dacl, nil)
+	securityInfo := windows.SECURITY_INFORMATION(windows.DACL_SECURITY_INFORMATION | windows.PROTECTED_DACL_SECURITY_INFORMATION)
+	var newOwner *windows.SID
+	if !owner.Equals(user.User.Sid) {
+		// Elevated processes can create Administrators-owned files; normalize them to the individual user.
+		securityInfo |= windows.OWNER_SECURITY_INFORMATION
+		newOwner = user.User.Sid
+	}
+	return windows.SetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, securityInfo, newOwner, nil, dacl, nil)
+}
+
+func storageOwnerAllowed(owner, user *windows.SID, elevated bool) bool {
+	return owner.Equals(user) || (elevated && owner.IsWellKnown(windows.WinBuiltinAdministratorsSid))
 }
 
 func lockFile(f *os.File) error {
