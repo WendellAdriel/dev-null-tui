@@ -218,3 +218,7 @@ Linux amd64 builds and local validation are available. Native macOS and Windows 
 ## Design reference
 
 The palette, flat rows, and graph motif follow the web project's [design guide](https://github.com/dev-null-sh/dev-null.sh/blob/production/DESIGN.md). Only shipped shortcuts appear in help. Native platform and live log acceptance checks remain separate from fixture-backed tests and cross-builds.
+
+## License
+
+This project is licensed under the [MIT license](LICENSE).
