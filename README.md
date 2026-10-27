@@ -2,7 +2,7 @@
 
 A terminal client for [dev-null.sh](https://dev-null.sh), built with Go, Bubble Tea, Lip Gloss, and Bubbles.
 
-Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs, threads, and notifications, view commit images, submit text commits, reply, quote, and delete your own commits. You can also star commits, give pastéis, open profiles, and follow people.
+Run `devnull` to open the application. It verifies your saved connection or shows login, then opens your workspace with Following, Latest, and Trending. You can read logs, threads, and notifications, view commit images, submit text commits, reply, quote, and delete your own commits. You can also star commits, revisit Starred, give pastéis, open profiles, and follow people.
 
 ## Connect an account
 
@@ -93,6 +93,14 @@ Move with `j` and `k`. Press `Space` or click a group's count to expand or colla
 Press `u` on a commit or notification to open its author's profile, or `g p` for your own. The sidebar's **Profile** entry also opens yours. The profile follows the web page: the header with level, rank, and **Follows you**, then commit activity, streaks, achievements, and the Commits and Replies tabs. A pinned commit comes first. `Tab`, `1`, or `2` switches tabs. `3` and `4` open the Followers and Following lists, which you can also reach by clicking their counts.
 
 Press `f` to follow or unfollow. Counts change only after the server confirms. A rate limit or refusal leaves the profile unchanged. An unknown outcome reloads the profile. In the Followers and Following lists, `f` follows the selected person and `Enter` opens their profile. `Esc` goes back one screen at a time. The README tab and handle search are not available in the terminal.
+
+## Read Starred
+
+Press `g s` or choose **Starred** below Profile in the sidebar. This private list shows your starred commits, newest star first. Each explicit open fetches the first page again. Move with `j` and `k`, load older pages near the end or with `n`, and use the usual commit actions. `Enter` opens a thread and `u` opens the author. `Esc` from either returns to the same Starred entry without fetching again.
+
+Unstarring with `s` removes the entry only after the server confirms. Selection moves to the next entry, or the previous one at the end. An unstar from a stacked thread or profile also removes it from Starred. Starring elsewhere doesn't insert an entry into an already loaded list. `Ctrl+R` refreshes the first page, keeping the current content and position if it fails. `Esc` from Starred returns to the log.
+
+Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied.
 
 ## View images
 

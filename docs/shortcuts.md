@@ -14,6 +14,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g e` | Open Trending |
 | `g n` | Open Notifications and mark all categories read |
 | `g p` | Open your profile |
+| `g s` | Open Starred, fetching its first page again |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
@@ -69,6 +70,26 @@ Opening Notifications marks all categories read, including categories excluded b
 | Left click | Toggle a category, expand a group, load older entries, or open a referenced commit |
 
 `HEAD@{last visit}` separates new notifications above from older notifications below. Returning from a thread restores the same notification and scroll position. The selected notification shows a clickable **Profile** (`u`) action. `Enter` on a grouped follow still does nothing, so use `Space` to expand it. Profiles opened from the inbox never mark it read. `c`, `a`, `F2`, `?`, and `Ctrl+C` keep their workspace meanings.
+
+## Starred
+
+Open **Starred** below Profile in the sidebar, or press `g s`. The header's **Only you** label identifies the private list. Commits are ordered by when you starred them, newest first, with day labels for their publication dates.
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `Down`, `Up`, mouse wheel | Select the next or previous commit |
+| `g g`, `Home`, `G`, `End` | Select the first or last loaded commit |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
+| `Enter`, `u` | Open the thread or author's profile |
+| `r`, `q`, `s`, `p`, `v`, `D`, `y` | Act on the selected commit, as in the log |
+| `n` | Load older starred commits |
+| `Ctrl+R` | Refresh the first page, selecting its first commit after success |
+| `Esc` | Return to the log |
+| Left click | Open a thread, activate an action, or view an image |
+
+Threads and profiles stack above Starred. Returning with `Esc` keeps the list and selection. Each explicit open through the sidebar or `g s` fetches the first page again. A confirmed unstar anywhere removes its loaded Starred entry, keeping selection on the next entry or the previous one at the end. A failed unstar leaves the entry unchanged. Starring elsewhere doesn't insert into a loaded list.
+
+Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC date when supplied. Missing or invalid Retry-After headers retain the usual error text.
 
 ## Thread
 
