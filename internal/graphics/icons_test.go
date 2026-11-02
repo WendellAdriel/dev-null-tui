@@ -57,3 +57,33 @@ func TestStatsStarIconsFillTheCellWithoutACircle(t *testing.T) {
 		}
 	}
 }
+
+func TestFullLogosRenderLocallyAndKeepTheirAspectRatio(t *testing.T) {
+	m := New("https://example.test")
+	m.Enabled = true
+	for _, kind := range []string{"logo-dark", "logo-light"} {
+		req := Request{Icon: kind, Cols: 23, Rows: 2}
+		jobs, _ := m.Plan(t.Context(), []Request{req})
+		if len(jobs) != 1 {
+			t.Fatal("logo must render locally")
+		}
+		result := m.Fetch(jobs[0])
+		if result.Err != nil || !strings.Contains(m.Accept(result), "f=100") {
+			t.Fatalf("local logo %s: %v", kind, result.Err)
+		}
+		im, err := prepareLogo(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if im.Bounds().Dx() != 368 || im.Bounds().Dy() != 64 || im.NRGBAAt(0, 0).A != 0 {
+			t.Fatal("full logo must fit a transparent cell-sized canvas")
+		}
+		ink := im.NRGBAAt(135, 30)
+		if ink.A < 200 || (ink.R > 128) != (kind == "logo-dark") {
+			t.Fatal("wordmark must use the correct theme asset")
+		}
+		if jobs[0].avatar != nil {
+			t.Fatal("theme change must not reuse the old logo")
+		}
+	}
+}

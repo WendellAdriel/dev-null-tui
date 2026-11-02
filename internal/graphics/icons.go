@@ -10,7 +10,7 @@ import (
 
 func validIcon(kind string) bool {
 	switch kind {
-	case "starred", "followed", "approved", "rejected", "stats-star", "stats-starred":
+	case "starred", "followed", "approved", "rejected", "stats-star", "stats-starred", "logo-dark", "logo-light":
 		return true
 	}
 	return false
