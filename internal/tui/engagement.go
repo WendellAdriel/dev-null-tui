@@ -171,6 +171,10 @@ func (m *AppModel) reconcileEngagement(receipt api.Commit, kind string) {
 			}
 		}
 	}
+	m.eachCommit(update)
+}
+
+func (m *AppModel) eachCommit(update func(*api.Commit)) {
 	for i := range m.feeds {
 		f := &m.feeds[i]
 		for _, list := range [][]api.Commit{f.commits, f.suggestions, f.submitted} {

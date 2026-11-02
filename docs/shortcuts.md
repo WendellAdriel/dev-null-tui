@@ -5,6 +5,7 @@
 - [Starred](#starred)
 - [Thread](#thread)
 - [Profile](#profile)
+- [Settings and safety](#settings-and-safety)
 - [Image viewer](#image-viewer)
 - [Account connection](#account-connection)
 - [Composer](#composer)
@@ -26,6 +27,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g n` | Open Notifications and mark all categories read |
 | `g p` | Open your profile |
 | `g s` | Open Starred, fetching its first page again |
+| `g ,` | Open Settings |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
@@ -42,6 +44,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `q` | Quote the selected commit |
 | `v` | View the selected commit's images |
 | `D` | Ask to delete your own selected commit |
+| `!` | Report another person's published commit |
 | `s` | Star or unstar the selected commit |
 | `p` | Give the selected commit a pastél, when pastéis mode is on and you have some left |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
@@ -142,6 +145,8 @@ A profile replaces the center column, like a thread. `Esc` returns to the screen
 | `Tab`, `Shift+Tab`, `1`, `2` | Switch between Commits and Replies |
 | `3`, `4` | Open the Followers or Following list |
 | `f` | Follow or unfollow this person |
+| `M` | Mute or unmute this person, with confirmation |
+| `B` | Block this person, with confirmation |
 | `Enter` | Open the selected commit's thread |
 | `u` | Open the selected commit author's profile, when it is someone else |
 | `r`, `q`, `s`, `p`, `v`, `D`, `y` | Act on the selected commit, as in the log |
@@ -165,6 +170,23 @@ Your own profile has no follow action. Follow changes wait for the server. Only 
 | `n` | Load more people |
 | `Ctrl+R` | Reload the list |
 | `Esc` | Return to the profile |
+
+## Settings and safety
+
+Open **Settings** from the sidebar or press `g ,`. `g s` remains Starred.
+
+| Keys | Action |
+| --- | --- |
+| `Left`, `Right`, `Tab`, `Shift+Tab` | Switch Profile, Appearance, and Safety tabs |
+| `j`, `k`, `Down`, `Up`, mouse wheel | Choose a control |
+| `Enter`, `Space` | Activate the selected control |
+| `Ctrl+R` | Refresh the account without reading notifications |
+| `Esc` | Return to the underlying screen |
+| `F2` | Switch light and dark for this session |
+
+In a dialog, `Up` and `Down` choose a color or report reason. `Tab` switches between Cancel and Confirm. `Enter` activates the focused action. It starts on Save in the timezone and translation language dialogs, and on Cancel everywhere else. `Ctrl+S` explicitly confirms. `Esc` cancels. Account deletion also requires your exact handle, without `@`. Forms need at least 60×18 terminal cells and own typing and paste events.
+
+Reports use `!` on a selected published commit by someone else. Profile headers expose **Mute** (`M`) and **Block** (`B`). Safety shows Muted above Blocked, with separate refresh controls, confirmed **Unmute** and **Unblock** actions, and cursor pagination. See [Settings and safety](settings.md) for supported preferences and deletion behavior.
 
 ## Image viewer
 

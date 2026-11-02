@@ -57,6 +57,25 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if msg.Button != tea.MouseLeft || msg.X < 0 || msg.Y < 0 || msg.X >= m.account.width || msg.Y >= m.account.height {
 		return m, nil
 	}
+	if m.connected && !m.accountOpen && m.settings.dialog != "" {
+		_, r, areas := m.settingsDialog(colors(m.account.dark))
+		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
+			return m.mouseKey("esc")
+		}
+		for _, area := range areas {
+			if area.contains(msg.X, msg.Y) {
+				if area.action == "lane-choice" || area.action == "lane-input" {
+					cmd := m.chooseSettingsLane(area.index)
+					return m, cmd
+				}
+				return m.mouseKey(area.action)
+			}
+		}
+		return m, nil
+	}
+	if m.settings.open && m.settings.busy {
+		return m, nil
+	}
 	if m.toast.visible && m.composer.confirm == "" && m.account.width >= 20 && m.account.height >= 8 {
 		_, r := m.toastView()
 		if r.contains(msg.X, msg.Y) {
@@ -119,6 +138,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		_, areas := m.navigationLayout(nav, m.mainHeight(), colors(m.account.dark))
 		for _, area := range areas {
 			if area.contains(msg.X-left, msg.Y) {
+				m.settings.open = false
 				if area.action == "log" {
 					return m.switchLog(m.lastLog)
 				}
@@ -132,6 +152,11 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				if area.action == "starred" {
 					return m.openStarred()
 				}
+				if area.action == "settings" {
+					cmd := m.openSettings()
+					return m, cmd
+				}
+				m.settings.open = false
 				return m.mouseKey(area.action)
 			}
 		}
@@ -150,6 +175,36 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		_, back := m.manualLinkView(center, colors(m.account.dark))
 		if back.contains(msg.X-left-nav-1, msg.Y) {
 			return m.mouseKey("esc")
+		}
+		return m, nil
+	}
+	if m.settings.open {
+		if m.settings.busy {
+			return m, nil
+		}
+		x := msg.X - left - nav - 1
+		if x >= 0 && x < center {
+			if msg.Y == 2 {
+				start := 2
+				for i, name := range settingsTabs {
+					if x >= start && x < start+len([]rune(name)) {
+						cmd := m.selectSettingsTab(i)
+						return m, cmd
+					}
+					start += len([]rune(name)) + 3
+				}
+			}
+			row := msg.Y - 4 + m.settings.viewport.YOffset()
+			for i, start := range m.settings.starts {
+				if row == start {
+					if m.settingsRows()[i].action == "" {
+						return m, nil
+					}
+					m.settings.selected = i
+					cmd := m.settingsKey("enter")
+					return m, cmd
+				}
+			}
 		}
 		return m, nil
 	}
@@ -218,7 +273,7 @@ func (m *AppModel) dragComposer(x, y int) {
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
-	if m.composer.confirm != "" || m.deleting.id != "" {
+	if m.composer.confirm != "" || m.deleting.id != "" || m.settings.dialog != "" {
 		return m, nil
 	}
 	code := tea.KeyDown

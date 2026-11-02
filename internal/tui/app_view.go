@@ -22,6 +22,9 @@ func (k appKeys) ShortHelp() []key.Binding  { return k.short }
 func (k appKeys) FullHelp() [][]key.Binding { return [][]key.Binding{k.all} }
 
 func (m AppModel) bindings() appKeys {
+	if m.settings.open || m.settings.dialog != "" {
+		return m.settingsHelp()
+	}
 	bind := func(k, label string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, label)) }
 	if m.composer.open {
 		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
@@ -68,6 +71,7 @@ func (m AppModel) bindings() appKeys {
 		all = append(all, bind("n", "older commits"))
 	}
 	all = append(all, m.engagementBindings()...)
+	all = append(all, bind("g ,", "settings"))
 	return appKeys{short, all}
 }
 
@@ -82,6 +86,9 @@ func (m AppModel) engagementBindings() []key.Binding {
 	}
 	if m.canGivePastel(c) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "give selected commit a pastél")))
+	}
+	if c.Author != nil && !m.ownCommit(c) && c.DeletedAt == nil && (c.Status == "" || c.Status == "approved") {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "report commit")))
 	}
 	return bindings
 }
@@ -116,7 +123,11 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.confirmationModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
-	if m.toast.visible && m.composer.confirm == "" && m.account.width >= 20 && m.account.height >= 8 {
+	if m.connected && !m.accountOpen && m.settings.dialog != "" {
+		content, r, _ := m.settingsDialog(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.toast.visible && m.composer.confirm == "" && m.settings.dialog == "" && m.account.width >= 20 && m.account.height >= 8 {
 		content, r := m.toastView()
 		v.Content = m.overlayToast(v.Content, content, r)
 	}
@@ -159,6 +170,9 @@ func (m AppModel) workspaceView() tea.View {
 		}
 		if m.profileOnTop() && m.manualLink == "" {
 			main = m.profileColumn(center, p)
+		}
+		if m.settings.open {
+			main = m.settingsColumn(center, p)
 		}
 		rail := text(p.hairline).Render(strings.TrimSuffix(strings.Repeat("│\n", m.mainHeight()), "\n"))
 		main = lipgloss.JoinHorizontal(lipgloss.Top, m.navigation(nav, m.mainHeight(), p), rail, main, rail)
@@ -317,11 +331,12 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 			badge = "99+"
 		}
 	}
-	ownProfile := m.profileOnTop() && strings.EqualFold(m.profileHandle(), m.account.user.Handle)
-	top := "\n" + logo + "\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
-	top += "\n\n " + navRow(m.icons.notifications, "Notifications", badge, "g n", m.notificationsOpen && !m.profileOnTop())
+	ownProfile := !m.settings.open && m.profileOnTop() && strings.EqualFold(m.profileHandle(), m.account.user.Handle)
+	top := "\n" + logo + "\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.settings.open && !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
+	top += "\n\n " + navRow(m.icons.notifications, "Notifications", badge, "g n", !m.settings.open && m.notificationsOpen && !m.profileOnTop())
 	top += "\n\n " + navRow(m.icons.profile, "Profile", "", "g p", ownProfile)
-	top += "\n\n " + navRow(m.icons.starred, "Starred", "", "g s", m.starredOpen && !m.profileOnTop())
+	top += "\n\n " + navRow(m.icons.starred, "Starred", "", "g s", !m.settings.open && m.starredOpen && !m.profileOnTop())
+	top += "\n\n " + navRow(m.icons.settings, "Settings", "", "g ,", m.settings.open)
 	compose, shortcut := m.icons.commit+"  Commit", "c"
 	if width < 12 {
 		compose, shortcut = m.icons.commit, ""
@@ -331,6 +346,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	buttonX := (width - lipgloss.Width(button)) / 2
 	top += "\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
 	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{1, 6, inner, 1}, "notifications", 0}, {uiRect{1, 8, inner, 1}, "profile", 0}, {uiRect{1, 10, inner, 1}, "starred", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
+	areas = append(areas, hitArea{uiRect{1, 12, inner, 1}, "settings", 0})
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
 	avatar := lipgloss.NewStyle().Width(4).Height(2).Render(text(lane).Render("●"))

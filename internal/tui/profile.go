@@ -113,6 +113,9 @@ func (s profileState) count() int {
 }
 
 func (m *AppModel) openProfile(handle string) tea.Cmd {
+	if m.safetyHidden[strings.ToLower(handle)]&2 != 0 {
+		return m.notify("warning", "Profile blocked", "Unblock this person in Settings > Safety first.")
+	}
 	if handle == "" || strings.EqualFold(handle, m.profileHandle()) || m.loadProfile == nil {
 		return nil
 	}

@@ -102,6 +102,9 @@ type AppModel struct {
 	follow                                 followState
 	icons                                  iconSet
 	version                                string
+	settings                               settingsState
+	settingsAPI                            *api.Client
+	safetyHidden                           map[string]uint8
 	starredOpen                            bool
 	starred                                feed
 	starredRemoved                         map[string]bool
@@ -162,15 +165,27 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case settingsResult:
+		cmd := m.acceptSettings(msg)
+		return m, cmd
+	case settingsPeopleResult:
+		cmd := m.acceptSafetyList(msg)
+		return m, cmd
+	case settingsLoadResult:
+		cmd := m.acceptSettingsLoad(msg)
+		return m, cmd
 	case starredResult:
+		msg.page.Data = m.safeCommits(msg.page.Data)
 		cmd := m.acceptStarred(msg)
 		return m, cmd
 	case engagementResult:
 		cmd := m.acceptEngagement(msg)
 		return m, cmd
 	case notificationResult:
+		msg.page.Data = m.safeNotifications(msg.page.Data)
 		return m, m.acceptNotifications(msg)
 	case notificationGroupResult:
+		msg.page.Data = m.safeNotifications(msg.page.Data)
 		return m, m.acceptNotificationGroup(msg)
 	case notificationCountResult:
 		if msg.session != m.session || msg.generation != m.notificationCountGeneration || !m.connected {
@@ -198,17 +213,36 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmd := m.acceptPreview(msg)
 		return m, cmd
 	case threadResult:
+		msg.thread.Ancestors = m.safeCommits(msg.thread.Ancestors)
+		if msg.err == nil {
+			commits := m.safeCommitsFor([]api.Commit{msg.thread.Commit}, true)
+			if len(commits) == 0 {
+				msg.err = &auth.APIError{Status: http.StatusNotFound}
+			} else {
+				msg.thread.Commit = commits[0]
+			}
+		}
 		cmd := m.acceptThread(msg)
 		return m, cmd
 	case repliesResult:
+		msg.replies.Data = m.safeCommits(msg.replies.Data)
 		cmd := m.acceptReplies(msg)
 		return m, cmd
 	case deleteResult:
 		cmd := m.acceptDelete(msg)
 		return m, cmd
 	case profileResult:
+		if msg.profile.Pinned != nil {
+			commits := m.safeCommitsFor([]api.Commit{*msg.profile.Pinned}, true)
+			if len(commits) == 0 {
+				msg.profile.Pinned = nil
+			} else {
+				msg.profile.Pinned = &commits[0]
+			}
+		}
 		return m, m.acceptProfile(msg)
 	case profileListResult:
+		msg.commits.Data = m.safeCommitsFor(msg.commits.Data, true)
 		return m, m.acceptProfileList(msg)
 	case followResult:
 		return m, m.acceptFollow(msg)
@@ -282,6 +316,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.session != m.session || !m.connected {
 			return m, nil
 		}
+		if m.settings.signingOut() {
+			return m, m.poll()
+		}
 		m.now = msg.at
 		for i := range m.feeds {
 			m.renderFeed(i)
@@ -315,6 +352,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case logResult:
+		msg.page.Data = m.safeCommits(msg.page.Data)
+		msg.page.Suggestions = m.safeCommits(msg.page.Suggestions)
 		if !m.connected || msg.index < 0 || msg.index >= len(m.feeds) || msg.generation != m.feeds[msg.index].generation {
 			return m, nil
 		}
@@ -403,15 +442,33 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if (m.connected && m.composer.open) || m.composer.confirm != "" {
+			wasExit := m.composer.confirm == "exit"
 			cmd := m.composerKey(msg)
+			if wasExit && m.settings.exitFromSettings && m.composer.confirm == "" && m.account.life.ctx.Err() == nil {
+				m.composer.open = false
+				m.composer.input.Blur()
+				m.settings.dialog, m.settings.exitDialog, m.settings.exitFromSettings = m.settings.exitDialog, "", false
+				if m.settings.dialog != "" {
+					return m, tea.Batch(cmd, m.settings.input.Focus())
+				}
+			}
 			return m, cmd
 		}
 		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
 			cmd := m.deleteKey(msg.String())
 			return m, cmd
 		}
+		if m.connected && !m.accountOpen && m.settings.dialog != "" && msg.String() != "ctrl+c" {
+			cmd := m.settingsDialogKey(msg)
+			return m, cmd
+		}
 		if msg.String() == "ctrl+c" {
 			if m.composer.input.Value() != "" {
+				if m.settings.open || m.settings.dialog != "" {
+					m.settings.exitDialog, m.settings.exitFromSettings = m.settings.dialog, true
+					m.settings.dialog = ""
+					m.settings.input.Blur()
+				}
 				m.composer.open = true
 				cmd := m.requestDraftAction("exit")
 				return m, cmd
@@ -428,6 +485,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resetSequence()
 			return m, nil
 		}
+	}
+	if m.connected && !m.accountOpen && m.settings.dialog != "" {
+		if !m.settings.busy {
+			var cmd tea.Cmd
+			m.settings.input, cmd = m.settings.input.Update(msg)
+			return m, cmd
+		}
+		return m, nil
 	}
 	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.focus == 0 && m.composer.confirm == "" {
 		cmd := m.updateComposerInput(msg)
@@ -452,6 +517,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetch = client.Log
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
+		m.settingsAPI = client
 		m.setStar, m.givePastel = client.SetStar, client.GivePastel
 		m.loadStarred = client.Starred
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
@@ -476,6 +542,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *AppModel) leaveApplication() {
+	m.settings.generation++
+	m.settings = settingsState{generation: m.settings.generation}
+	m.settingsAPI = nil
+	m.safetyHidden = nil
 	if m.engagement.cancel != nil {
 		m.engagement.cancel()
 	}
@@ -613,6 +683,22 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.helpScroll = max(0, min(m.helpMaxScroll(), m.helpScroll))
 		return m, nil
 	}
+	if m.settings.open {
+		cmd := m.settingsKey(pressed)
+		return m, cmd
+	}
+	if pressed == "!" {
+		cmd := m.beginReport()
+		return m, cmd
+	}
+	if m.profileOnTop() && (pressed == "M" || pressed == "B") {
+		kind := "mute"
+		if pressed == "B" {
+			kind = "block"
+		}
+		cmd := m.beginProfileSafety(kind)
+		return m, cmd
+	}
 	if m.threadOnTop() && !m.pendingG && pressed != "g" {
 		next, cmd, handled := m.threadKey(pressed)
 		if handled || (pressed != "c" && pressed != "a") {
@@ -646,6 +732,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.openProfile(m.account.user.Handle)
 		case "s":
 			return m.openStarred()
+		case ",":
+			cmd := m.openSettings()
+			return m, cmd
 		}
 	}
 	if m.profileOnTop() {

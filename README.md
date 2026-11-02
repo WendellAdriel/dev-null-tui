@@ -10,7 +10,7 @@
 > [!WARNING]
 > Pull requests and issues are disabled until the [MVP roadmap](#mvp-roadmap) is complete.
 
-A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, and follow developers.
+A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, follow developers, and manage supported account settings.
 
 - [Get started](#get-started)
 - [Screenshots](#screenshots)
@@ -79,6 +79,7 @@ Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a co
 - [Account setup and security](docs/account.md)
 - [Using the TUI](docs/usage.md)
 - [Controls and shortcuts](docs/shortcuts.md)
+- [Settings and safety](docs/settings.md)
 - [Terminal setup and troubleshooting](docs/terminal.md)
 
 ### Development
@@ -88,7 +89,6 @@ Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a co
 
 ## MVP roadmap
 
-- Settings and safety views
 - Polls and image attachments
 - Remotes support
 

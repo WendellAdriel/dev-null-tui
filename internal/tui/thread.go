@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
@@ -64,9 +65,13 @@ type deleteResult struct {
 }
 
 func (m *AppModel) openThread(target api.Commit) tea.Cmd {
+	if target.Author != nil && m.safetyHidden[strings.ToLower(target.Author.Handle)]&2 != 0 {
+		return nil
+	}
 	if target.ID == "" || target.DeletedAt != nil || target.Author == nil {
 		return nil
 	}
+	target = m.safeCommitsFor([]api.Commit{target}, true)[0]
 	m.threadGeneration++
 	ctx, cancel := context.WithCancel(m.account.life.ctx)
 	m.threads = append(m.threads, threadState{root: target, selectedID: target.ID, children: map[string][]api.Commit{}, loading: true, generation: m.threadGeneration, viewport: viewport.New(), ctx: ctx, cancel: cancel})
@@ -186,6 +191,9 @@ func (m *AppModel) revoked(err error) bool {
 	var failure *auth.APIError
 	if !errors.As(err, &failure) || failure.Status != http.StatusUnauthorized {
 		return false
+	}
+	if m.settings.signingOut() {
+		return true
 	}
 	m.leaveApplication()
 	m.account.state, m.account.status = "failed", "Device approval is no longer valid. Connect again."

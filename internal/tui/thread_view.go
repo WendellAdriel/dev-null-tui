@@ -239,6 +239,8 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	}
 	if m.ownCommit(commit) {
 		actions = append(actions, commitAction{"Delete", "D"})
+	} else if commit.Status == "" || commit.Status == "approved" {
+		actions = append(actions, commitAction{"Report", "!"})
 	}
 	var rows []string
 	var areas []hitArea

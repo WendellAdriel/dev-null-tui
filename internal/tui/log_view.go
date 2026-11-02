@@ -394,6 +394,7 @@ func (m AppModel) columns() (nav, center, aside int) {
 }
 
 func (m *AppModel) reflow() {
+	m.sizeSettings()
 	_, center, _ := m.columns()
 	m.sizeComposer()
 	for i := range m.feeds {

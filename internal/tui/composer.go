@@ -314,6 +314,10 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	if c.sending || !c.open || c.owner != m.account.user.ID {
 		return nil
 	}
+	if c.mode != "" && (c.target.ID == "" || c.target.DeletedAt != nil || c.target.Author == nil) {
+		c.status = "The reply or quote target is unavailable. Your draft is kept."
+		return m.notify("error", "Cannot submit", c.status)
+	}
 	if err := api.ValidateBody(c.input.Value()); err != nil {
 		c.status = err.Error()
 		return m.notify("error", "Cannot submit", c.status)

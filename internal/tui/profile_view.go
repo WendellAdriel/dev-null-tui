@@ -240,6 +240,18 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	for _, row := range spread(badges, inner, "  ") {
 		frame.add(pad + row)
 	}
+	if !strings.EqualFold(u.Handle, m.account.user.Handle) {
+		label := "Mute"
+		if profile.IsMuting != nil && *profile.IsMuting {
+			label = "Unmute"
+		}
+		mute := text(p.muted).Render(label) + " " + keyChip("M", p)
+		block := text(p.danger).Render("Block") + " " + keyChip("B", p)
+		frame.add("")
+		frame.target(2, lipgloss.Width(mute), "M")
+		frame.target(4+lipgloss.Width(mute), lipgloss.Width(block), "B")
+		frame.add(pad + mute + "  " + block)
+	}
 	if u.Bio != "" {
 		frame.add("")
 		for _, line := range strings.Split(ansi.Wrap(remoteBody(u.Bio), inner, ""), "\n") {
@@ -632,6 +644,7 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("3 / 4", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
+	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("g ,", "settings"))
 	return appKeys{short, all}
 }
 
