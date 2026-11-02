@@ -87,3 +87,23 @@ func TestFullLogosRenderLocallyAndKeepTheirAspectRatio(t *testing.T) {
 		}
 	}
 }
+
+func TestPastelIconKeepsItsOwnColorsOnASquareCanvas(t *testing.T) {
+	m := New("https://example.test")
+	m.Enabled = true
+	jobs, _ := m.Plan(t.Context(), []Request{{Icon: "pastel", Cols: 2, Rows: 1}})
+	if len(jobs) != 1 {
+		t.Fatal("pastel icon must render locally without a lane color")
+	}
+	result := m.Fetch(jobs[0])
+	if result.Err != nil || !strings.Contains(m.Accept(result), "f=100") {
+		t.Fatalf("pastel icon did not render: %v", result.Err)
+	}
+	im, err := prepareLogo(jobs[0].Request)
+	if err != nil || im.Bounds().Dx() != 96 || im.Bounds().Dy() != 96 || im.NRGBAAt(0, 0).A != 0 {
+		t.Fatalf("pastel icon must fill a transparent square canvas: %v", err)
+	}
+	if center := im.NRGBAAt(48, 40); center.A == 0 || center.R <= center.B {
+		t.Fatalf("pastel icon lost its colors: %+v", center)
+	}
+}

@@ -163,7 +163,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 			break
 		}
 		u, err := url.Parse(req.URL)
-		local := req.URL == "" && validIcon(req.Icon) && (req.Ring != "" || req.Icon == "logo-dark" || req.Icon == "logo-light")
+		local := req.URL == "" && validIcon(req.Icon) && (req.Ring != "" || embeddedIcon(req.Icon))
 		remote := req.Icon == "" && err == nil && m.validURL(u)
 		if (local || remote) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
 			wanted[req] = true
@@ -284,7 +284,7 @@ func (m *Manager) Fetch(job Job) Result {
 			result.Err = errors.New("icon unavailable")
 			return result
 		}
-		if job.Request.Icon == "logo-dark" || job.Request.Icon == "logo-light" {
+		if embeddedIcon(job.Request.Icon) {
 			var err error
 			picture, err = prepareLogo(job.Request)
 			if err != nil {
