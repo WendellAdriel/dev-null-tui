@@ -39,9 +39,10 @@ const (
 	settingsAppearance
 	settingsSafety
 	settingsDevices
+	settingsTUI
 )
 
-var settingsTabs = [...]string{"Profile", "Region", "Appearance", "Safety", "Devices"}
+var settingsTabs = [...]string{"Profile", "Region", "Appearance", "Safety", "Devices", "TUI"}
 
 type settingsLoad struct {
 	loaded, loading bool
@@ -785,6 +786,10 @@ func (m *AppModel) activateSetting(action, value string) tea.Cmd {
 	case "theme":
 		m.account.toggleTheme()
 		m.reflow()
+	case "update-check":
+		m.tuiSettings.CheckForUpdates = !m.tuiSettings.CheckForUpdates
+		m.sizeSettings()
+		return m.saveTUISettings(false)
 	case "more-muted":
 		return m.loadSafety(0, true)
 	case "more-blocked":

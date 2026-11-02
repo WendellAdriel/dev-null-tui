@@ -80,6 +80,9 @@ type AppModel struct {
 	deletingID                             string
 	toast                                  toastNotice
 	whatsNew                               whatsNewState
+	updates                                Updates
+	upgrade                                upgradeState
+	tuiSettings                            auth.TUISettings
 	engagement                             engagementState
 	setStar                                func(context.Context, string, bool) (api.Commit, error)
 	givePastel                             func(context.Context, string) (api.Pastel, error)
@@ -114,6 +117,7 @@ type AppModel struct {
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
 	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
+	m.tuiSettings = store.TUISettings()
 	m.images = graphics.New(origin)
 	m.images.Tmux = os.Getenv("TMUX") != ""
 	for i := range m.feeds {
@@ -205,6 +209,15 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case whatsNewSaved:
 		cmd := m.acceptWhatsNewSaved(msg)
+		return m, cmd
+	case upgradeChecked:
+		m.acceptUpgradeChecked(msg)
+		return m, nil
+	case upgradeInstalled:
+		cmd := m.acceptUpgradeInstalled(msg)
+		return m, cmd
+	case tuiSettingsSaved:
+		cmd := m.acceptTUISettingsSaved(msg)
 		return m, cmd
 	case toastExpired:
 		if msg.session == m.session && msg.id == m.toast.id {
@@ -541,7 +554,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.poll(), m.startWhatsNew())
+		return m, tea.Batch(cmd, load, m.poll(), m.startWhatsNew(), m.startUpgradeCheck())
 	}
 	return m, cmd
 }
@@ -661,6 +674,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if m.whatsNew.open {
 		cmd := m.whatsNewKey(pressed)
+		return m, cmd
+	}
+	if m.upgradeVisible() {
+		cmd := m.upgradeKey(pressed)
 		return m, cmd
 	}
 	if m.viewer.open {

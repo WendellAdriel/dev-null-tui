@@ -32,6 +32,8 @@ func (m AppModel) settingsRows() []settingsRow {
 			theme = "Dark"
 		}
 		return []settingsRow{{"Theme: " + theme, "Change this session's appearance. F2 works throughout the app.", "theme", ""}}
+	case settingsTUI:
+		return []settingsRow{{"Check for updates: " + on(m.tuiSettings.CheckForUpdates), "Look for a new release once a day when devnull starts. Saved on this device in tui.json.", "update-check", ""}}
 	case settingsSafety:
 		var rows []settingsRow
 		for i, kind := range []string{"muted", "blocked"} {

@@ -129,6 +129,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.upgradeVisible() {
+		return m.upgradeClick(msg.X, msg.Y)
+	}
 	if m.help {
 		r := m.helpBounds()
 		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {

@@ -214,7 +214,7 @@ func TestSettingsViewsStayWithinTerminalAndShowOnlySupportedTabs(t *testing.T) {
 			m.settings.regionLoad.loaded = true
 			m.settings.devices = []api.Device{{ID: "0199a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b", Name: strings.Repeat("workstation", 8), AppName: "/dev/null TUI", Fingerprint: m.account.key.Fingerprint(), ApprovedAt: "2026-11-01T10:00:00Z"}}
 			m.settings.devicesLoad.loaded = true
-			views := []string{"", "", "", "", "", "timezone", "translation-language", "revoke-device"}
+			views := []string{"", "", "", "", "", "", "timezone", "translation-language", "revoke-device"}
 			for i, dialog := range views {
 				m.settings.tab = min(i, len(settingsTabs)-1)
 				m.settings.dialog = ""

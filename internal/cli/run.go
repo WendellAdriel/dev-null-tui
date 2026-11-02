@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"time"
 
 	tea "charm.land/bubbletea/v2"
@@ -93,28 +94,47 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	return actions.app(stdout, *theme, *server, *icons)
 }
 
-func startApp(output io.Writer, theme, origin, icons string) (err error) {
-	if _, err := auth.NewClient(origin, nil); err != nil {
+func startApp(output io.Writer, theme, origin, icons string) error {
+	executable, restart, err := runApp(output, theme, origin, icons)
+	if err != nil || !restart {
 		return err
+	}
+	if err := restartApp(executable); err != nil {
+		return fmt.Errorf("devnull was updated but could not restart, start it again: %w", err)
+	}
+	return nil
+}
+
+// runApp returns only after every deferred cleanup, so the session lock is free before a restart.
+func runApp(output io.Writer, theme, origin, icons string) (executable string, restart bool, err error) {
+	if _, err := auth.NewClient(origin, nil); err != nil {
+		return "", false, err
 	}
 	store, err := auth.DefaultStore()
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	if err := store.Prepare(); err != nil {
-		return err
+		return "", false, err
 	}
 	lock, err := store.Lock()
 	if err != nil {
-		return err
+		return "", false, err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	model := tui.NewApp(theme, store, origin, context.Background()).WithIcons(icons).WithVersion(Version)
+	executable, pathErr := update.Executable()
+	updates := tui.Updates{
+		Check:   func(ctx context.Context) (string, error) { return update.Check(ctx, Version) },
+		Install: func(ctx context.Context) (string, error) { return update.Install(ctx, Version) },
+		Restart: pathErr == nil && runtime.GOOS != "windows",
+	}
+	model := tui.NewApp(theme, store, origin, context.Background()).WithIcons(icons).WithVersion(Version).WithUpdates(updates)
 	defer func() { err = errors.Join(err, model.Close()) }()
 	defer func() {
 		_, cleanupErr := io.WriteString(output, model.GraphicsCleanup())
 		err = errors.Join(err, cleanupErr)
 	}()
-	_, err = tea.NewProgram(model, tea.WithOutput(output)).Run()
-	return err
+	final, err := tea.NewProgram(model, tea.WithOutput(output)).Run()
+	app, ok := final.(tui.AppModel)
+	return executable, err == nil && ok && app.RestartRequested(), err
 }
