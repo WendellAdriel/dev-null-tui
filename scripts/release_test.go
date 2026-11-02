@@ -17,12 +17,24 @@ func TestReleasePublicationRequiresExplicitApprovalAndCleanPushedMain(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined"} {
+	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined", "missing summary"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			scriptsDir, mockDir := filepath.Join(root, "scripts"), filepath.Join(root, "mocks")
 			for _, dir := range []string{scriptsDir, mockDir} {
 				if err := os.Mkdir(dir, 0700); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.WriteFile(filepath.Join(root, "calls"), nil, 0600); err != nil {
+				t.Fatal(err)
+			}
+			if scenario != "missing summary" {
+				notes := filepath.Join(root, "internal", "release", "notes")
+				if err := os.MkdirAll(notes, 0700); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(notes, "v0.1.0-summary.md"), []byte("# v0.1.0\n"), 0600); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -97,6 +109,8 @@ esac
 				}
 			} else if err == nil {
 				t.Fatalf("accepted unsafe release state %q: %s", scenario, output)
+			} else if scenario == "missing summary" && (strings.Contains(string(calls), "go ") || !strings.Contains(string(output), "internal/release/notes/v0.1.0-summary.md")) {
+				t.Fatalf("a release without its summary must stop before building: %s\n%s", output, calls)
 			}
 		})
 	}

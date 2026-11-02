@@ -16,6 +16,11 @@ if ! printf '%s\n' "$version" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0
 fi
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
+summary=internal/release/notes/$version-summary.md
+if [ ! -s "$summary" ]; then
+    echo "Write $summary before releasing $version. What's new shows it after the upgrade." >&2
+    exit 1
+fi
 repo=WendellAdriel/dev-null-tui
 if [ "$publish" = --publish ]; then
     command -v gh >/dev/null 2>&1 || { echo 'GitHub CLI (gh) is required to publish.' >&2; exit 1; }

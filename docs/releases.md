@@ -9,6 +9,8 @@ This guide is for maintainers. User installation and update instructions are in 
 
 ## Prepare locally
 
+Write the release summary first. Each version needs `internal/release/notes/<version>-summary.md`, such as `v0.2.0-summary.md`. The binary embeds it, and What's new shows it once after someone upgrades. The release script refuses a version without one. Summaries support `#` and `##` headings, `-` bullets, paragraphs, `**bold**`, and `` `code` ``. Other markdown appears as plain text.
+
 Run the release script with the version you want to build. Use a POSIX shell with the repository's Go version installed. On Windows, use Git Bash or WSL:
 
 ```shell
