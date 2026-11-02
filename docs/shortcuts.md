@@ -184,7 +184,7 @@ Open **Settings** from the sidebar or press `g ,`. `g s` remains Starred.
 | `Esc` | Return to the underlying screen |
 | `F2` | Switch light and dark for this session |
 
-In a dialog, `Up` and `Down` choose a color or report reason. `Tab` switches between Cancel and Confirm. `Enter` activates the focused action. It starts on Save in the timezone and translation language dialogs, and on Cancel everywhere else. `Ctrl+S` explicitly confirms. `Esc` cancels. Account deletion also requires your exact handle, without `@`. Forms need at least 60×18 terminal cells and own typing and paste events.
+In a dialog, `Up` and `Down` choose a color or report reason. `Tab` switches between Cancel and Confirm. `Enter` activates the focused action. It starts on Save in the timezone and translation language dialogs, and on Cancel everywhere else. Dialogs for destructive actions have a red border. These are account deletion, device revocation, blocking, commit deletion, and discarding a draft. Muting and reporting have a yellow border. `Ctrl+S` explicitly confirms. `Esc` cancels. Account deletion also requires your exact handle, without `@`. Forms need at least 60×18 terminal cells and own typing and paste events.
 
 Reports use `!` on a selected published commit by someone else. Profile headers expose **Mute** (`M`) and **Block** (`B`). Safety shows Muted above Blocked, with separate refresh controls, confirmed **Unmute** and **Unblock** actions, and cursor pagination. See [Settings and safety](settings.md) for supported preferences and deletion behavior.
 

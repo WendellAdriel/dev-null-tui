@@ -50,7 +50,7 @@ func centeredRect(width, height, maxWidth, maxHeight int) uiRect {
 	return uiRect{(width - w) / 2, (height - h) / 2, w, h}
 }
 
-func panel(title, body, footer string, r uiRect, p palette) string {
+func panel(title, body, footer string, r uiRect, p palette, border string) string {
 	w, h := max(1, r.w-4), max(1, r.h-2)
 	header := text(p.ink).Bold(true).Render(fit(title, max(1, w-3)))
 	header += strings.Repeat(" ", max(1, w-lipgloss.Width(header)-1)) + text(p.muted).Render("×")
@@ -58,7 +58,7 @@ func panel(title, body, footer string, r uiRect, p palette) string {
 	bodyHeight := max(1, h-3-lipgloss.Height(footer))
 	content := header + "\n" + line + "\n" + lipgloss.NewStyle().Width(w).Height(bodyHeight).MaxHeight(bodyHeight).Render(body) + "\n" + line + "\n" + footer
 	content = lipgloss.NewStyle().Width(w).Height(h).MaxHeight(h).Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Render(content)
-	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.shell)).Padding(0, 1).Render(content)
+	return lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(border)).Background(lipgloss.Color(p.shell)).Padding(0, 1).Render(content)
 }
 
 func overlay(base, content string, r uiRect, p palette, width, height int) string {

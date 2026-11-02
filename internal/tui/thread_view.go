@@ -363,5 +363,5 @@ func (m AppModel) deleteModal(p palette) (string, uiRect, []hitArea) {
 		areas[i].y += r.y + r.h - 1 - lipgloss.Height(footer)
 	}
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0})
-	return panel("/dev/null · DELETE", body, footer, r, p), r, areas
+	return panel("/dev/null · DELETE", body, footer, r, p, p.danger), r, areas
 }

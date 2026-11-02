@@ -243,7 +243,14 @@ func (m AppModel) settingsDialog(p palette) (string, uiRect, []hitArea) {
 		bodyAreas[i].x += r.x + 2
 		bodyAreas[i].y += r.y + 3
 	}
-	return panel(title, body, footer, r, p), r, append(bodyAreas, areas...)
+	border := p.blue
+	switch s.dialog {
+	case "delete-account", "revoke-device", "block":
+		border = p.danger
+	case "mute", "report":
+		border = p.warning
+	}
+	return panel(title, body, footer, r, p, border), r, append(bodyAreas, areas...)
 }
 
 func (m AppModel) regionRows(on func(bool) string) []settingsRow {

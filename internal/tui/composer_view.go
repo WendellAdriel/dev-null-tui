@@ -101,7 +101,7 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	}
 	title = text(laneColor(m.account.user.Lane, p)).Render(marker) + " " + text(p.ink).Bold(true).Render(title) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))
 	footer, _ := m.composerFooter()
-	return panel(title, body, footer, r, p), r
+	return panel(title, body, footer, r, p, p.blue), r
 }
 
 func (m *AppModel) sizeComposer() {
@@ -222,5 +222,9 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 		areas[i].y += r.y + r.h - 1 - lipgloss.Height(footer)
 	}
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 2})
-	return panel("/dev/null · DRAFT PROTECTION", body, footer, r, p), r, areas
+	border := p.danger
+	if c.confirm == "retry" {
+		border = p.blue
+	}
+	return panel("/dev/null · DRAFT PROTECTION", body, footer, r, p, border), r, areas
 }

@@ -514,5 +514,5 @@ func (m AppModel) helpModal(p palette) string {
 	lines := m.helpLines(max(1, r.w-4), p)
 	start := min(m.helpScroll, m.helpMaxScroll())
 	content := strings.Join(lines[start:min(len(lines), start+max(1, r.h-6))], "\n")
-	return panel("Keyboard shortcuts", content, "↑/↓ scroll · esc close", r, p)
+	return panel("Keyboard shortcuts", content, "↑/↓ scroll · esc close", r, p, p.blue)
 }
