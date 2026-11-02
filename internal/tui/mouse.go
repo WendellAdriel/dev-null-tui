@@ -122,6 +122,13 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.whatsNew.open {
+		r := m.whatsNewBounds()
+		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
+			return m.mouseKey("esc")
+		}
+		return m, nil
+	}
 	if m.help {
 		r := m.helpBounds()
 		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {

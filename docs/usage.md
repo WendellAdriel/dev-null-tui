@@ -12,6 +12,8 @@
 
 Run `devnull` to open the workspace. If you have not connected an account, follow [account setup](account.md) first. Press `?` for contextual help or use the [shortcut reference](shortcuts.md).
 
+After an upgrade, the first launch opens **What's new** with a summary of the release. Scroll with `↑`, `↓`, `PageUp`, `PageDown`, `Home`, and `End`, and close it with `Esc`, `Enter`, or `q`. It shows once per version, and never on a fresh install. The last version you saw is stored in `last-seen-version` in the app's configuration directory. Disconnecting keeps it.
+
 ## Logs
 
 Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move with `j`, `k`, or the mouse wheel. `PageUp` and `PageDown` move five commits. `g g` or `Home` selects the first commit, and `G` or `End` selects the last loaded commit.

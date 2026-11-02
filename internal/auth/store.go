@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 type Store struct{ Dir string }
@@ -142,5 +143,49 @@ func writePrivate(path string, data []byte) error {
 		return err
 	}
 	ok = true
+	return nil
+}
+
+const seenVersionFile = "last-seen-version"
+
+func (s Store) HasConnection() bool {
+	_, err := os.Lstat(filepath.Join(s.Dir, "connection.json"))
+	return err == nil
+}
+
+// LastSeenVersion returns the version whose What's new was last closed, or "" when it is missing or unreadable.
+func (s Store) LastSeenVersion() string {
+	path := filepath.Join(s.Dir, seenVersionFile)
+	if protectPath(path, false) != nil {
+		return ""
+	}
+	root, err := os.OpenRoot(s.Dir)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open(seenVersionFile)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, 65))
+	if err != nil || len(data) > 64 {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// SaveSeenVersion replaces the recorded version through a private temporary file, so a failed write keeps the old one.
+func (s Store) SaveSeenVersion(version string) error {
+	path, temporary := filepath.Join(s.Dir, seenVersionFile), filepath.Join(s.Dir, seenVersionFile+".tmp")
+	_ = os.Remove(temporary)
+	if err := writePrivate(temporary, []byte(version+"\n")); err != nil {
+		return err
+	}
+	if err := os.Rename(temporary, path); err != nil {
+		_ = os.Remove(temporary)
+		return err
+	}
 	return nil
 }

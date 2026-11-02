@@ -79,6 +79,7 @@ type AppModel struct {
 	deleting                               deleteConfirm
 	deletingID                             string
 	toast                                  toastNotice
+	whatsNew                               whatsNewState
 	engagement                             engagementState
 	setStar                                func(context.Context, string, bool) (api.Commit, error)
 	givePastel                             func(context.Context, string) (api.Pastel, error)
@@ -126,6 +127,7 @@ func (m AppModel) Init() tea.Cmd { return tea.Batch(m.account.Init(), tea.Raw(m.
 
 func (m AppModel) WithVersion(version string) AppModel {
 	m.version = version
+	m.whatsNew.version, m.whatsNew.seen, m.whatsNew.connected = version, m.account.store.LastSeenVersion(), m.account.store.HasConnection()
 	return m
 }
 
@@ -201,6 +203,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.unreadNotifications = msg.count
 		return m, nil
+	case whatsNewSaved:
+		cmd := m.acceptWhatsNewSaved(msg)
+		return m, cmd
 	case toastExpired:
 		if msg.session == m.session && msg.id == m.toast.id {
 			m.toast.visible = false
@@ -536,7 +541,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.poll())
+		return m, tea.Batch(cmd, load, m.poll(), m.startWhatsNew())
 	}
 	return m, cmd
 }
@@ -653,6 +658,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			m.manualLink = ""
 		}
 		return m, nil
+	}
+	if m.whatsNew.open {
+		cmd := m.whatsNewKey(pressed)
+		return m, cmd
 	}
 	if m.viewer.open {
 		return m.viewerKey(pressed)

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -106,4 +107,41 @@ func TestOnlyOneAccountSessionCanChangeCredentials(t *testing.T) {
 		t.Fatal("session did not release its lock")
 	}
 	_ = again.Close()
+}
+
+func TestStoreRemembersTheLastSeenVersionApartFromTheConnection(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
+	if err := store.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if store.LastSeenVersion() != "" || store.HasConnection() {
+		t.Fatal("empty store reported state")
+	}
+	for _, version := range []string{"v0.2.0", "v0.3.0"} {
+		if err := store.SaveSeenVersion(version); err != nil {
+			t.Fatal(err)
+		}
+		if got := store.LastSeenVersion(); got != version {
+			t.Fatalf("got %q, want %q", got, version)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(store.Dir, "last-seen-version"), []byte(strings.Repeat("v", 200)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if store.LastSeenVersion() != "" {
+		t.Fatal("oversized state must read as unseen")
+	}
+	key, err := GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(key, "https://dev-null.sh"); err != nil || !store.HasConnection() {
+		t.Fatal("saved connection not detected")
+	}
+	if err := store.SaveSeenVersion("v0.2.0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Disconnect(); err != nil || store.LastSeenVersion() != "v0.2.0" {
+		t.Fatal("disconnecting must keep the last seen version")
+	}
 }

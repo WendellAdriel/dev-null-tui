@@ -186,6 +186,9 @@ func (m AppModel) workspaceView() tea.View {
 		modal := m.helpModal(p)
 		page = overlay(page, modal, m.helpBounds(), p, w, h)
 	}
+	if m.whatsNew.open && m.connected && !m.accountOpen && w >= 30 && h >= 10 {
+		page = overlay(page, m.whatsNewModal(p), m.whatsNewBounds(), p, w, h)
+	}
 	v := tea.NewView(page)
 	v.AltScreen, v.ReportFocus = true, true
 	v.MouseMode = tea.MouseModeCellMotion
