@@ -104,6 +104,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	}
 	u := m.account.user
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
+	if u.PasteisMode {
+		stars = append(stars, pastelIconRequest)
+	}
 	if nav, _, _ := m.columns(); nav >= 12 {
 		stars = append(stars, logoRequest(m.account.dark))
 	}

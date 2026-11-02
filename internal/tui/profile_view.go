@@ -302,7 +302,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		frame.add("", pad+fit(strings.Join(counts, "   "), inner))
 	}
 	if profile.PasteisReceived != nil && m.account.user.PasteisMode {
-		frame.add(pad + text(p.muted).Render(fit("◍ "+plural(*profile.PasteisReceived, "pastél received", "pastéis received"), inner)))
+		frame.add(pad + pastelLabel(plural(*profile.PasteisReceived, "pastél received", "pastéis received"), inner, p, m.images))
 	}
 	hairline := text(p.hairline).Render(strings.Repeat("─", width))
 	frame.add("", hairline)

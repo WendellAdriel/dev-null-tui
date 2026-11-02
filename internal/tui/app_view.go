@@ -432,7 +432,7 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		content += "\n"
 	}
 	if u.PasteisMode && u.PasteisRemaining != nil {
-		content += text(p.muted).Render(fit(fmt.Sprintf("◍ %d pastéis left today", *u.PasteisRemaining), inner)) + "\n\n"
+		content += pastelLabel(fmt.Sprintf("%d pastéis left today", *u.PasteisRemaining), inner, p, m.images) + "\n\n"
 	}
 	line := text(p.hairline).Render(strings.Repeat("─", inner))
 	controls := line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"

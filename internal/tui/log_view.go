@@ -194,6 +194,24 @@ func statsStar(commit api.Commit, p palette, icons *graphics.Manager) string {
 	return text(p.muted).Render("☆")
 }
 
+// pastelIconRequest draws the web's pastel de nata artwork in its own colors, in the same 2x1 cells as the star.
+var pastelIconRequest = graphics.Request{Icon: "pastel", Cols: 2, Rows: 1}
+
+func pastelIcon(p palette, icons *graphics.Manager) string {
+	if icons != nil {
+		if icon := icons.Row(pastelIconRequest, 0); icon != "" {
+			return icon
+		}
+	}
+	return text(p.muted).Render("◍")
+}
+
+// pastelLabel fits a muted label after the pastel icon, whichever width the icon or its glyph takes.
+func pastelLabel(label string, width int, p palette, icons *graphics.Manager) string {
+	icon := pastelIcon(p, icons)
+	return icon + text(p.muted).Render(fit(" "+label, max(0, width-lipgloss.Width(icon))))
+}
+
 // commitLayout renders a commit, with an optional tag such as "quoted" after the handle.
 func commitLayout(commit api.Commit, tag string, width int, p palette, now time.Time, manager *graphics.Manager, style statsStyle) ([]string, []pictureArea) {
 	if commit.DeletedAt != nil {
@@ -280,12 +298,12 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	if commit.Replies == 1 {
 		label = "reply"
 	}
-	stats := fmt.Sprintf(" %-5d ", commit.Stars)
+	stats := statsStar(commit, p, style.icons) + text(p.muted).Render(fmt.Sprintf(" %-5d ", commit.Stars))
 	if style.pasteis && commit.Pasteis != nil {
-		stats += fmt.Sprintf("◍ %-3d ", *commit.Pasteis)
+		stats += pastelIcon(p, style.icons) + text(p.muted).Render(fmt.Sprintf(" %-3d ", *commit.Pasteis))
 	}
-	stats += fmt.Sprintf("↩ %d %s", commit.Replies, label)
-	lines = append(lines, fit(statsStar(commit, p, style.icons)+text(p.muted).Render(stats), width))
+	stats += text(p.muted).Render(fmt.Sprintf("↩ %d %s", commit.Replies, label))
+	lines = append(lines, fit(stats, width))
 	for _, reply := range previewReplies(commit) {
 		preview := replyPreview(reply, width-3, p, manager)
 		lines = append(lines, fit(text(authorColor(commit.Author, p)).Render("╰─ ")+preview[0], width))
