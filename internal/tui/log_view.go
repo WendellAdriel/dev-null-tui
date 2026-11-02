@@ -3,7 +3,6 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"regexp"
 	"strconv"
 	"strings"
@@ -17,7 +16,6 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
-var htmlTags = regexp.MustCompile(`<[^>]*>`)
 var hexLane = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 func remoteBody(value string) string {
@@ -122,33 +120,6 @@ func dayLabel(created, now time.Time) string {
 
 func fit(value string, width int) string { return ansi.Truncate(value, max(0, width), "…") }
 
-func bodyText(commit api.Commit, p palette) string {
-	segments := commit.Segments
-	if len(commit.Preview) > 0 {
-		segments = commit.Preview
-	}
-	if len(segments) == 0 {
-		return remoteBody(commit.Body)
-	}
-	var b strings.Builder
-	for _, s := range segments {
-		switch s.Type {
-		case "text":
-			b.WriteString(remoteBody(s.Text))
-		case "code":
-			b.WriteString(text(p.code).Render("`" + remoteBody(s.Code) + "`"))
-		case "block":
-			plain := html.UnescapeString(htmlTags.ReplaceAllString(s.HTML, ""))
-			b.WriteString("\n\n" + text(p.muted).Render(safeText(s.Language)) + "\n")
-			for _, line := range strings.Split(remoteBody(plain), "\n") {
-				b.WriteString(text(p.hairline).Render("│ ") + text(p.code).Render(line) + "\n")
-			}
-			b.WriteString("\n")
-		}
-	}
-	return strings.TrimSpace(b.String())
-}
-
 type pictureArea struct {
 	uiRect
 	entry, image int
@@ -159,18 +130,22 @@ func commitLines(commit api.Commit, width int, p palette, now time.Time, manager
 	if len(managers) > 0 {
 		manager = managers[0]
 	}
-	lines, _ := commitLayout(commit, "", width, p, now, manager, statsStyle{icons: manager})
+	lines, _ := commitLayout(commit, "", width, p, now, manager, statsStyle{icons: manager, glyphs: nerdIcons})
 	return lines
 }
 
-// statsStyle controls the stats row, separately from media, so the viewer can draw icons without thumbnails.
+// statsStyle controls the icons in the stats row and the body, separately from media, so the viewer can draw icons
+// without thumbnails.
 type statsStyle struct {
 	pasteis bool
 	icons   *graphics.Manager
+	glyphs  iconSet
+	// origin is the server, so mentions can link to profiles on the web.
+	origin string
 }
 
 func (m AppModel) statsStyle() statsStyle {
-	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images}
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin}
 }
 
 func starIconRequest(filled bool, ink string) graphics.Request {
@@ -241,7 +216,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 		meta += strings.Repeat(" ", max(2, width-lipgloss.Width(meta)-lipgloss.Width(hash))) + hash
 	}
 	lines := []string{fit(meta, width)}
-	for _, line := range strings.Split(ansi.Wrap(bodyText(commit, p), width, ""), "\n") {
+	for _, line := range bodyLines(commit, width, p, style) {
 		lines = append(lines, fit(line, width))
 	}
 	if commit.QuotedID != nil {
@@ -257,7 +232,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 			}
 			header := smallAvatar(quote.Author, p, manager) + text(p.ink).Bold(true).Render(quotedName) + " " + text(p.muted).Render("@"+safeText(quote.Author.Handle))
 			quoteLines := []string{fit(header, quoteWidth)}
-			body := strings.Split(ansi.Wrap(bodyText(*quote, p), quoteWidth, ""), "\n")
+			body := bodyLines(*quote, quoteWidth, p, style)
 			if len(body) > 5 {
 				body = append(body[:4], text(p.muted).Render("…"))
 			}
@@ -305,7 +280,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	stats += text(p.muted).Render(fmt.Sprintf("↩ %d %s", commit.Replies, label))
 	lines = append(lines, fit(stats, width))
 	for _, reply := range previewReplies(commit) {
-		preview := replyPreview(reply, width-3, p, manager)
+		preview := replyPreview(reply, width-3, p, manager, style)
 		lines = append(lines, fit(text(authorColor(commit.Author, p)).Render("╰─ ")+preview[0], width))
 		for _, line := range preview[1:] {
 			lines = append(lines, fit("   "+line, width))
@@ -328,9 +303,9 @@ func previewReplies(commit api.Commit) []api.Commit {
 }
 
 // replyPreview renders a reply's author line and up to three body lines aligned under the name.
-func replyPreview(reply api.Commit, width int, p palette, manager *graphics.Manager) []string {
+func replyPreview(reply api.Commit, width int, p palette, manager *graphics.Manager, style statsStyle) []string {
 	lines := []string{fit(smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Handle)), width)}
-	body := strings.Split(ansi.Wrap(bodyText(reply, p), max(1, width-3), ""), "\n")
+	body := bodyLines(reply, max(1, width-3), p, style)
 	if len(body) > 4 {
 		body = append(body[:3], "…")
 	}
@@ -536,7 +511,7 @@ func (m AppModel) commitList(lines []string, commits []api.Commit, selected, wid
 		}
 		for _, reply := range previews {
 			heads = append(heads, len(rows))
-			rows = append(rows, replyPreview(reply, contentWidth, p, m.images)...)
+			rows = append(rows, replyPreview(reply, contentWidth, p, m.images, m.statsStyle())...)
 		}
 		for _, line := range m.feedRail(c, rows, ring, heads, gutter, lane, p) {
 			if i == selected {

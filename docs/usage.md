@@ -24,6 +24,8 @@ Older pages load near the end of the list, or when you press `n`. Switching logs
 
 Following and Latest check for new commits once a minute while the workspace is focused. New commits are not inserted until you refresh. Trending has no chronological arrival check.
 
+Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon.
+
 Click a row or press `Enter` to open its thread. The selected commit shows clickable actions below its stats. `y` copies its web link. Clipboard failures display the link for manual copying.
 
 ## Threads

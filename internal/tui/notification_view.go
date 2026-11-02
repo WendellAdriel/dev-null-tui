@@ -94,7 +94,7 @@ func notificationNoun(n api.Notification) string {
 	return "updates"
 }
 
-func notificationExcerpt(c *api.Commit, width int, p palette, boxed bool) []string {
+func notificationExcerpt(c *api.Commit, width int, p palette, style statsStyle, boxed bool) []string {
 	if c == nil {
 		return nil
 	}
@@ -108,11 +108,11 @@ func notificationExcerpt(c *api.Commit, width int, p palette, boxed bool) []stri
 	if boxed {
 		inner = max(1, width-4)
 	}
-	rows := strings.Split(ansi.Wrap(bodyText(*c, p), inner, ""), "\n")
+	rows := bodyLines(*c, inner, p, style)
 	if len(rows) > 4 {
 		rows = append(rows[:3], "…")
 	}
-	if len(c.Images) > 0 && bodyText(*c, p) == "" {
+	if len(c.Images) > 0 && len(rows) == 0 {
 		rows = []string{"▧ Image"}
 	}
 	if !boxed {
@@ -195,9 +195,9 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		rows = append(rows, strings.Split(ansi.Wrap(strings.TrimSpace(identity+" "+verb), width, ""), "\n")...)
 	}
 	boxed := n.Type == "starred" || n.Type == "approved" || n.Type == "rejected"
-	rows = append(rows, notificationExcerpt(n.Commit, width, p, boxed)...)
+	rows = append(rows, notificationExcerpt(n.Commit, width, p, m.statsStyle(), boxed)...)
 	if n.Type == "quoted" && n.Commit != nil && n.Commit.Quote != nil {
-		rows = append(rows, notificationExcerpt(n.Commit.Quote, width, p, true)...)
+		rows = append(rows, notificationExcerpt(n.Commit.Quote, width, p, m.statsStyle(), true)...)
 	}
 	if n.Reason != "" {
 		rows = append(rows, strings.Split(ansi.Wrap("reason: "+safeText(n.Reason), width, ""), "\n")...)

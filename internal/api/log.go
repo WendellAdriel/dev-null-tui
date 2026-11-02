@@ -32,6 +32,7 @@ type Segment struct {
 	Code     string `json:"code"`
 	Language string `json:"language"`
 	HTML     string `json:"html"`
+	Filename string `json:"filename"`
 }
 
 type Commit struct {

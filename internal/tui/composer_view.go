@@ -132,7 +132,7 @@ func (m AppModel) composerView(width int, p palette) string {
 		if c.mode == "quote" {
 			action = "❝ Quoting @"
 		}
-		excerpt := strings.SplitN(ansi.Strip(bodyText(c.target, p)), "\n", 2)[0]
+		excerpt := strings.SplitN(ansi.Strip(bodyText(c.target, p, statsStyle{glyphs: m.icons})), "\n", 2)[0]
 		for _, line := range []string{text(p.blue).Bold(true).Render(fit(action+safeText(c.target.Author.Handle), max(1, inner-2))), text(p.muted).Render(fit(excerpt, max(1, inner-2)))} {
 			callout := text(p.blue).Render("│ ") + line
 			rows = append(rows, withBackground(lipgloss.NewStyle().Width(inner).MaxWidth(inner).Render(callout), p.wash))
@@ -141,8 +141,7 @@ func (m AppModel) composerView(width int, p palette) string {
 	}
 	body := c.input.View()
 	if c.previewing {
-		body = ansi.Wrap(bodyText(api.Commit{Body: c.preview.Body, Segments: c.preview.Segments}, p), inner, "")
-		lines := strings.Split(body, "\n")
+		lines := bodyLines(api.Commit{Body: c.preview.Body, Segments: c.preview.Segments}, inner, p, m.statsStyle())
 		start := min(c.previewOffset, max(0, len(lines)-c.input.Height()))
 		body = strings.Join(lines[start:min(len(lines), start+c.input.Height())], "\n")
 	}

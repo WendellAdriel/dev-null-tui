@@ -1,13 +1,13 @@
 package tui
 
 type iconSet struct {
-	company, location, link, github, joined, log, notifications, profile, commit, starred, lock, settings string
+	company, location, link, github, gitlab, codeberg, joined, log, notifications, profile, commit, starred, lock, settings string
 }
 
 // Nerd Font glyphs mirror the web's Lucide icons. Plain glyphs work with any font.
 var (
-	nerdIcons  = iconSet{company: "", location: "", link: "", github: "", joined: "", log: "", notifications: "", profile: "", commit: "", starred: "", lock: "", settings: ""}
-	plainIcons = iconSet{company: "⌂", location: "⌖", link: "↗", github: "⎇", joined: "◷", log: "◉", notifications: "◔", profile: "◎", commit: "＋", starred: "☆", lock: "⚿", settings: "⚙"}
+	nerdIcons  = iconSet{company: "", location: "", link: "", github: "", gitlab: "\uf296", codeberg: "\uf330", joined: "", log: "", notifications: "", profile: "", commit: "", starred: "", lock: "", settings: ""}
+	plainIcons = iconSet{company: "⌂", location: "⌖", link: "↗", github: "⎇", gitlab: "⎇", codeberg: "⎇", joined: "◷", log: "◉", notifications: "◔", profile: "◎", commit: "＋", starred: "☆", lock: "⚿", settings: "⚙"}
 )
 
 // WithIcons picks the icon set: "plain" for any font, otherwise Nerd Font glyphs.
