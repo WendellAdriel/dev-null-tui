@@ -29,16 +29,62 @@ type updater struct {
 	arch         string
 }
 
+// Run installs the latest release and reports the result for the devnull update command.
 func Run(ctx context.Context, current string, output io.Writer) error {
+	u, err := newUpdater()
+	if err != nil {
+		return err
+	}
+	return u.run(ctx, current, output)
+}
+
+func (u updater) run(ctx context.Context, current string, output io.Writer) error {
+	tag, err := u.apply(ctx, current)
+	if err != nil {
+		return err
+	}
+	if tag == "" {
+		_, err = fmt.Fprintln(output, "Already up to date ("+current+").")
+		return err
+	}
+	_, err = fmt.Fprintln(output, "Updated devnull to "+tag+". Start devnull again to use it.")
+	return err
+}
+
+// Check returns the latest stable release when it is newer than current, or "" when current is up to date.
+func Check(ctx context.Context, current string) (string, error) {
+	u, err := newUpdater()
+	if err != nil {
+		return "", err
+	}
+	return u.check(ctx, current)
+}
+
+// Install replaces this executable with the latest stable release and returns its version, or "" when current is
+// already up to date.
+func Install(ctx context.Context, current string) (string, error) {
+	u, err := newUpdater()
+	if err != nil {
+		return "", err
+	}
+	return u.apply(ctx, current)
+}
+
+// Executable returns the resolved path of the running binary, the file an update replaces.
+func Executable() (string, error) {
 	path, err := os.Executable()
 	if err != nil {
-		return err
+		return "", err
 	}
-	path, err = filepath.EvalSymlinks(path)
+	return filepath.EvalSymlinks(path)
+}
+
+func newUpdater() (updater, error) {
+	path, err := Executable()
 	if err != nil {
-		return err
+		return updater{}, err
 	}
-	u := updater{
+	return updater{
 		client: &http.Client{Timeout: 2 * time.Minute, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			if req.URL.Scheme != "https" {
 				return errors.New("update redirect must use HTTPS")
@@ -51,39 +97,55 @@ func Run(ctx context.Context, current string, output io.Writer) error {
 		latestURL:    "https://api.github.com/repos/" + release.Repository + "/releases/latest",
 		downloadBase: "https://github.com/" + release.Repository + "/releases/download/",
 		executable:   path, goos: runtime.GOOS, arch: runtime.GOARCH,
-	}
-	return u.run(ctx, current, output)
+	}, nil
 }
 
-func (u updater) run(ctx context.Context, current string, output io.Writer) error {
+type latestRelease struct {
+	Tag        string `json:"tag_name"`
+	Draft      bool   `json:"draft"`
+	Prerelease bool   `json:"prerelease"`
+	Assets     []struct {
+		Name string `json:"name"`
+	} `json:"assets"`
+}
+
+func (u updater) latest(ctx context.Context, current string) (latestRelease, error) {
+	var latest latestRelease
 	if !release.ValidVersion(current) {
-		return errors.New("cannot self-update a development build; install a published release first")
-	}
-	asset, err := release.AssetName(u.goos, u.arch)
-	if err != nil {
-		return err
+		return latest, errors.New("cannot self-update a development build; install a published release first")
 	}
 	metadata, err := u.get(ctx, u.latestURL, 1<<20)
 	if err != nil {
-		return fmt.Errorf("check latest release: %w", err)
-	}
-	var latest struct {
-		Tag        string `json:"tag_name"`
-		Draft      bool   `json:"draft"`
-		Prerelease bool   `json:"prerelease"`
-		Assets     []struct {
-			Name string `json:"name"`
-		} `json:"assets"`
+		return latest, fmt.Errorf("check latest release: %w", err)
 	}
 	if err := json.Unmarshal(metadata, &latest); err != nil {
-		return fmt.Errorf("read release: %w", err)
+		return latest, fmt.Errorf("read release: %w", err)
 	}
 	if latest.Draft || latest.Prerelease || !release.ValidVersion(latest.Tag) {
-		return errors.New("latest release is not a stable vMAJOR.MINOR.PATCH version")
+		return latest, errors.New("latest release is not a stable vMAJOR.MINOR.PATCH version")
 	}
-	if release.Compare(current, latest.Tag) >= 0 {
-		_, err := fmt.Fprintln(output, "Already up to date ("+current+").")
-		return err
+	return latest, nil
+}
+
+func (u updater) check(ctx context.Context, current string) (string, error) {
+	latest, err := u.latest(ctx, current)
+	if err != nil || release.Compare(current, latest.Tag) >= 0 {
+		return "", err
+	}
+	return latest.Tag, nil
+}
+
+func (u updater) apply(ctx context.Context, current string) (string, error) {
+	if !release.ValidVersion(current) {
+		return "", errors.New("cannot self-update a development build; install a published release first")
+	}
+	asset, err := release.AssetName(u.goos, u.arch)
+	if err != nil {
+		return "", err
+	}
+	latest, err := u.latest(ctx, current)
+	if err != nil || release.Compare(current, latest.Tag) >= 0 {
+		return "", err
 	}
 	hasBinary, hasChecksums := false, false
 	for _, item := range latest.Assets {
@@ -91,22 +153,21 @@ func (u updater) run(ctx context.Context, current string, output io.Writer) erro
 		hasChecksums = hasChecksums || item.Name == "checksums.txt"
 	}
 	if !hasBinary || !hasChecksums {
-		return errors.New("release is missing the platform binary or checksums.txt")
+		return "", errors.New("release is missing the platform binary or checksums.txt")
 	}
 	base := u.downloadBase + latest.Tag + "/"
 	checksums, err := u.get(ctx, base+"checksums.txt", 64<<10)
 	if err != nil {
-		return fmt.Errorf("download checksums: %w", err)
+		return "", fmt.Errorf("download checksums: %w", err)
 	}
 	want, err := checksum(checksums, asset)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if err := u.install(ctx, base+asset, want); err != nil {
-		return err
+		return "", err
 	}
-	_, err = fmt.Fprintln(output, "Updated devnull to "+latest.Tag+". Start devnull again to use it.")
-	return err
+	return latest.Tag, nil
 }
 
 func checksum(manifest []byte, asset string) (string, error) {

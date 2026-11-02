@@ -116,6 +116,37 @@ func TestUpdateDoesNotDowngradeOrDownloadCurrentVersion(t *testing.T) {
 	}
 }
 
+func TestCheckReportsOnlyANewerStableRelease(t *testing.T) {
+	for _, tc := range []struct{ current, body, want string }{
+		{"v0.1.0", `{"tag_name":"v0.2.0","assets":[]}`, "v0.2.0"},
+		{"v0.2.0", `{"tag_name":"v0.2.0"}`, ""},
+		{"v0.3.0", `{"tag_name":"v0.2.0"}`, ""},
+		{"v0.1.0", `{"tag_name":"v0.2.0","prerelease":true}`, "error"},
+		{"v0.1.0", `{"tag_name":"v0.2.0","draft":true}`, "error"},
+		{"v0.1.0", `{"tag_name":"latest"}`, "error"},
+		{"dev", `{"tag_name":"v0.2.0"}`, "error"},
+	} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/latest" {
+				t.Errorf("a check must not download %s", r.URL)
+			}
+			_, _ = fmt.Fprint(w, tc.body)
+		}))
+		u := updater{client: server.Client(), latestURL: server.URL + "/latest", goos: "linux", arch: "amd64"}
+		got, err := u.check(context.Background(), tc.current)
+		server.Close()
+		if tc.want == "error" {
+			if err == nil {
+				t.Fatalf("%s %s: expected an error, got %q", tc.current, tc.body, got)
+			}
+			continue
+		}
+		if err != nil || got != tc.want {
+			t.Fatalf("%s %s: got %q %v, want %q", tc.current, tc.body, got, err, tc.want)
+		}
+	}
+}
+
 func TestUpdateRejectsUnavailableReleaseAndUnsupportedPlatform(t *testing.T) {
 	server := httptest.NewServer(http.NotFoundHandler())
 	defer server.Close()
