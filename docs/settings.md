@@ -2,7 +2,7 @@
 
 Settings opens with `g ,` or the sidebar's **Settings** row. It uses the existing signed device connection. Account changes apply after the server confirms them.
 
-Settings has five tabs: Profile, Region, Appearance, Safety, and Devices. Use Left and Right or click a tab to switch.
+Settings has six tabs: Profile, Region, Appearance, Safety, Devices, and TUI. Use Left and Right or click a tab to switch.
 
 GitHub sync, pastéis, Remotes, and automatic translation changes show progress and results through the shared timed toasts. Failed writes retain recovery guidance in Settings after the toast expires.
 
@@ -43,6 +43,12 @@ Uncertain writes are never replayed automatically. Settings blocks further write
 The Devices tab lists every device approved to sign requests as you, newest approval first. Each row shows the device and app name, approval and last-used times, and its key fingerprint. The device this client signs with is marked **This device**.
 
 Select a device and press Enter to revoke it. The dialog starts on Cancel. Revoking another device signs the app on it out and removes it from the list. Revoking this device signs this client out and removes its saved key after the server confirms with HTTP 204. You then need to approve the client again on the web.
+
+## TUI
+
+The TUI tab holds preferences for this client only. They are saved in `tui.json` in the app's configuration directory, take effect without the server, and survive disconnecting.
+
+**Check for updates** is on by default. When on, devnull looks for a new release once a day at startup and offers to install it. See [update from the TUI](installation.md#update-from-the-tui). The same file remembers the last check time and any version you skipped.
 
 ## Account deletion
 
