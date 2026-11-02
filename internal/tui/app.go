@@ -101,6 +101,7 @@ type AppModel struct {
 	profileGeneration                      int
 	follow                                 followState
 	icons                                  iconSet
+	version                                string
 	starredOpen                            bool
 	starred                                feed
 	starredRemoved                         map[string]bool
@@ -119,6 +120,11 @@ func NewApp(theme string, store auth.Store, origin string, ctx context.Context) 
 }
 
 func (m AppModel) Init() tea.Cmd { return tea.Batch(m.account.Init(), tea.Raw(m.images.Probe())) }
+
+func (m AppModel) WithVersion(version string) AppModel {
+	m.version = version
+	return m
+}
 
 func (m AppModel) GraphicsCleanup() string { return m.images.Clear() }
 func (m AppModel) Close() error {

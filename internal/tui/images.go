@@ -104,9 +104,10 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	}
 	u := m.account.user
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
-	if _, _, aside := m.columns(); aside > 0 {
-		avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+	if nav, _, _ := m.columns(); nav >= 12 {
+		stars = append(stars, logoRequest(m.account.dark))
 	}
+	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
 	return append(append(requests, avatars...), stars...)
 }
 

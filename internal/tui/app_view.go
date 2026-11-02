@@ -2,7 +2,6 @@ package tui
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -10,6 +9,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
+	"github.com/WendellAdriel/dev-null-cli/internal/release"
 )
 
 const feedHeaderHeight = 8
@@ -184,7 +186,19 @@ func (m AppModel) mainHeight() int {
 	return max(1, m.account.height-1)
 }
 
-func brand(p palette) string {
+func logoRequest(dark bool) graphics.Request {
+	kind := "logo-light"
+	if dark {
+		kind = "logo-dark"
+	}
+	return graphics.Request{Icon: kind, Cols: 23, Rows: 2}
+}
+
+func (m AppModel) brand(p palette) string {
+	req := logoRequest(m.account.dark)
+	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
+		return top + "\n" + bottom
+	}
 	return text(p.lanes[0]).Bold(true).Render("//") + "  " + text(p.ink).Bold(true).Render("/dev/null")
 }
 
@@ -291,10 +305,11 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		}
 		return fit(line, inner)
 	}
-	logo := "   " + brand(p)
+	logo := lipgloss.PlaceHorizontal(width, lipgloss.Center, m.brand(p))
 	if width < 12 {
 		logo = " //"
 	}
+	logo = lipgloss.NewStyle().Height(2).Render(logo)
 	badge := ""
 	if m.unreadNotifications > 0 {
 		badge = fmt.Sprint(m.unreadNotifications)
@@ -303,7 +318,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		}
 	}
 	ownProfile := m.profileOnTop() && strings.EqualFold(m.profileHandle(), m.account.user.Handle)
-	top := "\n" + logo + "\n\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
+	top := "\n" + logo + "\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
 	top += "\n\n " + navRow(m.icons.notifications, "Notifications", badge, "g n", m.notificationsOpen && !m.profileOnTop())
 	top += "\n\n " + navRow(m.icons.profile, "Profile", "", "g p", ownProfile)
 	top += "\n\n " + navRow(m.icons.starred, "Starred", "", "g s", m.starredOpen && !m.profileOnTop())
@@ -318,13 +333,19 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{1, 6, inner, 1}, "notifications", 0}, {uiRect{1, 8, inner, 1}, "profile", 0}, {uiRect{1, 10, inner, 1}, "starred", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
-	avatar := m.images.Row(m.avatarRequest(user.AvatarURL, lane, 2, 1), 0)
-	if avatar == "" {
-		avatar = text(lane).Render("● ")
+	avatar := lipgloss.NewStyle().Width(4).Height(2).Render(text(lane).Render("●"))
+	req := m.avatarRequest(user.AvatarURL, lane, 4, 2)
+	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
+		avatar = top + "\n" + bottom
 	}
-	bottom := "  " + avatar
+	bottom := lipgloss.PlaceHorizontal(width, lipgloss.Center, avatar)
 	if width >= 12 {
-		bottom += text(p.muted).Render(fit("@"+safeText(user.Handle), inner-4))
+		name := safeText(user.Name)
+		if name == "" {
+			name = safeText(user.Handle)
+		}
+		identity := text(p.ink).Bold(true).Render(fit(name, inner-5)) + "\n" + text(p.muted).Render(fit("@"+safeText(user.Handle), inner-5))
+		bottom = lipgloss.NewStyle().PaddingLeft(1).Render(lipgloss.JoinHorizontal(lipgloss.Top, avatar, " ", identity))
 	}
 	gap := max(1, height-lipgloss.Height(top)-lipgloss.Height(bottom))
 	content := top + strings.Repeat("\n", gap) + bottom + "\n"
@@ -422,15 +443,18 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		label := fit(h.Desc, max(1, inner-lipgloss.Width(chip)-1))
 		controls += text(p.muted).Render(label) + strings.Repeat(" ", max(1, inner-lipgloss.Width(label)-lipgloss.Width(chip))) + chip + "\n"
 	}
-	origin, _ := url.Parse(m.account.origin)
-	bottom := text(p.muted).Render(fit(safeText(origin.Host), inner))
-	profileHeight := max(1, height-lipgloss.Height(controls)-3)
+	version := m.version
+	if version == "" {
+		version = release.Version
+	}
+	bottom := centered.Foreground(lipgloss.Color(p.muted)).Render("/dev/null TUI\n" + fit(safeText(version), inner))
+	profileHeight := max(1, height-lipgloss.Height(controls)-lipgloss.Height(bottom)-2)
 	content = strings.TrimRight(lipgloss.NewStyle().MaxHeight(profileHeight).Render(content), "\n") + "\n\n"
 	for i := range areas {
 		areas[i].y += strings.Count(content, "\n")
 	}
 	content += controls
-	gap := max(1, height-lipgloss.Height(content)-lipgloss.Height(bottom))
+	gap := max(1, height-lipgloss.Height(content)-lipgloss.Height(bottom)+1)
 	content += strings.Repeat("\n", gap) + bottom
 	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content), areas
 }

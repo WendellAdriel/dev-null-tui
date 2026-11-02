@@ -109,7 +109,7 @@ func startApp(output io.Writer, theme, origin, icons string) (err error) {
 		return err
 	}
 	defer func() { err = errors.Join(err, lock.Close()) }()
-	model := tui.NewApp(theme, store, origin, context.Background()).WithIcons(icons)
+	model := tui.NewApp(theme, store, origin, context.Background()).WithIcons(icons).WithVersion(Version)
 	defer func() { err = errors.Join(err, model.Close()) }()
 	defer func() {
 		_, cleanupErr := io.WriteString(output, model.GraphicsCleanup())
