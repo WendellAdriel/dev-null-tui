@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type Store struct{ Dir string }
@@ -155,22 +156,8 @@ func (s Store) HasConnection() bool {
 
 // LastSeenVersion returns the version whose What's new was last closed, or "" when it is missing or unreadable.
 func (s Store) LastSeenVersion() string {
-	path := filepath.Join(s.Dir, seenVersionFile)
-	if protectPath(path, false) != nil {
-		return ""
-	}
-	root, err := os.OpenRoot(s.Dir)
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = root.Close() }()
-	f, err := root.Open(seenVersionFile)
-	if err != nil {
-		return ""
-	}
-	defer func() { _ = f.Close() }()
-	data, err := io.ReadAll(io.LimitReader(f, 65))
-	if err != nil || len(data) > 64 {
+	data, ok := s.readState(seenVersionFile, 64)
+	if !ok {
 		return ""
 	}
 	return strings.TrimSpace(string(data))
@@ -178,9 +165,65 @@ func (s Store) LastSeenVersion() string {
 
 // SaveSeenVersion replaces the recorded version through a private temporary file, so a failed write keeps the old one.
 func (s Store) SaveSeenVersion(version string) error {
-	path, temporary := filepath.Join(s.Dir, seenVersionFile), filepath.Join(s.Dir, seenVersionFile+".tmp")
+	return s.replaceState(seenVersionFile, []byte(version+"\n"))
+}
+
+const tuiSettingsFile = "tui.json"
+
+// TUISettings holds local preferences for this client. They stay on this device and survive disconnecting.
+type TUISettings struct {
+	CheckForUpdates bool      `json:"check_for_updates"`
+	LastUpdateCheck time.Time `json:"last_update_check,omitzero"`
+	SkippedVersion  string    `json:"skipped_version,omitempty"`
+}
+
+// TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.
+func (s Store) TUISettings() TUISettings {
+	defaults := TUISettings{CheckForUpdates: true}
+	data, ok := s.readState(tuiSettingsFile, 4096)
+	if !ok {
+		return defaults
+	}
+	settings := defaults
+	if json.Unmarshal(data, &settings) != nil {
+		return defaults
+	}
+	return settings
+}
+
+func (s Store) SaveTUISettings(settings TUISettings) error {
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	return s.replaceState(tuiSettingsFile, append(data, '\n'))
+}
+
+func (s Store) readState(name string, limit int64) ([]byte, bool) {
+	if protectPath(filepath.Join(s.Dir, name), false) != nil {
+		return nil, false
+	}
+	root, err := os.OpenRoot(s.Dir)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = root.Close() }()
+	f, err := root.Open(name)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = f.Close() }()
+	data, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil || int64(len(data)) > limit {
+		return nil, false
+	}
+	return data, true
+}
+
+func (s Store) replaceState(name string, data []byte) error {
+	path, temporary := filepath.Join(s.Dir, name), filepath.Join(s.Dir, name+".tmp")
 	_ = os.Remove(temporary)
-	if err := writePrivate(temporary, []byte(version+"\n")); err != nil {
+	if err := writePrivate(temporary, data); err != nil {
 		return err
 	}
 	if err := os.Rename(temporary, path); err != nil {

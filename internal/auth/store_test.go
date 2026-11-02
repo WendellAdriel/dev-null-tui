@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestStorePreservesKeyAndDisconnectDeletesIt(t *testing.T) {
@@ -143,5 +144,39 @@ func TestStoreRemembersTheLastSeenVersionApartFromTheConnection(t *testing.T) {
 	}
 	if err := store.Disconnect(); err != nil || store.LastSeenVersion() != "v0.2.0" {
 		t.Fatal("disconnecting must keep the last seen version")
+	}
+}
+
+func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
+	if err := store.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.TUISettings(); !got.CheckForUpdates || !got.LastUpdateCheck.IsZero() || got.SkippedVersion != "" {
+		t.Fatalf("missing file must default to checking for updates: %+v", got)
+	}
+	want := TUISettings{CheckForUpdates: false, LastUpdateCheck: time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC), SkippedVersion: "v0.3.0"}
+	if err := store.SaveTUISettings(want); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.TUISettings(); !got.LastUpdateCheck.Equal(want.LastUpdateCheck) || got.CheckForUpdates || got.SkippedVersion != "v0.3.0" {
+		t.Fatalf("got %+v, want %+v", got, want)
+	}
+	if err := store.Disconnect(); err != nil || store.TUISettings().SkippedVersion != "v0.3.0" {
+		t.Fatal("disconnecting must keep TUI settings")
+	}
+	for _, corrupt := range []string{"{", `{"check_for_updates":"yes"}`, strings.Repeat(" ", 5000) + "{}"} {
+		if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(corrupt), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "" {
+			t.Fatalf("corrupt settings %q must read as defaults: %+v", corrupt[:min(len(corrupt), 20)], got)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(`{"skipped_version":"v0.4.0"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "v0.4.0" {
+		t.Fatalf("missing keys must keep their defaults: %+v", got)
 	}
 }
