@@ -20,22 +20,36 @@ import (
 const DefaultOrigin = "https://dev-null.sh"
 
 type User struct {
-	ID                  string          `json:"id"`
-	Name                string          `json:"name"`
-	Handle              string          `json:"handle"`
-	AvatarURL           string          `json:"avatar_url"`
-	Bio                 string          `json:"bio"`
-	Company             string          `json:"company"`
-	Location            string          `json:"location"`
-	Commits             *int            `json:"commits_count"`
-	Following           *int            `json:"following_count"`
-	Followers           *int            `json:"followers_count"`
-	Lane                json.RawMessage `json:"lane"`
-	PasteisMode         bool            `json:"pasteis_mode"`
-	PasteisRemaining    *int            `json:"pasteis_remaining"`
-	TermsVersion        string          `json:"terms_version"`
-	TermsAccepted       bool            `json:"terms_accepted"`
-	UnreadNotifications *int            `json:"-"`
+	ID                  string             `json:"id"`
+	Name                string             `json:"name"`
+	Handle              string             `json:"handle"`
+	AvatarURL           string             `json:"avatar_url"`
+	Bio                 string             `json:"bio"`
+	Company             string             `json:"company"`
+	Location            string             `json:"location"`
+	Website             string             `json:"website"`
+	GitHubURL           string             `json:"github_url"`
+	SponsorsURL         string             `json:"sponsors_url"`
+	GitHubSyncedAt      string             `json:"github_synced_at"`
+	PreferredLane       json.RawMessage    `json:"preferred_lane"`
+	AutomaticLane       int                `json:"automatic_lane"`
+	Remotes             *RemotePreferences `json:"remotes"`
+	Commits             *int               `json:"commits_count"`
+	Following           *int               `json:"following_count"`
+	Followers           *int               `json:"followers_count"`
+	Lane                json.RawMessage    `json:"lane"`
+	PasteisMode         bool               `json:"pasteis_mode"`
+	PasteisRemaining    *int               `json:"pasteis_remaining"`
+	TermsVersion        string             `json:"terms_version"`
+	TermsAccepted       bool               `json:"terms_accepted"`
+	UnreadNotifications *int               `json:"-"`
+}
+
+type RemotePreferences struct {
+	From         string `json:"from"`
+	PullReceipts bool   `json:"pull_receipts"`
+	Everyone     bool   `json:"everyone"`
+	Requests     bool   `json:"requests"`
 }
 
 type APIError struct {
@@ -184,7 +198,27 @@ func (c *Client) DeleteJSON(ctx context.Context, target string, result any) erro
 	return nil
 }
 
+func (c *Client) PutJSON(ctx context.Context, target string, body []byte, result any) error {
+	data, err := c.send(ctx, http.MethodPut, target, body)
+	if err != nil {
+		return err
+	}
+	if json.Unmarshal(data, result) != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
+}
+
+func (c *Client) NoContent(ctx context.Context, method, target string, body []byte) error {
+	_, err := c.sendStatus(ctx, method, target, body, http.StatusNoContent)
+	return err
+}
+
 func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {
+	return c.sendStatus(ctx, method, path, body, 0)
+}
+
+func (c *Client) sendStatus(ctx context.Context, method, path string, body []byte, expected int) ([]byte, error) {
 	u, err := c.origin.Parse(path)
 	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || u.User != nil || u.Fragment != "" || !strings.HasPrefix(u.Path, "/api/v1/") {
 		return nil, errors.New("refusing a request outside the configured API origin")
@@ -230,6 +264,9 @@ func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]
 		}
 		_ = json.Unmarshal(data, &failure)
 		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors.Body}
+	}
+	if expected != 0 && response.StatusCode != expected {
+		return nil, errors.New("server did not confirm the operation; verify before retrying")
 	}
 	return data, nil
 }
