@@ -147,10 +147,12 @@ type statsStyle struct {
 	// voting is the commit whose poll has keyboard focus, and voteOption its highlighted option.
 	voting     string
 	voteOption int
+	// unfolded holds the long commits opened with Show more.
+	unfolded map[string]bool
 }
 
 func (m AppModel) statsStyle() statsStyle {
-	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option}
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option, unfolded: m.unfolded}
 }
 
 func starIconRequest(filled bool, ink string) graphics.Request {

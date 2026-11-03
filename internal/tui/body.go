@@ -38,10 +38,15 @@ type bodyRenderer struct {
 	style statsStyle
 }
 
+// folded reports a body too long to show whole in a list, which shows the server's excerpt until Show more.
+func folded(commit api.Commit, style statsStyle) bool {
+	return len(commit.Preview) > 0 && !style.unfolded[commit.ID]
+}
+
 // bodyLines renders a commit body wrapped to width, or unwrapped when width is zero.
 func bodyLines(commit api.Commit, width int, p palette, style statsStyle) []string {
 	segments := commit.Segments
-	if len(commit.Preview) > 0 {
+	if folded(commit, style) {
 		segments = commit.Preview
 	}
 	if len(segments) == 0 && commit.Body != "" {
@@ -969,4 +974,18 @@ func (r bodyRenderer) codeBlock(segment api.Segment, width int) []string {
 		code = code[:len(code)-1]
 	}
 	return append(lines, prefixLines(code, text(p.hairline).Render("│ "))...)
+}
+
+// showMore unfolds the selected commit for the rest of the session, like the web's Show more.
+func (m *AppModel) showMore() bool {
+	c, ok := m.focusedEngagementCommit()
+	if !ok || !folded(c, m.statsStyle()) {
+		return false
+	}
+	if m.unfolded == nil {
+		m.unfolded = make(map[string]bool)
+	}
+	m.unfolded[c.ID] = true
+	m.reflow()
+	return true
 }

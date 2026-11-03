@@ -213,7 +213,10 @@ func (t threadState) entries() []threadEntry {
 	for _, c := range t.ancestors {
 		entries = append(entries, threadEntry{c, 0, "ancestor"})
 	}
-	entries = append(entries, threadEntry{t.root, 0, "focus"})
+	// The opened commit is shown whole, as the web's focused card is. Ancestors and replies keep their excerpt.
+	focus := t.root
+	focus.Preview = nil
+	entries = append(entries, threadEntry{focus, 0, "focus"})
 	if t.hidden {
 		return entries
 	}

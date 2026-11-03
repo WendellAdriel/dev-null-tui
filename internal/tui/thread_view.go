@@ -213,6 +213,9 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 		return []string{text(p.muted).Render(fit("Deleted commits cannot be replied to.", width))}, nil
 	}
 	actions := []commitAction{{"Reply", "r"}, {"Quote", "q"}}
+	if folded(commit, m.statsStyle()) {
+		actions = append([]commitAction{{"Show more", "m"}}, actions...)
+	}
 	if m.canVote(commit) {
 		actions = append(actions, commitAction{"Vote", "o"})
 	}

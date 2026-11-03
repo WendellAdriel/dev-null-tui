@@ -87,6 +87,7 @@ type AppModel struct {
 	setStar                                func(context.Context, string, bool) (api.Commit, error)
 	givePastel                             func(context.Context, string) (api.Pastel, error)
 	vote                                   voteState
+	unfolded                               map[string]bool
 	imageDir                               string
 	castVote                               func(context.Context, string, string) (api.Commit, error)
 	notificationsOpen                      bool
@@ -614,7 +615,7 @@ func (m *AppModel) leaveApplication() {
 	m.closeAllThreads()
 	m.closeViewer()
 	m.deleting, m.deletingID = deleteConfirm{}, ""
-	m.vote = voteState{}
+	m.vote, m.unfolded = voteState{}, nil
 	if m.images != nil {
 		m.images.Forget()
 	}
@@ -738,6 +739,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		return m, cmd
 	}
 	if pressed == "o" && !m.pendingG && m.startVoting() {
+		return m, nil
+	}
+	if pressed == "m" && !m.pendingG && m.showMore() {
 		return m, nil
 	}
 	if m.profileOnTop() && (pressed == "M" || pressed == "B") {

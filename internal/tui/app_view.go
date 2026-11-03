@@ -95,6 +95,9 @@ func (m AppModel) engagementBindings() []key.Binding {
 	if m.canGivePastel(c) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "give selected commit a pastél")))
 	}
+	if folded(c, m.statsStyle()) {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("m"), key.WithHelp("m", "show the whole commit")))
+	}
 	if m.canVote(c) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "vote on the poll")))
 	}
