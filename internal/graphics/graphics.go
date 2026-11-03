@@ -13,6 +13,8 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,8 +30,16 @@ const MaxImages = 48
 // sourceBudget bounds downloaded image bytes kept for redrawing at other sizes.
 const sourceBudget = 32 << 20
 
+// Local pictures follow the upload limits: 10,000 KB and 6000 pixels on a side.
+const (
+	localImageBytes  = 10_000 * 1024
+	localImagePixels = 6000 * 6000
+)
+
+// Request names one picture by URL, icon, or local Path. A path is an image the user is about to upload.
 type Request struct {
 	URL        string
+	Path       string
 	Cols, Rows int
 	Ring       string
 	Icon       string
@@ -163,9 +173,10 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 			break
 		}
 		u, err := url.Parse(req.URL)
-		local := req.URL == "" && validIcon(req.Icon) && (req.Ring != "" || embeddedIcon(req.Icon))
-		remote := req.Icon == "" && err == nil && m.validURL(u)
-		if (local || remote) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
+		icon := req.URL == "" && req.Path == "" && validIcon(req.Icon) && (req.Ring != "" || embeddedIcon(req.Icon))
+		remote := req.Icon == "" && req.Path == "" && err == nil && m.validURL(u)
+		file := req.URL == "" && req.Icon == "" && req.Ring == "" && filepath.IsAbs(req.Path)
+		if (icon || remote || file) && req.Cols > 0 && req.Cols <= 96 && req.Rows > 0 && req.Rows <= 48 && !wanted[req] {
 			wanted[req] = true
 			ordered = append(ordered, req)
 		}
@@ -295,6 +306,16 @@ func (m *Manager) Fetch(job Job) Result {
 			picture = notificationIcon(job.Request.Icon, job.Request.Ring)
 		}
 	}
+	if picture == nil && job.Request.Path != "" {
+		data, err := readLocal(job.Request.Path)
+		if err == nil {
+			picture, err = prepare(data, job.Request)
+		}
+		if err != nil {
+			result.Err = errors.New("image unavailable")
+			return result
+		}
+	}
 	if picture == nil {
 		var err error
 		imageData := m.sources.get(job.Request.URL)
@@ -413,6 +434,22 @@ func (m *Manager) download(ctx context.Context, raw string) ([]byte, error) {
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
 	if err != nil || len(data) > limit {
+		return nil, errors.New("image unavailable")
+	}
+	return data, nil
+}
+
+func readLocal(path string) ([]byte, error) {
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = file.Close() }()
+	if info, err := file.Stat(); err != nil || !info.Mode().IsRegular() {
+		return nil, errors.New("image unavailable")
+	}
+	data, err := io.ReadAll(io.LimitReader(file, localImageBytes+1))
+	if err != nil || len(data) > localImageBytes {
 		return nil, errors.New("image unavailable")
 	}
 	return data, nil

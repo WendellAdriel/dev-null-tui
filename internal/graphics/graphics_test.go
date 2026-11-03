@@ -9,6 +9,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -234,5 +236,33 @@ func TestImageSizesReuseOneDownloadUntilCleared(t *testing.T) {
 	m.Accept(m.Fetch(jobs[0]))
 	if downloads.Load() != 2 {
 		t.Fatal("session cleanup retained downloaded images")
+	}
+}
+
+func TestLocalImagesDrawFromAbsolutePathsWithinTheUploadLimits(t *testing.T) {
+	dir := t.TempDir()
+	good := filepath.Join(dir, "chart.png")
+	_ = os.WriteFile(good, picture(t), 0o600)
+	notImage := filepath.Join(dir, "notes.png")
+	_ = os.WriteFile(notImage, []byte("not an image"), 0o600)
+	big := filepath.Join(dir, "big.png")
+	f, _ := os.Create(filepath.Clean(big))
+	_ = f.Truncate(localImageBytes + 1)
+	_ = f.Close()
+	m := New("https://example.test")
+	m.Enabled = true
+	if jobs, _ := m.Plan(t.Context(), []Request{{Path: "chart.png", Cols: 4, Rows: 2}, {Path: good, URL: "https://example.test/a.png", Cols: 4, Rows: 2}}); len(jobs) != 0 {
+		t.Fatal("relative or mixed sources were accepted")
+	}
+	req := Request{Path: good, Cols: 4, Rows: 2}
+	jobs, _ := m.Plan(t.Context(), []Request{req})
+	if len(jobs) != 1 || m.Accept(m.Fetch(jobs[0])) == "" || m.Row(req, 0) == "" {
+		t.Fatal("local image not drawn")
+	}
+	for _, path := range []string{notImage, big, filepath.Join(dir, "missing.png"), dir} {
+		jobs, _ := m.Plan(t.Context(), []Request{{Path: path, Cols: 4, Rows: 2}})
+		if len(jobs) != 1 || m.Fetch(jobs[0]).Err == nil {
+			t.Fatalf("%s drew", filepath.Base(path))
+		}
 	}
 }

@@ -15,7 +15,11 @@ import (
 
 func prepare(data []byte, req Request) (*image.NRGBA, error) {
 	config, format, err := image.DecodeConfig(bytes.NewReader(data))
-	if err != nil || config.Width <= 0 || config.Height <= 0 || uint64(config.Width)*uint64(config.Height) > 8_000_000 || (format != "png" && format != "jpeg" && format != "webp") {
+	pixels := uint64(8_000_000)
+	if req.Path != "" {
+		pixels = localImagePixels
+	}
+	if err != nil || config.Width <= 0 || config.Height <= 0 || uint64(config.Width)*uint64(config.Height) > pixels || (format != "png" && format != "jpeg" && format != "webp") {
 		return nil, errors.New("image unavailable")
 	}
 	source, _, err := image.Decode(bytes.NewReader(data))
