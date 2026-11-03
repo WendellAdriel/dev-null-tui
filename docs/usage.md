@@ -82,11 +82,11 @@ The budget is 4000 Unicode characters after normalization. Prose links count as 
 
 ### Images
 
-Press `Ctrl+O` to add an image. A file browser opens inside the composer, starting in your home folder and then in the last folder you used. It lists folders first, then JPEG, PNG, and WebP files. `Up` and `Down` move, `Enter` opens a folder or picks a file, `Backspace` goes up a folder, typing filters the list, and `Esc` closes it. You can also drag image files into the terminal. A paste made only of existing file paths attaches them, and any other paste stays text.
+Press `Ctrl+O` to add an image. A file browser opens inside the composer, starting in your home folder and then in the last folder you used. It lists folders first, then JPEG, PNG, and WebP files. When the terminal supports graphics, a thumbnail of the selected image and its size show beside the list. `Up` and `Down` move, `Enter` opens a folder or picks a file, `Backspace` goes up a folder, typing filters the list, and `Esc` closes it. You can also drag image files into the terminal. A paste made only of existing file paths attaches them, and any other paste stays text.
 
 A commit can carry up to 3 images. Each must be a JPEG, PNG, or WebP file of at most 10 MB and 6000 pixels on a side. The file content decides its type, so a renamed SVG is refused. A refused file shows the reason and keeps your draft. With images attached, the text is optional.
 
-`Tab` moves focus to the attachment strip below the editor. `Up` and `Down` choose an image, `Enter` edits its description (up to 1000 characters), `Alt+Up` and `Alt+Down` reorder it, and `Delete` removes it.
+The attachment strip below the editor shows a thumbnail of each image when the terminal supports graphics, with the selected image's number, size, and description below them. Other terminals list the file names instead. `Tab` moves focus to the strip. `Up` and `Down` choose an image, `Enter` edits its description (up to 1000 characters), `Alt+Up` and `Alt+Down` reorder it, and `Delete` removes it.
 
 ### Polls
 
