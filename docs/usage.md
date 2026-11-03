@@ -7,6 +7,7 @@
 - [Starred](#starred)
 - [Write a commit](#write-a-commit)
 - [Reply, quote, and delete](#reply-quote-and-delete)
+- [Vote on polls](#vote-on-polls)
 - [View images](#view-images)
 - [Current limits](#current-limits)
 
@@ -53,7 +54,7 @@ Open the inbox with `g n` or the sidebar. Press `1` through `6` to toggle Replie
 
 ## Profiles
 
-Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own.
+Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own. Organization profiles are not available yet, so commits and notifications from organizations have no **Profile** action and `u` does nothing on them.
 
 Profiles show available identity details, counts, activity, streaks, and achievements. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `3` or `4`, or click a count, to open Followers or Following.
 
@@ -79,11 +80,27 @@ Enter your text, then submit with `Ctrl+Enter` or the `Ctrl+S` fallback. `Ctrl+P
 
 The budget is 4000 Unicode characters after normalization. Prose links count as at most 23 characters, while code counts literally. Each link is limited to 2048 characters, and normalized raw text is limited to 40000 characters. The server validates submissions.
 
+### Images
+
+Press `Ctrl+O` to add an image. A file browser opens inside the composer, starting in your home folder and then in the last folder you used. It lists folders first, then JPEG, PNG, and WebP files. `Up` and `Down` move, `Enter` opens a folder or picks a file, `Backspace` goes up a folder, typing filters the list, and `Esc` closes it. You can also drag image files into the terminal. A paste made only of existing file paths attaches them, and any other paste stays text.
+
+A commit can carry up to 3 images. Each must be a JPEG, PNG, or WebP file of at most 10 MB and 6000 pixels on a side. The file content decides its type, so a renamed SVG is refused. A refused file shows the reason and keeps your draft. With images attached, the text is optional.
+
+`Tab` moves focus to the attachment strip below the editor. `Up` and `Down` choose an image, `Enter` edits its description (up to 1000 characters), `Alt+Up` and `Alt+Down` reorder it, and `Delete` removes it.
+
+### Polls
+
+Press `Ctrl+L` to add a poll with two empty options. `Enter` edits the selected option and saves it, and `Esc` stops editing. `Ctrl+N` adds an option, up to 4. `Delete` removes one, keeping at least 2. `Left` and `Right` change the duration between 1 hour, 1 day, 3 days, and 7 days, and `Ctrl+X` removes the poll. Options are limited to 50 characters and must differ ignoring case.
+
+Polls can't go on replies, on quotes, or with images. The strip shows why when a poll is unavailable, and `Ctrl+O` asks you to remove a poll before adding images.
+
+The server preview renders only the text. The composer draws the poll or images below it, with thumbnails when the terminal supports graphics. A preview of images without text never calls the server.
+
 Emoji suggestions appear after at least two shortcode characters, such as `:ro`. Use `Up` and `Down` to choose, `Enter` or `Tab` to insert, and `Esc` to dismiss. Known completed shortcodes are replaced outside code. Suggestions work offline.
 
 ### Drafts and failures
 
-`Esc` or **Cancel** protects a nonempty draft. **Keep draft** (`Ctrl+K`) closes the composer and retains the text in memory for `c` to reopen. **Discard draft** (`Ctrl+D`) removes it, and **Back** (`Esc`) resumes editing. Drafts are not saved to disk and are lost when the process ends.
+`Esc` or **Cancel** protects a draft with text, images, or a poll. **Keep draft** (`Ctrl+K`) closes the composer and retains the draft in memory for `c` to reopen. **Discard draft** (`Ctrl+D`) removes it, and **Back** (`Esc`) resumes editing. Drafts are not saved to disk and are lost when the process ends.
 
 The app sends once while a request is in flight. Validation errors, rejections, and transport failures keep your draft. If the outcome is unknown, check the web before retrying. Another submission requires confirmation because the first commit may already exist.
 
@@ -101,6 +118,12 @@ Only one draft exists. If you kept one, `c`, `r`, and `q` reopen it with its ori
 
 `D` asks before deleting your own commit. Confirmation defaults to **Keep commit** (`Esc`). Choose **Delete commit** (`Ctrl+D`) to delete it permanently. Open threads show the deleted commit without its author or body.
 
+## Vote on polls
+
+Commits show their polls below the text. An open poll shows its options, the time left, and **Vote to see results** until you vote. A poll awaiting moderation shows **Opens when approved**. Results show a bar and percentage for each option, with a check on yours, and closed polls show **Final results**.
+
+Press `o` or click **Vote** on someone else's open poll. Choose an option with `Up` and `Down`, then press `Enter`. You can also click an option to go straight to the confirmation for it. The confirmation starts on **Cancel** because votes are final. Press `y` to vote or `Esc` to go back. A confirmed vote updates every loaded copy of the commit. A refused vote leaves the poll unchanged. When the outcome is unknown, the poll reloads and the vote is never sent again on its own.
+
 ## View images
 
 Click an image or press `v` on a commit with images. The viewer shows its position, such as `1 / 2`, alongside a commit and replies panel. `Left` and `Right` move between images and stop at the ends.
@@ -111,7 +134,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Settings, Remotes, polls, image uploads, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Remotes, organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 

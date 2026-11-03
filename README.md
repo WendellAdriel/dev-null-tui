@@ -89,7 +89,6 @@ Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a co
 
 ## MVP roadmap
 
-- Polls and image attachments
 - Remotes support
 
 ## License

@@ -39,7 +39,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `a` | Open account connection controls |
 | `c` | Open the composer modal |
 | `Enter` | Open the selected commit's thread |
-| `u` | Open the selected commit author's profile |
+| `u` | Open the selected commit author's profile. Organizations have no profile action yet |
 | `r` | Reply to the selected commit |
 | `q` | Quote the selected commit |
 | `v` | View the selected commit's images |
@@ -47,6 +47,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `!` | Report another person's published commit |
 | `s` | Star or unstar the selected commit |
 | `p` | Give the selected commit a pastél, when pastéis mode is on and you have some left |
+| `o` | Vote on the selected commit's open poll |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
@@ -54,7 +55,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
-The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **Vote** (`o`) appears on other people's open polls, and **Profile** is hidden for organizations. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
 
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
@@ -122,6 +123,7 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 | `D` | Ask to delete your own selected entry |
 | `s` | Star or unstar the selected entry |
 | `p` | Give the selected entry a pastél, when available |
+| `o` | Vote on the selected entry's open poll |
 | `y` | Copy the selected entry's link |
 | `u` | Open the selected entry author's profile |
 | `Ctrl+R` | Reload the thread |
@@ -231,7 +233,9 @@ The modal keeps the log visible without changing its reading position. It needs 
 
 | Keys | Action |
 | --- | --- |
-| `Tab`, `Shift+Tab` | Move between the text field, Preview, Submit, and Cancel |
+| `Tab`, `Shift+Tab` | Move between the text field, the attachment strip, Preview, Submit, and Cancel |
+| `Ctrl+O` | Open the image browser |
+| `Ctrl+L` | Add a poll, or focus the one you have |
 | `Enter` | Insert a new line in the text field, or activate the focused control |
 | `Esc` | Leave preview, or request cancellation without implicit submission |
 | `Up`, `Down`, `PageUp`, `PageDown` | Scroll while previewing |
@@ -247,6 +251,10 @@ The modal keeps the log visible without changing its reading position. It needs 
 The modal header shows the commit, reply, or quote title once, beside your lane dot and handle. Replies and quotes show their target in a callout below the header. The textarea aligns with the modal content, and the character counter sits at the footer's right edge.
 
 The modal footer shows **Preview** (`Ctrl+P`), **Submit** (`Ctrl+Enter` or `Ctrl+S`), and **Cancel** (`Esc`). Preview becomes **Edit** while previewing. The mouse wheel in the editor moves the caret and scrolls to keep it visible. Clicks and wheel events outside the composer do not change the log. **Cancel** and the modal's **×** protect nonempty drafts with a separate confirmation.
+
+In the attachment strip, `Up` and `Down` choose an image or poll option, and `Enter` edits its description or label. `Delete` removes it. `Alt+Up` and `Alt+Down` reorder images. For polls, `Ctrl+N` adds an option, `Left` and `Right` change the duration, and `Ctrl+X` removes the poll. In the image browser, `Enter` opens a folder or picks a file, `Backspace` goes up, typing filters, and `Esc` closes it.
+
+Voting asks first. Clicking an option of an open poll opens the confirmation for that option. The **Vote** confirmation starts on **Cancel** (`Esc`), and **Vote** (`y`) records a final vote. `Tab`, `Shift+Tab`, `Left`, and `Right` move between them.
 
 Draft Protection has three footer actions:
 
