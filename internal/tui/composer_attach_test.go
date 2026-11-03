@@ -17,6 +17,7 @@ import (
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
 func keyMsg(name string) tea.KeyPressMsg {
@@ -360,8 +361,66 @@ func TestPreviewSendsOnlyTheBodyAndDrawsAttachmentsLocally(t *testing.T) {
 		t.Fatal("preview did not request the local thumbnail")
 	}
 	for _, req := range workspace {
-		if !slices.Contains(m.visibleMedia(), req) {
+		if req.Path == "" && !slices.Contains(m.visibleMedia(), req) {
 			t.Fatalf("preview dropped the workspace's %+v", req)
 		}
+	}
+}
+
+func TestAttachedImagesShowThumbnailsInsteadOfNames(t *testing.T) {
+	m := composerApp(t)
+	m.images.Enabled = true
+	dir := attachDir(t)
+	m = paste(m, filepath.Join(dir, "chart.png")+" "+filepath.Join(dir, "shots", "inner.png"))
+	frame := frameText(m)
+	if strings.Contains(frame, "chart.png") || strings.Contains(frame, "inner.png") {
+		t.Fatalf("strip still lists file names:\n%s", frame)
+	}
+	if !strings.Contains(frame, "Image 1 · 32×16 · No description") {
+		t.Fatalf("strip lacks the selected image's details:\n%s", frame)
+	}
+	var thumbs []graphics.Request
+	for _, req := range m.visibleMedia() {
+		if req.Path != "" {
+			thumbs = append(thumbs, req)
+		}
+	}
+	if len(thumbs) != 2 || thumbs[0].Path != m.composer.images[0].Path || thumbs[0].Rows > stripThumbRows || thumbs[0].Cols > stripThumbCols {
+		t.Fatalf("strip thumbnails %+v", thumbs)
+	}
+	m = keys(m, "tab", "down")
+	if !strings.Contains(frameText(m), "Image 2 · 32×16") {
+		t.Fatalf("moving in the strip did not change the details:\n%s", frameText(m))
+	}
+	m.images.Enabled = false
+	if !strings.Contains(frameText(m), "chart.png · 32×16") {
+		t.Fatal("terminals without graphics lost the text list")
+	}
+}
+
+func TestFileBrowserShowsAThumbnailOfTheSelectedImage(t *testing.T) {
+	m := composerApp(t)
+	m.images.Enabled = true
+	dir := attachDir(t)
+	m.imageDir = dir
+	m = keys(m, "ctrl+o")
+	thumbnail := func(m AppModel) (graphics.Request, bool) {
+		for _, req := range m.visibleMedia() {
+			if req.Path != "" {
+				return req, true
+			}
+		}
+		return graphics.Request{}, false
+	}
+	if _, ok := thumbnail(m); ok {
+		t.Fatal("a folder row requested a thumbnail")
+	}
+	m = keys(m, "down")
+	req, ok := thumbnail(m)
+	if !ok || req.Path != filepath.Join(dir, "chart.png") {
+		t.Fatalf("selected image not previewed: %+v", req)
+	}
+	if !strings.Contains(frameText(m), "32×16") {
+		t.Fatalf("preview pane lacks the image size:\n%s", frameText(m))
 	}
 }

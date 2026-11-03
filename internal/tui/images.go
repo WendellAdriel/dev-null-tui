@@ -111,6 +111,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 		stars = append(stars, logoRequest(m.account.dark))
 	}
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+	requests = append(m.composerThumbnails(), requests...)
 	if c := m.composer; c.open && c.previewing {
 		_, preview := previewRequests(c.images, max(1, m.composerBounds().w-4))
 		requests = append(preview, requests...)
@@ -198,4 +199,12 @@ func pictureLines(images []api.Image, requests []graphics.Request, p palette, ma
 		lines = append(lines, strings.Join(cells, " "))
 	}
 	return lines
+}
+
+// composerThumbnails lists the composer's local thumbnails: the attachment strip, or the browser's selected image.
+func (m AppModel) composerThumbnails() []graphics.Request {
+	if req, ok := m.browserThumbnail(); ok {
+		return []graphics.Request{req}
+	}
+	return m.stripThumbnailRequests()
 }

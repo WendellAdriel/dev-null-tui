@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+	"image"
 	"os"
 	"path/filepath"
 	"slices"
@@ -11,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
 type browserEntry struct {
@@ -24,6 +27,13 @@ type fileBrowser struct {
 	dir, filter, reason string
 	all, entries        []browserEntry
 	selected            int
+	picture             browserPicture
+}
+
+// browserPicture is the selected image's size, read from its header so the preview keeps its shape.
+type browserPicture struct {
+	path          string
+	width, height int
 }
 
 func (b *fileBrowser) load(dir string) error {
@@ -61,6 +71,23 @@ func (b *fileBrowser) applyFilter() {
 		if strings.Contains(strings.ToLower(entry.name), query) {
 			b.entries = append(b.entries, entry)
 		}
+	}
+	b.inspect()
+}
+
+func (b *fileBrowser) inspect() {
+	b.picture = browserPicture{}
+	if b.selected >= len(b.entries) || b.entries[b.selected].dir {
+		return
+	}
+	path := filepath.Join(b.dir, b.entries[b.selected].name)
+	file, err := os.Open(filepath.Clean(path))
+	if err != nil {
+		return
+	}
+	defer func() { _ = file.Close() }()
+	if config, _, err := image.DecodeConfig(file); err == nil {
+		b.picture = browserPicture{path, config.Width, config.Height}
 	}
 }
 
@@ -101,8 +128,10 @@ func (m *AppModel) browserKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.closeBrowser()
 	case "up":
 		b.selected = max(0, b.selected-1)
+		b.inspect()
 	case "down":
 		b.selected = max(0, min(len(b.entries)-1, b.selected+1))
+		b.inspect()
 	case "backspace":
 		if b.filter != "" {
 			runes := []rune(b.filter)
@@ -149,6 +178,42 @@ func (m *AppModel) filterBrowser(typed string) {
 	b.applyFilter()
 }
 
+// browserPane sizes the preview beside the list. It needs terminal graphics and room for both.
+func (m AppModel) browserPane() (cols, rows int) {
+	width := max(1, m.composerBounds().w-4)
+	height := m.composer.input.Height() + m.composerStatusRows()
+	if m.composer.browser == nil || m.images == nil || !m.images.Enabled || width < 56 || height < 8 {
+		return 0, 0
+	}
+	return 24, min(12, height-3)
+}
+
+func (m AppModel) browserThumbnail() (graphics.Request, bool) {
+	b := m.composer.browser
+	cols, rows := m.browserPane()
+	if cols == 0 || b.picture.width <= 0 || b.picture.height <= 0 {
+		return graphics.Request{}, false
+	}
+	c, r := graphics.Fit(b.picture.width, b.picture.height, cols, rows)
+	return graphics.Request{Path: b.picture.path, Cols: c, Rows: r}, true
+}
+
+// browserPreview draws the selected image and its size, with a soft box until the picture loads.
+func (m AppModel) browserPreview(p palette) []string {
+	req, ok := m.browserThumbnail()
+	if !ok {
+		return nil
+	}
+	lines := make([]string, req.Rows)
+	for row := range lines {
+		if lines[row] = m.images.Row(req, row); lines[row] == "" {
+			lines[row] = withBackground(strings.Repeat(" ", req.Cols), p.soft)
+		}
+	}
+	b := m.composer.browser
+	return append(lines, text(p.muted).Render(fmt.Sprintf("%d×%d", b.picture.width, b.picture.height)))
+}
+
 func (m AppModel) browserView(width, height int, p palette) string {
 	b := m.composer.browser
 	rows := []string{
@@ -158,20 +223,32 @@ func (m AppModel) browserView(width, height int, p palette) string {
 	if b.reason != "" {
 		rows = append(rows, text(p.danger).Render(fit(safeText(b.reason), width)))
 	}
+	pane, _ := m.browserPane()
+	list := width
+	if pane > 0 {
+		list = width - pane - 2
+	}
 	visible := max(1, height-len(rows))
 	if len(b.entries) == 0 {
-		rows = append(rows, text(p.muted).Render(fit("No folders or JPEG, PNG, or WebP images here.", width)))
+		rows = append(rows, text(p.muted).Render(fit("No folders or JPEG, PNG, or WebP images here.", list)))
 	}
+	head := len(rows)
 	start := max(0, min(b.selected-visible/2, len(b.entries)-visible))
 	for i := start; i < min(len(b.entries), start+visible); i++ {
 		name := safeText(b.entries[i].name)
 		row := "  " + name
 		if i == b.selected {
-			row = text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render(fit("› "+name, width))
+			row = text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render(fit("› "+name, list))
 		} else if b.entries[i].dir {
 			row = text(p.blue).Render(row)
 		}
-		rows = append(rows, fit(row, width))
+		rows = append(rows, fit(row, list))
+	}
+	for i, line := range m.browserPreview(p) {
+		if head+i == len(rows) {
+			rows = append(rows, "")
+		}
+		rows[head+i] = lipgloss.NewStyle().Width(list).Render(rows[head+i]) + "  " + line
 	}
 	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n"))
 }

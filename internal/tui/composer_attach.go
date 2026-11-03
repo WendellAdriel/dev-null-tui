@@ -8,8 +8,10 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
 // composerStrip is the focus index of the attachment strip. Indexes 1 to 3 belong to the footer buttons.
@@ -261,6 +263,8 @@ func (m AppModel) composerStripRows() int {
 	switch {
 	case c.previewing, c.owner != m.account.user.ID:
 		return 0
+	case m.stripThumbnails() && stripThumbRows+2 <= room-6:
+		return stripThumbRows + 2
 	case count == 0 && room >= 8:
 		return 1
 	case count == 0:
@@ -285,6 +289,7 @@ func (m AppModel) stripView(width int, p palette) string {
 		}
 		return text(p.muted).Render(fit(hint, width))
 	}
+	thumbnails := rows == stripThumbRows+2 && m.stripThumbnails()
 	var header string
 	var items []string
 	if c.poll != nil {
@@ -298,17 +303,22 @@ func (m AppModel) stripView(width int, p palette) string {
 		}
 	} else {
 		header = fmt.Sprintf("Images %d/%d · Enter describe · Del remove · Alt+↑/↓ move", len(c.images), api.MaxImages)
-		for _, image := range c.images {
+		for i, image := range c.images {
 			description := "No description"
 			if strings.TrimSpace(image.Description) != "" {
 				description = safeText(image.Description)
 			}
-			items = append(items, fmt.Sprintf("%s · %d×%d · %s", safeText(image.Name), image.Width, image.Height, description))
+			name := safeText(image.Name)
+			if thumbnails {
+				name = fmt.Sprintf("Image %d", i+1)
+			}
+			items = append(items, fmt.Sprintf("%s · %d×%d · %s", name, image.Width, image.Height, description))
 		}
 	}
 	if !focused {
 		header = strings.SplitN(header, " · Enter", 2)[0] + " · Tab to edit"
 	}
+
 	line := func(i int) string {
 		marker := "  "
 		if focused && i == c.strip {
@@ -327,6 +337,9 @@ func (m AppModel) stripView(width int, p palette) string {
 		}
 		return style.Render(fit(marker+items[i], width))
 	}
+	if thumbnails {
+		return strings.Join(append(append([]string{text(p.muted).Render(fit(header, width))}, m.thumbnailRows(width, p)...), line(c.strip)), "\n")
+	}
 	if rows < len(items)+1 {
 		more := fmt.Sprintf("%d more · %s", len(items)-1, header)
 		return line(c.strip) + "\n" + text(p.muted).Render(fit(more, width))
@@ -336,6 +349,65 @@ func (m AppModel) stripView(width int, p palette) string {
 		out = append(out, line(i))
 	}
 	return strings.Join(out, "\n")
+}
+
+// Attachment strip thumbnails fit this many cells, so three images and their gaps fit a narrow composer.
+const (
+	stripThumbCols = 10
+	stripThumbRows = 3
+)
+
+// stripThumbnails reports a strip that draws images instead of listing their names, which needs terminal graphics.
+func (m AppModel) stripThumbnails() bool {
+	return m.images != nil && m.images.Enabled && len(m.composer.images) > 0 && m.composer.poll == nil
+}
+
+func stripThumbnail(file api.ImageFile) graphics.Request {
+	cols, rows := graphics.Fit(file.Width, file.Height, stripThumbCols, stripThumbRows)
+	return graphics.Request{Path: file.Path, Cols: cols, Rows: rows}
+}
+
+// stripThumbnailRequests lists the strip's thumbnails while it draws them.
+func (m AppModel) stripThumbnailRequests() []graphics.Request {
+	c := m.composer
+	if !c.open || c.previewing || c.browser != nil || m.composerStripRows() != stripThumbRows+2 || !m.stripThumbnails() {
+		return nil
+	}
+	var requests []graphics.Request
+	for _, file := range c.images {
+		requests = append(requests, stripThumbnail(file))
+	}
+	return requests
+}
+
+// thumbnailRows draws the images side by side. A bar marks the focused one, and a numbered box stands in until it loads.
+func (m AppModel) thumbnailRows(width int, p palette) []string {
+	c := m.composer
+	rows := make([]string, stripThumbRows)
+	for row := range rows {
+		var cells []string
+		for i, file := range c.images {
+			req := stripThumbnail(file)
+			marker := " "
+			if c.focus == composerStrip && i == c.strip {
+				marker = text(p.blue).Render("▌")
+			}
+			cell := ""
+			if row < req.Rows {
+				cell = m.images.Row(req, row)
+				if cell == "" {
+					label := ""
+					if row == 0 {
+						label = fmt.Sprint(i + 1)
+					}
+					cell = withBackground(label+strings.Repeat(" ", req.Cols-len(label)), p.soft)
+				}
+			}
+			cells = append(cells, marker+cell+strings.Repeat(" ", stripThumbCols-min(stripThumbCols, ansi.StringWidth(cell))))
+		}
+		rows[row] = ansi.Truncate(strings.Join(cells, " "), width, "")
+	}
+	return rows
 }
 
 // sentence turns a validation error into a status line.
