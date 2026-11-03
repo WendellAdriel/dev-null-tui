@@ -589,6 +589,24 @@ func TestRemotesBadgeRefreshesWhileClosed(t *testing.T) {
 	}
 }
 
+func TestBadgeTickRefreshesOnlyWhileFocused(t *testing.T) {
+	m, log := remotesApp(t, auth.RemotePreferences{UnreadCount: 7})
+	counts := 0
+	m.fetchNotificationCount = func(context.Context) (int, error) { counts++; return 4, nil }
+	m.focused = false
+	if m.acceptBadgeTick(badgeTick{m.session}) == nil || log.String() != "" || counts != 0 {
+		t.Fatalf("an unfocused tick stopped the chain or fetched: %s, %d counts", log, counts)
+	}
+	m.focused = true
+	m = settleCmd(m, m.acceptBadgeTick(badgeTick{m.session}))
+	if m.remotes.unread != 1 || log.String() != `inbox open "" ` || m.unreadNotifications != 4 {
+		t.Fatalf("remotes %d, notifications %d after %s", m.remotes.unread, m.unreadNotifications, log)
+	}
+	if m.acceptBadgeTick(badgeTick{m.session - 1}) != nil {
+		t.Fatal("a tick from an old session keeps running")
+	}
+}
+
 func TestRemotesOlderMessagesLoadAboveTheThread(t *testing.T) {
 	m, log := remotesApp(t, auth.RemotePreferences{})
 	thread := m.remoteCalls.thread

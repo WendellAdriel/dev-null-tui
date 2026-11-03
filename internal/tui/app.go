@@ -196,6 +196,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptRemoteThread(msg)
 	case remotesTick:
 		return m, m.acceptRemotesTick(msg)
+	case badgeTick:
+		return m, m.acceptBadgeTick(msg)
 	case remoteActionResult:
 		return m, m.acceptRemoteAction(msg)
 	case remoteLinkPreviewResult:
@@ -385,12 +387,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.focused && !m.accountOpen && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
 			cmd = m.load("count")
 		}
-		var count, remotes tea.Cmd
-		if m.focused && !m.accountOpen {
-			count, remotes = m.loadNotificationCount(), m.refreshRemotesCount()
-		}
 		m.renderRemoteThread()
-		return m, tea.Batch(cmd, count, remotes, m.poll())
+		return m, tea.Batch(cmd, m.poll())
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -603,7 +601,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.poll(), m.startWhatsNew(), m.startUpgradeCheck())
+		return m, tea.Batch(cmd, load, m.poll(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck())
 	}
 	return m, cmd
 }

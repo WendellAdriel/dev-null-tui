@@ -141,6 +141,26 @@ func (m *AppModel) invalidateNotificationCount() {
 	m.notificationCountGeneration++
 }
 
+type badgeTick struct{ session int }
+
+const badgePoll = 15 * time.Second
+
+// scheduleBadges refreshes the Notifications and Remotes badges on their own chain, apart from the minute log poll.
+func (m AppModel) scheduleBadges() tea.Cmd {
+	session := m.session
+	return tea.Tick(badgePoll, func(time.Time) tea.Msg { return badgeTick{session} })
+}
+
+func (m *AppModel) acceptBadgeTick(msg badgeTick) tea.Cmd {
+	if msg.session != m.session || !m.connected {
+		return nil
+	}
+	if !m.focused || m.accountOpen || m.settings.signingOut() {
+		return m.scheduleBadges()
+	}
+	return tea.Batch(m.loadNotificationCount(), m.refreshRemotesCount(), m.scheduleBadges())
+}
+
 func (m *AppModel) loadNotificationCount() tea.Cmd {
 	if m.fetchNotificationCount == nil || m.notificationCountCancel != nil {
 		return nil
