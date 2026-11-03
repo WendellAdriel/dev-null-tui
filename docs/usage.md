@@ -5,6 +5,7 @@
 - [Notifications](#notifications)
 - [Profiles](#profiles)
 - [Starred](#starred)
+- [Remotes](#remotes)
 - [Write a commit](#write-a-commit)
 - [Reply, quote, and delete](#reply-quote-and-delete)
 - [Vote on polls](#vote-on-polls)
@@ -29,6 +30,8 @@ Following and Latest check for new commits once a minute while the workspace is 
 
 Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon.
 
+A commit with a link shows the server's link card below the body: the site, a two-line title that opens the page, a two-line description, and the page's picture when the terminal supports graphics. A card the server is still fetching shows **Loading preview…** until the log reloads. In Remotes, the conversation asks for the card again after 1, 2, 3, 5, 8, and 13 seconds, as the web does, then stops showing the loading row. Quoted commits show their link card inside the quote. The TUI has no card picker, so the server uses the first link.
+
 Long commits show the server's excerpt first, like the web. Press `m` or click **Show more** to see the whole text. It stays unfolded for the rest of the session. Opening a thread always shows its commit whole, while its ancestors and replies keep the excerpt.
 
 Click a row or press `Enter` to open its thread. The selected commit shows clickable actions below its stats. `y` copies its web link. Clipboard failures display the link for manual copying.
@@ -52,7 +55,7 @@ Open the inbox with `g n` or the sidebar. Press `1` through `6` to toggle Replie
 
 `Space` expands or collapses a group. `n` loads older members of the selected expanded group, or older notifications otherwise. `Enter` opens the referenced commit. On a single follow, or an expanded follow member, it opens the follower's profile. `u` opens the actor's profile, using the newest actor for a group.
 
-`Ctrl+R` refreshes and selects the first notification after success. A failed refresh keeps your position. `Esc` returns to the log. The unread badge uses a separate count check that does not mark the inbox read.
+`Ctrl+R` refreshes and selects the first notification after success. A failed refresh keeps your position. `Esc` returns to the log. The unread badge uses a separate count check every 15 seconds while the terminal is focused, which does not mark the inbox read.
 
 ## Profiles
 
@@ -73,6 +76,32 @@ Every explicit open fetches the first page. Returning with `Esc` from a stacked 
 Unstarring with `s` removes the entry after confirmation. Selection moves to the next entry, or the previous one at the end. Confirmed unstars from other screens also remove loaded Starred entries. Starring elsewhere does not insert into an already loaded list. A failed unstar leaves the entry unchanged.
 
 `Ctrl+R` refreshes the first page, keeping your position on failure. `Esc` from Starred returns to the log.
+
+## Remotes
+
+Remotes are direct messages and orgs. **Remotes** appears between Notifications and Profile in the sidebar, with the unread count, only when Remotes is turned on in [Settings](settings.md). Press `g r` or click it to open the inbox. The badge refreshes every 15 seconds while Remotes is closed and the terminal is focused.
+
+The inbox has the web's tabs. **Open** holds your conversations, **Fetched** holds message requests and appears only when you accept requests, with the number waiting, and **Stashed** holds the conversations you put away. Switch tabs with `Tab`, `[`, and `]`, or click them. Press `/` to search by name or @handle, `Enter` to search, and `Esc` to clear the search.
+
+Each row shows the partner's @handle and name, or an org's name, falling back to its other members' first names, with **org** and the member count. The second line is the latest message, prefixed with **you:** or the org member's first name. Your own direct messages show `✓` once pushed and `✓✓` once the partner pulled them. The right side shows the pin, then **N ahead** for unread messages, or the time of the latest message. Pinned conversations sort first.
+
+At 120 columns or wider, the inbox and the open conversation sit side by side. Narrower terminals show one at a time. `Enter` opens the selected conversation, and `Esc` closes it and returns to the inbox. The status line lists the inbox's shortcuts.
+
+Conversations show day markers, org events such as **\* @grace created the org**, your messages on the right, and everyone else's on the left under their name. Images, link cards, replies, reactions in outlined chips below the message, and the typing line follow the web. Pinned org messages are listed at the top. Older messages load at the top of the conversation or with `n`.
+
+Reading a conversation moves your read receipt to its newest message, pings included, and clears its unread count. Like the web, the receipt only moves while the conversation is on screen and scrolled to the newest message. Scrolled-up conversations and conversations covered by a profile or Settings don't mark anything read until you scroll back down. Message mentions link to profiles only when the server marks them as mentions. The open conversation checks for new messages every 1.5 seconds for a minute after activity, then every 4 seconds. The inbox refreshes every 15 seconds, or every 6 while a conversation is open. Polling pauses while the terminal is unfocused and checks at once when it gets focus back. Turning Remotes off in Settings closes the screen.
+
+Press `.` or click **⋯** in the conversation header for its actions, in the web's order:
+
+| Keys | Action |
+| --- | --- |
+| `u` | View the partner's profile (direct conversations only) |
+| `P` | Pin or unpin |
+| `S` | Stash, or pop a stashed conversation back into Open |
+| `M` | Mute for one hour, until tomorrow, for one week, or forever, or unmute |
+| `B` | Block the partner, or leave the org, after a confirmation |
+
+Blocking removes the conversation for both of you. Leaving an org removes it and its history from your inbox. A maintainer would have to add you back.
 
 ## Write a commit
 
@@ -136,7 +165,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Remotes, organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Sending messages in Remotes, voice notes, and org management are not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 

@@ -3,6 +3,7 @@
 - [Workspace](#workspace)
 - [Notifications](#notifications)
 - [Starred](#starred)
+- [Remotes](#remotes)
 - [Thread](#thread)
 - [Profile](#profile)
 - [Settings and safety](#settings-and-safety)
@@ -26,6 +27,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g e` | Open Trending |
 | `g n` | Open Notifications and mark all categories read |
 | `g p` | Open your profile |
+| `g r` | Open Remotes, when Remotes is on |
 | `g s` | Open Starred, fetching its first page again |
 | `g ,` | Open Settings |
 | `g g`, `Home` | Select the first commit and scroll to the top |
@@ -66,7 +68,7 @@ The `g` sequence expires after one second. Changing screens, opening help, or ch
 
 ## Notifications
 
-Opening Notifications marks all categories read, including categories excluded by the current filter. The unread badge uses a separate, non-mutating count request once a minute while focused.
+Opening Notifications marks all categories read, including categories excluded by the current filter. The unread badge uses a separate, non-mutating count request every 15 seconds while focused.
 
 | Keys | Action |
 | --- | --- |
@@ -106,6 +108,49 @@ Open **Starred** below Profile in the sidebar, or press `g s`. The header's **On
 Threads and profiles stack above Starred. Returning with `Esc` keeps the list and selection. Each explicit open through the sidebar or `g s` fetches the first page again. A confirmed unstar anywhere removes its loaded Starred entry, keeping selection on the next entry or the previous one at the end. A failed unstar leaves the entry unchanged. Starring elsewhere doesn't insert into a loaded list.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC date when supplied. Missing or invalid Retry-After headers retain the usual error text.
+
+## Remotes
+
+Open **Remotes** between Notifications and Profile in the sidebar, or press `g r`. It appears only when Remotes is on in Settings. From 120 columns, the inbox and the open conversation share the screen.
+
+In the inbox:
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `Down`, `Up` | Select the next or previous conversation |
+| `g g`, `Home`, `G`, `End` | Select the first or last loaded conversation |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five conversations |
+| `Tab`, `]`, `Shift+Tab`, `[` | Switch between Open, Fetched, and Stashed |
+| `/` | Search by name or @handle. `Enter` searches and `Esc` cancels |
+| `Enter`, `l`, `Right` | Open the selected conversation |
+| `n` | Load more conversations |
+| `Ctrl+R` | Refresh the inbox |
+| `Esc` | Clear the search, or return to the log |
+| Left click | Open a conversation, switch tabs, or start a search |
+
+In a conversation:
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `PageUp`, `PageDown` | Scroll. Scrolling past the top loads older messages |
+| `G`, `End`, `Home` | Jump to the newest or oldest loaded message |
+| `n` | Load older messages |
+| `Ctrl+R` | Reload the conversation |
+| `Esc`, `h`, `Left` | Close the conversation and return to the inbox |
+| `Tab` | Return to the inbox and keep the conversation on screen, from 120 columns |
+
+On the selected or open conversation:
+
+| Keys | Action |
+| --- | --- |
+| `.` | Open the conversation menu. `j`, `k`, and `Enter` choose, or press an item's key |
+| `u` | View the partner's profile (direct conversations) |
+| `P` | Pin or unpin |
+| `S` | Stash or pop |
+| `M` | Choose a mute duration, or unmute |
+| `B` | Block the partner or leave the org. `Tab` moves to **Block** or **Leave**, then `Enter` confirms |
+
+Profiles stack above Remotes, and `Esc` returns to the same conversation. `c`, `a`, `F2`, `?`, and `Ctrl+C` keep their workspace meanings, except that `?` types into the inbox search while it is open.
 
 ## Thread
 

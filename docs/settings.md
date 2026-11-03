@@ -14,7 +14,7 @@ The Profile tab shows your GitHub identity, available profile fields, and last s
 
 The color picker starts on your saved choice. Click a color or use the arrow keys, then choose **Save color** or press `Ctrl+S`. Clicking the custom field selects Custom and focuses its input. Within that field, Left and Right move the caret; Up and Down still change the selected color.
 
-**Remotes** turns messaging availability on or off without deleting conversations. While enabled, the server's capabilities determine whether **Who can push** includes everyone. **Share pull receipts** controls read receipts. These preferences do not add a messaging screen to the client.
+**Remotes** turns messaging availability on or off without deleting conversations. While enabled, the server's capabilities determine whether **Who can push** includes everyone. **Share pull receipts** controls read receipts. While Remotes is on, the sidebar shows [Remotes](usage.md#remotes).
 
 ## Region
 
