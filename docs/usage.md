@@ -29,6 +29,8 @@ Following and Latest check for new commits once a minute while the workspace is 
 
 Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon.
 
+Long commits show the server's excerpt first, like the web. Press `m` or click **Show more** to see the whole text. It stays unfolded for the rest of the session. Opening a thread always shows its commit whole, while its ancestors and replies keep the excerpt.
+
 Click a row or press `Enter` to open its thread. The selected commit shows clickable actions below its stats. `y` copies its web link. Clipboard failures display the link for manual copying.
 
 ## Threads
@@ -112,7 +114,7 @@ First-time posters must submit through the web composer and accept its commit ru
 
 ## Reply, quote, and delete
 
-`r` opens a reply and `q` opens a quote. `q` never quits. The composer shows the target. Replies update the thread and its count without entering the top-level logs. Quotes also appear in the originating chronological log. If the target becomes unavailable, the app keeps your draft and reports the error.
+`r` opens a reply and `q` opens a quote. `q` never quits. The composer shows the target. Replies update the thread and the parent's count and newest reply in every list that shows it, without a refresh. They don't enter the top-level logs. Quotes also appear in the originating chronological log. If the target becomes unavailable, the app keeps your draft and reports the error.
 
 Only one draft exists. If you kept one, `c`, `r`, and `q` reopen it with its original target until you finish or discard it.
 

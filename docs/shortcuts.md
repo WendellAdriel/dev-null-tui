@@ -48,6 +48,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `s` | Star or unstar the selected commit |
 | `p` | Give the selected commit a pastél, when pastéis mode is on and you have some left |
 | `o` | Vote on the selected commit's open poll |
+| `m` | Show the whole text of a long selected commit |
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
@@ -55,7 +56,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
-The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **Vote** (`o`) appears on other people's open polls, and **Profile** is hidden for organizations. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **Vote** (`o`) appears on other people's open polls, and **Profile** is hidden for organizations. **Show more** (`m`) appears on long commits whose text is cut short. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
 
 The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
@@ -124,6 +125,7 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 | `s` | Star or unstar the selected entry |
 | `p` | Give the selected entry a pastél, when available |
 | `o` | Vote on the selected entry's open poll |
+| `m` | Show the whole text of a long selected entry |
 | `y` | Copy the selected entry's link |
 | `u` | Open the selected entry author's profile |
 | `Ctrl+R` | Reload the thread |
