@@ -4,14 +4,19 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"mime"
+	"mime/multipart"
 	"net"
 	"net/http"
+	"net/textproto"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -57,6 +62,8 @@ type APIError struct {
 	Code       string
 	RetryAfter string
 	BodyErrors []string
+	// FieldErrors holds the poll, image, and vote messages, which are safe to show beside the draft.
+	FieldErrors []string
 }
 
 func (e *APIError) Error() string {
@@ -214,16 +221,86 @@ func (c *Client) NoContent(ctx context.Context, method, target string, body []by
 	return err
 }
 
+// Upload is one image sent beside a multipart payload.
+type Upload struct {
+	Name, Type string
+	Data       []byte
+}
+
+// PostMultipart sends the JSON payload as a payload part and each image as images[], in order. The signed message
+// carries the comma-separated SHA-256 of the images before the payload, under the images namespace.
+func (c *Client) PostMultipart(ctx context.Context, target string, payload []byte, images []Upload, result any) error {
+	if len(images) == 0 {
+		return errors.New("a multipart request needs at least one image")
+	}
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	hashes := make([]string, len(images))
+	if err := writePart(writer, "payload", "payload.json", "application/json", payload); err != nil {
+		return err
+	}
+	for i, image := range images {
+		sum := sha256.Sum256(image.Data)
+		hashes[i] = hex.EncodeToString(sum[:])
+		if err := writePart(writer, "images[]", image.Name, image.Type, image.Data); err != nil {
+			return err
+		}
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
+	data, err := c.do(ctx, signedRequest{
+		method:      http.MethodPost,
+		path:        target,
+		body:        body.Bytes(),
+		contentType: writer.FormDataContentType(),
+		signed:      []string{strings.Join(hashes, ","), string(payload)},
+		namespace:   imagesNamespace,
+		upload:      true,
+	}, 0)
+	if err != nil {
+		return err
+	}
+	if json.Unmarshal(data, result) != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
+}
+
+func writePart(writer *multipart.Writer, field, name, contentType string, data []byte) error {
+	header := textproto.MIMEHeader{}
+	header.Set("Content-Disposition", mime.FormatMediaType("form-data", map[string]string{"name": field, "filename": name}))
+	header.Set("Content-Type", contentType)
+	part, err := writer.CreatePart(header)
+	if err != nil {
+		return err
+	}
+	_, err = part.Write(data)
+	return err
+}
+
 func (c *Client) send(ctx context.Context, method, path string, body []byte) ([]byte, error) {
 	return c.sendStatus(ctx, method, path, body, 0)
 }
 
 func (c *Client) sendStatus(ctx context.Context, method, path string, body []byte, expected int) ([]byte, error) {
-	u, err := c.origin.Parse(path)
+	return c.do(ctx, signedRequest{method: method, path: path, body: body, contentType: "application/json", signed: []string{string(body)}, namespace: apiNamespace}, expected)
+}
+
+// signedRequest lists the lines signed after the timestamp, nonce, method, and URI, which differ for multipart bodies.
+type signedRequest struct {
+	method, path, contentType, namespace string
+	body                                 []byte
+	signed                               []string
+	upload                               bool
+}
+
+func (c *Client) do(ctx context.Context, request signedRequest, expected int) ([]byte, error) {
+	u, err := c.origin.Parse(request.path)
 	if err != nil || u.Scheme != c.origin.Scheme || u.Host != c.origin.Host || u.User != nil || u.Fragment != "" || !strings.HasPrefix(u.Path, "/api/v1/") {
 		return nil, errors.New("refusing a request outside the configured API origin")
 	}
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, request.method, u.String(), bytes.NewReader(request.body))
 	if err != nil {
 		return nil, errors.New("cannot create account request")
 	}
@@ -233,8 +310,8 @@ func (c *Client) sendStatus(ctx context.Context, method, path string, body []byt
 	}
 	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
 	nonceString := hex.EncodeToString(nonce)
-	message := []byte(strings.Join([]string{timestamp, nonceString, req.Method, req.URL.RequestURI(), string(body)}, "\n"))
-	signature, err := c.key.Sign(message)
+	lines := append([]string{timestamp, nonceString, req.Method, req.URL.RequestURI()}, request.signed...)
+	signature, err := c.key.SignNamespace(request.namespace, []byte(strings.Join(lines, "\n")))
 	if err != nil {
 		return nil, errors.New("cannot sign account request")
 	}
@@ -242,8 +319,12 @@ func (c *Client) sendStatus(ctx context.Context, method, path string, body []byt
 	req.Header.Set("X-Devnull-Nonce", nonceString)
 	req.Header.Set("X-SSH-Signature", signature)
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Content-Type", "application/json")
-	response, err := c.http.Do(req)
+	req.Header.Set("Content-Type", request.contentType)
+	client := c.http
+	if request.upload {
+		client = c.uploads()
+	}
+	response, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -257,16 +338,39 @@ func (c *Client) sendStatus(ctx context.Context, method, path string, body []byt
 	}
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusNoContent {
 		var failure struct {
-			Code   string `json:"code"`
-			Errors struct {
-				Body []string `json:"body"`
-			} `json:"errors"`
+			Code   string              `json:"code"`
+			Errors map[string][]string `json:"errors"`
 		}
 		_ = json.Unmarshal(data, &failure)
-		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors.Body}
+		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors["body"], FieldErrors: fieldErrors(failure.Errors)}
 	}
 	if expected != 0 && response.StatusCode != expected {
 		return nil, errors.New("server did not confirm the operation; verify before retrying")
 	}
 	return data, nil
+}
+
+// UploadTimeout allows a few images up to 10 MB each on a slow link, while other requests keep the short timeout.
+const UploadTimeout = 2 * time.Minute
+
+func (c *Client) uploads() *http.Client {
+	client := *c.http
+	client.Timeout = UploadTimeout
+	return &client
+}
+
+func fieldErrors(all map[string][]string) []string {
+	fields := make([]string, 0, len(all))
+	for field := range all {
+		name, _, _ := strings.Cut(field, ".")
+		if name == "poll" || name == "images" || name == "image_descriptions" || name == "option" {
+			fields = append(fields, field)
+		}
+	}
+	slices.Sort(fields)
+	var messages []string
+	for _, field := range fields {
+		messages = append(messages, all[field]...)
+	}
+	return messages
 }

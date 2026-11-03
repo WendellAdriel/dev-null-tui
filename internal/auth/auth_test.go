@@ -110,6 +110,11 @@ func TestSignedEnrollmentAndIdentityUseTransmittedBytes(t *testing.T) {
 
 func verifySignature(t *testing.T, key *Key, signature string, message []byte) {
 	t.Helper()
+	verifyNamespacedSignature(t, key, "devnull-api", signature, message)
+}
+
+func verifyNamespacedSignature(t *testing.T, key *Key, namespace, signature string, message []byte) {
+	t.Helper()
 	blob, err := base64.StdEncoding.DecodeString(signature)
 	if err != nil || len(blob) < 6 || string(blob[:6]) != "SSHSIG" {
 		t.Fatal("invalid SSHSIG encoding")
@@ -125,7 +130,7 @@ func verifySignature(t *testing.T, key *Key, signature string, message []byte) {
 	if err := ssh.Unmarshal(blob[6:], &envelope); err != nil {
 		t.Fatal(err)
 	}
-	if envelope.Version != 1 || envelope.Namespace != "devnull-api" || envelope.Hash != "sha512" || envelope.Reserved != "" {
+	if envelope.Version != 1 || envelope.Namespace != namespace || envelope.Hash != "sha512" || envelope.Reserved != "" {
 		t.Fatal("incorrect SSHSIG envelope")
 	}
 	public, err := ssh.ParsePublicKey(envelope.PublicKey)
@@ -143,7 +148,7 @@ func verifySignature(t *testing.T, key *Key, signature string, message []byte) {
 	signed := append([]byte("SSHSIG"), ssh.Marshal(struct {
 		Namespace, Reserved, Hash string
 		Digest                    []byte
-	}{"devnull-api", "", "sha512", hash[:]})...)
+	}{namespace, "", "sha512", hash[:]})...)
 	if err := public.Verify(signed, &sig); err != nil {
 		t.Fatal("signature did not cover transmitted bytes")
 	}

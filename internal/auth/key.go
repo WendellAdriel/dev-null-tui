@@ -44,12 +44,21 @@ func (k *Key) encode() ([]byte, error) {
 
 func (k *Key) Fingerprint() string { return ssh.FingerprintSHA256(k.signer.PublicKey()) }
 
-func (k *Key) Sign(message []byte) (string, error) {
+// SSHSIG namespaces the server checks: one for JSON requests and one for image uploads, which also sign the image hashes.
+const (
+	apiNamespace    = "devnull-api"
+	imagesNamespace = "devnull-api-images"
+)
+
+func (k *Key) Sign(message []byte) (string, error) { return k.SignNamespace(apiNamespace, message) }
+
+// SignNamespace signs under another SSHSIG namespace, which tells the server which message format the signature covers.
+func (k *Key) SignNamespace(namespace string, message []byte) (string, error) {
 	digest := sha512.Sum512(message)
 	payload := append([]byte("SSHSIG"), ssh.Marshal(struct {
 		Namespace, Reserved, Hash string
 		Digest                    []byte
-	}{"devnull-api", "", "sha512", digest[:]})...)
+	}{namespace, "", "sha512", digest[:]})...)
 	sig, err := k.signer.Sign(rand.Reader, payload)
 	if err != nil {
 		return "", err
@@ -59,7 +68,7 @@ func (k *Key) Sign(message []byte) (string, error) {
 		PublicKey                 []byte
 		Namespace, Reserved, Hash string
 		Signature                 []byte
-	}{1, k.signer.PublicKey().Marshal(), "devnull-api", "", "sha512", ssh.Marshal(sig)})...)
+	}{1, k.signer.PublicKey().Marshal(), namespace, "", "sha512", ssh.Marshal(sig)})...)
 	return base64.StdEncoding.EncodeToString(blob), nil
 }
 
