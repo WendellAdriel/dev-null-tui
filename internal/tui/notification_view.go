@@ -257,7 +257,7 @@ func (m *AppModel) renderNotifications() {
 			bodyWidth = max(1, bodyWidth-2)
 		}
 		rows := m.notificationRows(n, bodyWidth, p, member)
-		if i == f.selected && n.Actor != nil {
+		if i == f.selected && hasProfile(n.Actor) {
 			chip := text(p.ink).Render("Profile") + " " + keyChip("u", p)
 			f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines) + len(rows), lipgloss.Width(chip), 1}, "u", i})
 			rows = append(rows, chip)

@@ -213,6 +213,9 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 		return []string{text(p.muted).Render(fit("Deleted commits cannot be replied to.", width))}, nil
 	}
 	actions := []commitAction{{"Reply", "r"}, {"Quote", "q"}}
+	if m.canVote(commit) {
+		actions = append(actions, commitAction{"Vote", "o"})
+	}
 	if m.canStar(commit) {
 		label := "Toggle star"
 		if commit.Starred != nil {
@@ -231,7 +234,7 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	} else if navigation.key != "" {
 		actions = append(actions, navigation)
 	}
-	if commit.Author.Handle != "" && !strings.EqualFold(commit.Author.Handle, m.profileHandle()) {
+	if hasProfile(commit.Author) && !strings.EqualFold(commit.Author.Handle, m.profileHandle()) {
 		actions = append(actions, commitAction{"Profile", "u"})
 	}
 	if len(commit.Images) > 0 {
@@ -329,9 +332,15 @@ func (m AppModel) threadMouse(x, y int) (AppModel, tea.Cmd) {
 		}
 	}
 	for _, picture := range t.pictures {
-		if picture.contains(x, row) {
-			m.selectEntry(t, picture.entry)
-			return m, m.openViewer(t.entries()[picture.entry].commit, picture.image)
+		if !picture.contains(x, row) {
+			continue
+		}
+		m.selectEntry(t, picture.entry)
+		if !picture.poll {
+			return m, m.openViewer(t.entries()[picture.entry].commit, picture.index)
+		}
+		if m.voteOn(picture.index) {
+			return m, nil
 		}
 	}
 	for i, start := range t.starts {

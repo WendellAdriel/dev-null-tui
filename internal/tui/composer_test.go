@@ -259,13 +259,21 @@ func TestComposerPreviewStaleResultsAndCancelConfirmation(t *testing.T) {
 
 func TestReconnectionDoesNotExposeOrMutateAnotherOwnersDraft(t *testing.T) {
 	m := fixtureApp(t)
-	m = pressApp(m, "c")
+	sized, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 35})
+	m = pressApp(sized.(AppModel), "c")
 	m.composer.input.SetValue("Original private draft")
+	m = keys(typeText(keys(m, "ctrl+l"), "Private option"), "enter")
+	if !strings.Contains(frameText(m), "Private option") {
+		t.Fatalf("the owner's poll options are not drawn:\n%s", frameText(m))
+	}
 	next, _ := m.Update(logResult{index: 0, generation: m.feeds[0].generation, err: &auth.APIError{Status: 401}})
 	m = next.(AppModel)
 	next, _ = m.Update(accountResult{generation: m.account.generation, user: auth.User{ID: "other", Handle: "other"}})
 	m = next.(AppModel)
 	m = pressApp(m, "c")
+	if strings.Contains(frameText(m), "Private option") {
+		t.Fatal("another account saw the retained poll options")
+	}
 	if m.composer.input.Focused() {
 		t.Error("another account focused the retained editor")
 	}

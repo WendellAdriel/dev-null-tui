@@ -206,7 +206,7 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 	case "enter":
 		return m, m.openThread(c)
 	case "u":
-		if c.Author != nil {
+		if hasProfile(c.Author) {
 			return m, m.openProfile(c.Author.Handle)
 		}
 	case "r", "q":

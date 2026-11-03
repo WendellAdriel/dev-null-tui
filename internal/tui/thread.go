@@ -299,7 +299,7 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 	case "v":
 		return m, m.openViewer(entry.commit, 0), true
 	case "u":
-		if entry.commit.DeletedAt == nil && entry.commit.Author != nil {
+		if entry.commit.DeletedAt == nil && hasProfile(entry.commit.Author) {
 			return m, m.openProfile(entry.commit.Author.Handle), true
 		}
 	case "y":

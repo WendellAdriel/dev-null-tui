@@ -111,6 +111,10 @@ func (m AppModel) visibleMedia() []graphics.Request {
 		stars = append(stars, logoRequest(m.account.dark))
 	}
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+	if c := m.composer; c.open && c.previewing {
+		_, preview := previewRequests(c.images, max(1, m.composerBounds().w-4))
+		requests = append(preview, requests...)
+	}
 	return append(append(requests, avatars...), stars...)
 }
 
@@ -145,18 +149,30 @@ func (m AppModel) largeAvatar(author *api.Author, p palette) (string, string) {
 	return text(authorColor(author, p)).Render("● "), "  "
 }
 
-func pictureLines(images []api.Image, width int, p palette, manager *graphics.Manager) []string {
+// previewRequests draws the composer's images from their files, sized like posted images.
+func previewRequests(files []api.ImageFile, width int) ([]api.Image, []graphics.Request) {
+	images := make([]api.Image, len(files))
+	for i, file := range files {
+		images[i] = api.Image{Width: file.Width, Height: file.Height, Description: file.Description}
+	}
+	requests := imageRequests(images, width)
+	for i := range requests {
+		requests[i].Path = files[i].Path
+	}
+	return images, requests
+}
+
+func pictureLines(images []api.Image, requests []graphics.Request, p palette, manager *graphics.Manager) []string {
 	if manager == nil || !manager.Enabled {
 		return nil
 	}
-	hasURL := false
-	for _, image := range images {
-		hasURL = hasURL || image.URL != ""
+	hasSource := false
+	for _, req := range requests {
+		hasSource = hasSource || req.URL != "" || req.Path != ""
 	}
-	if !hasURL {
+	if !hasSource {
 		return nil
 	}
-	requests := imageRequests(images, width)
 	rows := 0
 	for _, req := range requests {
 		rows = max(rows, req.Rows)

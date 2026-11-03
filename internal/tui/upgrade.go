@@ -99,7 +99,7 @@ func (m *AppModel) acceptTUISettingsSaved(msg tuiSettingsSaved) tea.Cmd {
 // upgradeVisible keeps the modal behind What's new and away from open text inputs, so a late check result never
 // takes keys meant for a draft.
 func (m AppModel) upgradeVisible() bool {
-	return m.upgrade.open && !m.whatsNew.open && m.connected && !m.accountOpen && !m.composer.open && m.settings.dialog == ""
+	return m.upgrade.open && !m.whatsNew.open && m.connected && !m.accountOpen && !m.composer.open && m.settings.dialog == "" && !m.vote.confirm
 }
 
 func (m *AppModel) upgradeKey(pressed string) tea.Cmd {

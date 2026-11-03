@@ -97,6 +97,15 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.composer.open && m.connected && !m.accountOpen {
 		return m.composerMouse(msg)
 	}
+	if m.connected && m.vote.confirm {
+		_, _, areas := m.voteModal(colors(m.account.dark))
+		for _, area := range areas {
+			if area.contains(msg.X, msg.Y) {
+				return m.mouseKey(area.action)
+			}
+		}
+		return m, nil
+	}
 	if m.connected && m.deleting.id != "" {
 		_, _, areas := m.deleteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -105,6 +114,10 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 			}
 		}
 		return m, nil
+	}
+	if m.vote.commitID != "" {
+		m.vote.commitID = ""
+		m.reflow()
 	}
 	if m.connected && !m.accountOpen && m.viewer.open {
 		return m.viewerMouse(msg.X, msg.Y)
@@ -234,7 +247,8 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		cmd := m.requestDraftAction("discard")
 		return m, cmd
 	}
-	if !m.composerUsable() {
+	// The browser and the attachment field own the keyboard until Enter or Esc, so clicks wait for them to close.
+	if !m.composerUsable() || m.composer.browser != nil || m.composer.editing != "" {
 		return m, nil
 	}
 	for _, area := range m.composerControls() {
@@ -283,7 +297,7 @@ func (m *AppModel) dragComposer(x, y int) {
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
-	if m.composer.confirm != "" || m.deleting.id != "" || m.settings.dialog != "" {
+	if m.composer.confirm != "" || m.deleting.id != "" || m.vote.confirm || m.settings.dialog != "" {
 		return m, nil
 	}
 	code := tea.KeyDown

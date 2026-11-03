@@ -86,6 +86,9 @@ type AppModel struct {
 	engagement                             engagementState
 	setStar                                func(context.Context, string, bool) (api.Commit, error)
 	givePastel                             func(context.Context, string) (api.Pastel, error)
+	vote                                   voteState
+	imageDir                               string
+	castVote                               func(context.Context, string, string) (api.Commit, error)
 	notificationsOpen                      bool
 	notificationMask                       uint8
 	notificationFeeds                      map[string]*notificationFeed
@@ -187,6 +190,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case engagementResult:
 		cmd := m.acceptEngagement(msg)
 		return m, cmd
+	case voteResult:
+		cmd := m.acceptVote(msg)
+		return m, cmd
+	case voteReloaded:
+		m.acceptPollReload(msg)
+		return m, nil
 	case notificationResult:
 		msg.page.Data = m.safeNotifications(msg.page.Data)
 		return m, m.acceptNotifications(msg)
@@ -481,7 +490,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		if msg.String() == "ctrl+c" {
-			if m.composer.input.Value() != "" {
+			if m.composer.hasDraft() {
 				if m.settings.open || m.settings.dialog != "" {
 					m.settings.exitDialog, m.settings.exitFromSettings = m.settings.dialog, true
 					m.settings.dialog = ""
@@ -512,9 +521,15 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.focus == 0 && m.composer.confirm == "" {
-		cmd := m.updateComposerInput(msg)
-		return m, cmd
+	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.confirm == "" {
+		if paste, ok := msg.(tea.PasteMsg); ok {
+			cmd := m.composerPaste(paste)
+			return m, cmd
+		}
+		if m.composer.focus == 0 && m.composer.browser == nil && m.composer.editing == "" {
+			cmd := m.updateComposerInput(msg)
+			return m, cmd
+		}
 	}
 	if m.connected && !m.accountOpen {
 		return m, nil
@@ -536,7 +551,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
 		m.settingsAPI = client
-		m.setStar, m.givePastel = client.SetStar, client.GivePastel
+		m.setStar, m.givePastel, m.castVote = client.SetStar, client.GivePastel, client.Vote
 		m.loadStarred = client.Starred
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
@@ -599,6 +614,7 @@ func (m *AppModel) leaveApplication() {
 	m.closeAllThreads()
 	m.closeViewer()
 	m.deleting, m.deletingID = deleteConfirm{}, ""
+	m.vote = voteState{}
 	if m.images != nil {
 		m.images.Forget()
 	}
@@ -683,6 +699,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if m.viewer.open {
 		return m.viewerKey(pressed)
 	}
+	if m.vote.commitID != "" {
+		cmd := m.voteKey(pressed)
+		return m, cmd
+	}
 	if pressed == "?" {
 		m.help = !m.help
 		m.helpScroll = 0
@@ -716,6 +736,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if pressed == "!" {
 		cmd := m.beginReport()
 		return m, cmd
+	}
+	if pressed == "o" && !m.pendingG && m.startVoting() {
+		return m, nil
 	}
 	if m.profileOnTop() && (pressed == "M" || pressed == "B") {
 		kind := "mute"
@@ -800,7 +823,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			m.confirmDelete(selected)
 			return m, nil
 		case "u":
-			if selected.DeletedAt != nil || selected.Author == nil {
+			if selected.DeletedAt != nil || !hasProfile(selected.Author) {
 				return m, nil
 			}
 			return m, m.openProfile(selected.Author.Handle)
@@ -922,9 +945,15 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 	}
 	for _, picture := range f.pictures {
-		if picture.contains(x, row) {
-			m, _ = m.selectCommit(picture.entry)
-			return m, m.openViewer(f.commits[picture.entry], picture.image)
+		if !picture.contains(x, row) {
+			continue
+		}
+		m, _ = m.selectCommit(picture.entry)
+		if !picture.poll {
+			return m, m.openViewer(f.commits[picture.entry], picture.index)
+		}
+		if m.voteOn(picture.index) {
+			return m, nil
 		}
 	}
 	for i, start := range f.starts {

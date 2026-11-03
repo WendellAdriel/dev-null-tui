@@ -664,9 +664,15 @@ func (m AppModel) profileMouse(x, y int) (AppModel, tea.Cmd) {
 		}
 	}
 	for _, picture := range s.pictures {
-		if picture.contains(x, row) {
-			cmd := m.selectProfileEntry(picture.entry)
-			return m, tea.Batch(cmd, m.openViewer(s.entries()[picture.entry], picture.image))
+		if !picture.contains(x, row) {
+			continue
+		}
+		cmd := m.selectProfileEntry(picture.entry)
+		if !picture.poll {
+			return m, tea.Batch(cmd, m.openViewer(s.entries()[picture.entry], picture.index))
+		}
+		if m.voteOn(picture.index) {
+			return m, cmd
 		}
 	}
 	for i, start := range s.starts {

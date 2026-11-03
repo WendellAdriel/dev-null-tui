@@ -41,14 +41,22 @@ func (m AppModel) bindings() appKeys {
 		return m.profileBindings(bind)
 	}
 	if len(m.threads) > 0 {
-		short := []key.Binding{bind("j/k", "move"), bind("r", "reply"), bind("q", "quote"), bind("u", "profile"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short := []key.Binding{bind("j/k", "move"), bind("r", "reply"), bind("q", "quote")}
+		if c, ok := m.focusedEngagementCommit(); ok && hasProfile(c.Author) {
+			short = append(short, bind("u", "profile"))
+		}
+		short = append(short, bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
 		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("ctrl+r", "reload thread"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
 		all = append(all, m.engagementBindings()...)
 		return appKeys{short, all}
 	}
 	if m.notificationsOpen {
-		short := []key.Binding{bind("j/k", "move"), bind("space", "expand / collapse group"), bind("enter", "open commit or follower"), bind("u", "profile"), bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short := []key.Binding{bind("j/k", "move"), bind("space", "expand / collapse group"), bind("enter", "open commit or follower")}
+		if entries, selected := m.notificationEntries(), m.notificationFeed().selected; selected < len(entries) && hasProfile(entries[selected].notification.Actor) {
+			short = append(short, bind("u", "profile"))
+		}
+		short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
 		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind("v", "view commit images"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
 		return appKeys{short, all}
@@ -87,6 +95,9 @@ func (m AppModel) engagementBindings() []key.Binding {
 	if m.canGivePastel(c) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "give selected commit a pastél")))
 	}
+	if m.canVote(c) {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "vote on the poll")))
+	}
 	if c.Author != nil && !m.ownCommit(c) && c.DeletedAt == nil && (c.Status == "" || c.Status == "approved") {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("!"), key.WithHelp("!", "report commit")))
 	}
@@ -113,6 +124,10 @@ func (m AppModel) View() tea.View {
 	}
 	if m.deleting.id != "" && m.connected && !m.accountOpen {
 		content, r, _ := m.deleteModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.vote.confirm && m.connected && !m.accountOpen {
+		content, r, _ := m.voteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
 	if m.composer.open && m.connected && !m.accountOpen {

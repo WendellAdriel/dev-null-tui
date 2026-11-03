@@ -85,7 +85,11 @@ func (m AppModel) starredColumn(width int, p palette) string {
 }
 
 func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys {
-	short := []key.Binding{bind("j/k", "move"), bind("enter", "open thread"), bind("u", "author profile"), bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
+	short := []key.Binding{bind("j/k", "move"), bind("enter", "open thread")}
+	if c, ok := m.focusedEngagementCommit(); ok && hasProfile(c.Author) {
+		short = append(short, bind("u", "author profile"))
+	}
+	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older starred commits"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("g s", "reopen Starred"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
 	all = append(all, m.engagementBindings()...)
 	return appKeys{short, all}
@@ -103,9 +107,15 @@ func (m AppModel) starredMouse(x, y int) (AppModel, tea.Cmd) {
 		}
 	}
 	for _, picture := range f.pictures {
-		if picture.contains(x, row) {
-			cmd := m.selectStarred(picture.entry)
-			return m, tea.Batch(cmd, m.openViewer(f.commits[picture.entry], picture.image))
+		if !picture.contains(x, row) {
+			continue
+		}
+		cmd := m.selectStarred(picture.entry)
+		if !picture.poll {
+			return m, tea.Batch(cmd, m.openViewer(f.commits[picture.entry], picture.index))
+		}
+		if m.voteOn(picture.index) {
+			return m, cmd
 		}
 	}
 	for i, start := range f.starts {

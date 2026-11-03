@@ -112,6 +112,9 @@ func (s profileState) count() int {
 	return len(s.entries())
 }
 
+// hasProfile excludes organizations, which have no users/{handle} profile. Phase 12 adds their screen.
+func hasProfile(a *api.Author) bool { return a != nil && a.Handle != "" && !a.Organization() }
+
 func (m *AppModel) openProfile(handle string) tea.Cmd {
 	if m.safetyHidden[strings.ToLower(handle)]&2 != 0 {
 		return m.notify("warning", "Profile blocked", "Unblock this person in Settings > Safety first.")
@@ -376,7 +379,7 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 	case "enter":
 		return m, m.openThread(selected), true
 	case "u":
-		if selected.Author != nil {
+		if hasProfile(selected.Author) {
 			return m, m.openProfile(selected.Author.Handle), true
 		}
 	case "r", "q":

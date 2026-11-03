@@ -489,7 +489,7 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 		}
 		return m, m.loadNotifications("more")
 	case "u":
-		if n.Actor == nil {
+		if !hasProfile(n.Actor) {
 			return m, nil
 		}
 		return m, m.openProfile(n.Actor.Handle)
@@ -519,7 +519,7 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 // profileRow reports whether Enter opens the actor: a commitless row that is not a group to expand.
 func profileRow(entry notificationEntry) bool {
 	n := entry.notification
-	return n.Commit == nil && n.Actor != nil && (entry.parent != "" || n.EventCount <= 1)
+	return n.Commit == nil && hasProfile(n.Actor) && (entry.parent != "" || n.EventCount <= 1)
 }
 
 func (m *AppModel) notificationStatus() string {

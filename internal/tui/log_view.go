@@ -120,9 +120,11 @@ func dayLabel(created, now time.Time) string {
 
 func fit(value string, width int) string { return ansi.Truncate(value, max(0, width), "…") }
 
+// pictureArea is a clickable part of a commit body: an attached image, or a poll option when poll is set.
 type pictureArea struct {
 	uiRect
-	entry, image int
+	entry, index int
+	poll         bool
 }
 
 func commitLines(commit api.Commit, width int, p palette, now time.Time, managers ...*graphics.Manager) []string {
@@ -142,10 +144,13 @@ type statsStyle struct {
 	glyphs  iconSet
 	// origin is the server, so mentions can link to profiles on the web.
 	origin string
+	// voting is the commit whose poll has keyboard focus, and voteOption its highlighted option.
+	voting     string
+	voteOption int
 }
 
 func (m AppModel) statsStyle() statsStyle {
-	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin}
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option}
 }
 
 func starIconRequest(filled bool, ink string) graphics.Request {
@@ -245,13 +250,13 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 		}
 	}
 	var areas []pictureArea
-	pictures := pictureLines(commit.Images, width, p, manager)
+	pictures := pictureLines(commit.Images, imageRequests(commit.Images, width), p, manager)
 	x := 0
 	for i, req := range imageRequests(commit.Images, width) {
 		if len(pictures) == 0 {
 			break
 		}
-		areas = append(areas, pictureArea{uiRect{x, len(lines), req.Cols, len(pictures)}, 0, i})
+		areas = append(areas, pictureArea{uiRect: uiRect{x, len(lines), req.Cols, len(pictures)}, index: i})
 		x += req.Cols + 1
 	}
 	lines = append(lines, pictures...)
@@ -263,11 +268,20 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 		if image.Description != "" {
 			label += " · " + safeText(image.Description)
 		}
-		areas = append(areas, pictureArea{uiRect{0, len(lines), width, 1}, 0, i})
+		areas = append(areas, pictureArea{uiRect: uiRect{0, len(lines), width, 1}, index: i})
 		lines = append(lines, fit(text(p.muted).Render(label), width))
 	}
-	if len(commit.Poll) > 0 && string(commit.Poll) != "null" {
-		lines = append(lines, fit(text(p.muted).Render("▤ Poll · view voting on the web"), width))
+	if commit.Poll != nil {
+		focus := -1
+		if style.voting != "" && style.voting == commit.ID {
+			focus = style.voteOption
+		}
+		if commit.Poll.Valid() && !showsResults(commit.Poll) {
+			for i := range commit.Poll.Options {
+				areas = append(areas, pictureArea{uiRect: uiRect{0, len(lines) + i, width, 1}, index: i, poll: true})
+			}
+		}
+		lines = append(lines, pollLines(commit.Poll, width, p, now, focus)...)
 	}
 	label := "replies"
 	if commit.Replies == 1 {

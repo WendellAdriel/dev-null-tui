@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/textarea"
+	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
@@ -29,6 +31,12 @@ type composer struct {
 	emojis                                               []emojiSuggestion
 	emojiIndex                                           int
 	emojiQuery, emojiPrefix, emojiDismissed              string
+	images                                               []api.ImageFile
+	poll                                                 *pollDraft
+	strip                                                int
+	editing                                              string
+	field                                                textinput.Model
+	browser                                              *fileBrowser
 }
 
 type submissionResult struct {
@@ -70,7 +78,7 @@ func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
 		return nil
 	}
 	c := &m.composer
-	if c.owner != "" && c.input.Value() != "" {
+	if c.owner != "" && c.hasDraft() {
 		cmd := m.openComposer()
 		if m.composer.mode != mode || m.composer.target.ID != target.ID {
 			m.composer.status = "Finish or discard this draft before starting another."
@@ -85,6 +93,7 @@ func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
 
 func (m *AppModel) focusComposer() tea.Cmd {
 	c := &m.composer
+	m.sizeComposer()
 	if c.owner != m.account.user.ID || c.focus != 0 || c.previewing || c.sending {
 		c.input.Blur()
 		return nil
@@ -102,7 +111,7 @@ func (m *AppModel) clearComposer() {
 
 func (m *AppModel) requestDraftAction(action string) tea.Cmd {
 	c := &m.composer
-	if c.input.Value() == "" && !c.sending {
+	if !c.hasDraft() && !c.sending {
 		m.clearComposer()
 		if action == "exit" {
 			m.account.life.cancel()
@@ -155,6 +164,12 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	if pressed == "ctrl+c" {
 		return m.requestDraftAction("exit")
 	}
+	if c.browser != nil {
+		return m.browserKey(msg)
+	}
+	if c.editing != "" {
+		return m.fieldKey(msg)
+	}
 	if pressed == "esc" {
 		if len(c.emojis) > 0 {
 			c.emojiDismissed = c.emojiPrefix
@@ -177,6 +192,19 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if c.owner != m.account.user.ID {
 		return m.requestDraftAction("discard")
+	}
+	if !c.previewing {
+		switch pressed {
+		case "ctrl+o":
+			return m.openBrowser()
+		case "ctrl+l":
+			return m.startPoll()
+		}
+		if c.focus == composerStrip {
+			if cmd, ok := m.stripKey(pressed); ok {
+				return cmd
+			}
+		}
 	}
 	if len(c.emojis) > 0 && c.focus == 0 {
 		switch pressed {
@@ -213,11 +241,15 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+p", "ctrl+shift+p":
 		return m.startPreview()
 	case "tab", "shift+tab":
+		order := []int{0, 1, 2, 3}
+		if c.attachmentCount() > 0 && !c.previewing {
+			order = []int{0, composerStrip, 1, 2, 3}
+		}
 		delta := 1
 		if pressed == "shift+tab" {
-			delta = 3
+			delta = len(order) - 1
 		}
-		c.focus = (c.focus + delta) % 4
+		c.focus = order[(max(0, slices.Index(order, c.focus))+delta)%len(order)]
 		c.emojis = nil
 		c.input.Blur()
 		if c.focus == 0 && !c.previewing {
@@ -318,8 +350,9 @@ func (m *AppModel) startSubmission() tea.Cmd {
 		c.status = "The reply or quote target is unavailable. Your draft is kept."
 		return m.notify("error", "Cannot submit", c.status)
 	}
-	if err := api.ValidateBody(c.input.Value()); err != nil {
-		c.status = err.Error()
+	draft := m.composerDraft()
+	if err := draft.Validate(); err != nil {
+		c.status = sentence(err.Error())
 		return m.notify("error", "Cannot submit", c.status)
 	}
 	if c.uncertain {
@@ -334,15 +367,12 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	c.emojis = nil
 	c.status = "Signing and submitting..."
 	c.input.Blur()
-	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
-	c.cancel = cancel
-	draft := api.NewCommit{Body: c.input.Value()}
-	switch c.mode {
-	case "reply":
-		draft.ParentID = c.target.ID
-	case "quote":
-		draft.QuotedID = c.target.ID
+	timeout := 30 * time.Second
+	if len(draft.Images) > 0 {
+		timeout = auth.UploadTimeout
 	}
+	ctx, cancel := context.WithTimeout(m.account.life.ctx, timeout)
+	c.cancel = cancel
 	session, generation, submit := m.session, c.generation, m.submit
 	return m.account.life.command(func() tea.Msg {
 		defer cancel()
@@ -361,9 +391,16 @@ func (m *AppModel) startPreview() tea.Cmd {
 		c.focus = 0
 		return m.focusComposer()
 	}
-	if err := api.ValidateBody(c.input.Value()); err != nil {
-		c.status = err.Error()
+	if err := m.composerDraft().Validate(); err != nil {
+		c.status = sentence(err.Error())
 		return m.notify("error", "Cannot preview", c.status)
+	}
+	if api.NormalizeBody(c.input.Value()) == "" {
+		c.preview, c.previewing, c.previewOffset = api.Preview{}, true, 0
+		c.status = "Local preview. Nothing has been published."
+		c.input.Blur()
+		m.sizeComposer()
+		return nil
 	}
 	if c.cancel != nil {
 		c.cancel()
@@ -396,6 +433,7 @@ func (m *AppModel) acceptPreview(result previewResult) tea.Cmd {
 	c.preview, c.previewing, c.previewOffset = result.preview, true, 0
 	c.status = "Server preview. Nothing has been published."
 	c.input.Blur()
+	m.sizeComposer()
 	return nil
 }
 
@@ -485,8 +523,8 @@ func (m AppModel) composerError(err error) string {
 		if failure.Status == http.StatusNotFound {
 			return "That commit is no longer available. Your draft is kept."
 		}
-		if failure.Status == http.StatusUnprocessableEntity && len(failure.BodyErrors) > 0 {
-			return safeText(strings.Join(failure.BodyErrors, " "))
+		if messages := append(failure.BodyErrors, failure.FieldErrors...); failure.Status == http.StatusUnprocessableEntity && len(messages) > 0 {
+			return safeText(strings.Join(messages, " ")) + " Draft kept."
 		}
 		if failure.Status == http.StatusTooManyRequests {
 			return fmt.Sprintf("Rate limited. Wait before submitting again. Retry after %s. Draft kept.", safeText(failure.RetryAfter))

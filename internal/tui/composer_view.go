@@ -37,7 +37,11 @@ func (m AppModel) composerContextRows() int {
 }
 
 func (m AppModel) composerStatusRows() int {
-	return max(0, min(3, m.composerHeight()-m.composerContextRows()-1))
+	editor := 1
+	if m.composer.attachmentCount() > 0 {
+		editor = 3
+	}
+	return max(0, min(3, m.composerHeight()-m.composerContextRows()-m.composerStripRows()-editor))
 }
 
 func (m AppModel) composerLabels() []string {
@@ -96,7 +100,7 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 		title = "Preview commit"
 	}
 	marker := "◌"
-	if m.composer.input.Value() != "" {
+	if m.composer.hasDraft() {
 		marker = "●"
 	}
 	title = text(laneColor(m.account.user.Lane, p)).Render(marker) + " " + text(p.ink).Bold(true).Render(title) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))
@@ -111,7 +115,7 @@ func (m *AppModel) sizeComposer() {
 	}
 	width := max(1, m.composerBounds().w-4)
 	c.input.SetWidth(width)
-	c.input.SetHeight(max(1, m.composerHeight()-m.composerContextRows()-m.composerStatusRows()))
+	c.input.SetHeight(max(1, m.composerHeight()-m.composerContextRows()-m.composerStatusRows()-m.composerStripRows()))
 	p := colors(m.account.dark)
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
@@ -142,6 +146,10 @@ func (m AppModel) composerView(width int, p palette) string {
 	body := c.input.View()
 	if c.previewing {
 		lines := bodyLines(api.Commit{Body: c.preview.Body, Segments: c.preview.Segments}, inner, p, m.statsStyle())
+		if api.NormalizeBody(c.preview.Body) == "" {
+			lines = nil
+		}
+		lines = append(lines, m.attachmentPreview(inner, p)...)
 		start := min(c.previewOffset, max(0, len(lines)-c.input.Height()))
 		body = strings.Join(lines[start:min(len(lines), start+c.input.Height())], "\n")
 	}
@@ -167,8 +175,13 @@ func (m AppModel) composerView(width int, p palette) string {
 		}
 		statusView = strings.Join(suggestions, "\n")
 	}
-	if height := m.composerStatusRows(); height > 0 {
+	if c.browser != nil {
+		rows[len(rows)-1] = m.browserView(inner, c.input.Height()+m.composerStatusRows(), p)
+	} else if height := m.composerStatusRows(); height > 0 {
 		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
+	}
+	if strip := m.stripView(inner, p); strip != "" {
+		rows = append(rows, strip)
 	}
 	return lipgloss.NewStyle().Width(width).Height(m.composerHeight()).MaxHeight(m.composerHeight()).Render(strings.Join(rows, "\n"))
 }
@@ -210,7 +223,16 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 			detail = "The server may still publish this commit. Check the web before submitting again."
 		}
 	}
-	summary := fmt.Sprintf("%d characters · memory only · nothing saved to disk", api.BodyCharacterCount(c.input.Value()))
+	summary := fmt.Sprintf("%d characters", api.BodyCharacterCount(c.input.Value()))
+	switch {
+	case c.poll != nil:
+		summary += " · a poll"
+	case len(c.images) == 1:
+		summary += " · 1 image"
+	case len(c.images) > 1:
+		summary += fmt.Sprintf(" · %d images", len(c.images))
+	}
+	summary += " · memory only · nothing saved to disk"
 	if c.owner != m.account.user.ID {
 		summary = "Draft belongs to another account. Its text stays private."
 	}
