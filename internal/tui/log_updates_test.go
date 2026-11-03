@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -30,6 +31,27 @@ func TestShowMoreUnfoldsALongCommit(t *testing.T) {
 	m, _ = m.handleKey("j")
 	if !strings.Contains(feed(m), "hidden ending") {
 		t.Fatal("moving away folded the commit again")
+	}
+}
+
+func TestReplyingFromTheLogShowsTheReplyUnderItsParent(t *testing.T) {
+	m := fixtureApp(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	m = applyPage(next.(AppModel), 0, api.Page{Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}})
+	m = press(t, m, "r")
+	m.submit = func(_ context.Context, draft api.NewCommit) (api.Commit, error) {
+		c := fixtureCommit("new-reply")
+		c.Body, c.ParentID = draft.Body, &draft.ParentID
+		return c, nil
+	}
+	m.composer.input.SetValue("A synthetic reply")
+	m = deliver(m, runAll(m.startSubmission()))
+	parent := m.feeds[0].commits[0]
+	if parent.Replies != 1 || parent.ReplyPreview == nil || len(parent.ReplyPreview.Data) != 1 || parent.ReplyPreview.Data[0].ID != "new-reply" {
+		t.Fatalf("parent not updated: %d %+v", parent.Replies, parent.ReplyPreview)
+	}
+	if !strings.Contains(ansi.Strip(m.feeds[0].viewport.GetContent()), "A synthetic reply") {
+		t.Fatal("the log does not show the new reply")
 	}
 }
 

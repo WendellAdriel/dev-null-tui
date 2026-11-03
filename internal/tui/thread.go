@@ -367,19 +367,35 @@ func (m *AppModel) addToThreads(mode, targetID string, commit api.Commit) {
 		return
 	}
 	for i := range m.starred.commits {
-		if m.starred.commits[i].ID == targetID {
-			m.starred.commits[i].Replies++
-		}
+		addReply(&m.starred.commits[i], targetID, commit)
 	}
 	m.renderStarred()
 	for i := range m.feeds {
 		for j := range m.feeds[i].commits {
-			if m.feeds[i].commits[j].ID == targetID {
-				m.feeds[i].commits[j].Replies++
-			}
+			addReply(&m.feeds[i].commits[j], targetID, commit)
 		}
 		m.renderFeed(i)
 	}
+	for i := range m.profiles {
+		s := &m.profiles[i]
+		for l := range s.lists {
+			for j := range s.lists[l].commits {
+				addReply(&s.lists[l].commits[j], targetID, commit)
+			}
+		}
+		m.renderProfile(s)
+	}
+}
+
+// addReply counts a confirmed reply on a listed parent and shows it as the newest reply, as the web's lists do.
+func addReply(parent *api.Commit, targetID string, reply api.Commit) {
+	if parent.ID != targetID {
+		return
+	}
+	parent.Replies++
+	parent.ReplyPreview = &struct {
+		Data []api.Commit `json:"data"`
+	}{Data: []api.Commit{reply}}
 }
 
 func (m *AppModel) deleteKey(pressed string) tea.Cmd {
