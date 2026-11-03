@@ -40,25 +40,26 @@ type Segment struct {
 }
 
 type Commit struct {
-	ID           string     `json:"id"`
-	Hash         string     `json:"short_hash"`
-	Body         string     `json:"body"`
-	ParentID     *string    `json:"parent_id"`
-	URL          string     `json:"html_url"`
-	CreatedAt    time.Time  `json:"created_at"`
-	DeletedAt    *time.Time `json:"deleted_at"`
-	Author       *Author    `json:"author"`
-	Status       string     `json:"status"`
-	Stars        int        `json:"stars_count"`
-	Starred      *bool      `json:"starred"`
-	Pasteis      *int       `json:"pasteis_count"`
-	Replies      int        `json:"replies_count"`
-	Segments     []Segment  `json:"body_segments"`
-	Preview      []Segment  `json:"preview_segments"`
-	QuotedID     *string    `json:"quoted_commit_id"`
-	Quote        *Commit    `json:"quoted_commit"`
-	Images       []Image    `json:"images"`
-	Poll         *Poll      `json:"poll"`
+	ID           string       `json:"id"`
+	Hash         string       `json:"short_hash"`
+	Body         string       `json:"body"`
+	ParentID     *string      `json:"parent_id"`
+	URL          string       `json:"html_url"`
+	CreatedAt    time.Time    `json:"created_at"`
+	DeletedAt    *time.Time   `json:"deleted_at"`
+	Author       *Author      `json:"author"`
+	Status       string       `json:"status"`
+	Stars        int          `json:"stars_count"`
+	Starred      *bool        `json:"starred"`
+	Pasteis      *int         `json:"pasteis_count"`
+	Replies      int          `json:"replies_count"`
+	Segments     []Segment    `json:"body_segments"`
+	Preview      []Segment    `json:"preview_segments"`
+	QuotedID     *string      `json:"quoted_commit_id"`
+	Quote        *Commit      `json:"quoted_commit"`
+	Images       []Image      `json:"images"`
+	Poll         *Poll        `json:"poll"`
+	LinkPreview  *LinkPreview `json:"link_preview"`
 	ReplyPreview *struct {
 		Data []Commit `json:"data"`
 	} `json:"reply_preview"`

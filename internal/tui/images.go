@@ -92,8 +92,14 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			}
 			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 5, 2))
 			requests = append(requests, imageRequests(c.Images, width)...)
+			if req, ok := linkCardRequest(c.LinkPreview); ok {
+				requests = append(requests, req)
+			}
 			if c.Quote != nil && c.Quote.DeletedAt == nil && c.Quote.Author != nil {
 				avatars = append(avatars, m.avatarRequest(c.Quote.Author.AvatarURL, authorColor(c.Quote.Author, p), 2, 1))
+				if req, ok := linkCardRequest(c.Quote.LinkPreview); ok {
+					requests = append(requests, req)
+				}
 			}
 			if c.ReplyPreview != nil {
 				for _, reply := range c.ReplyPreview.Data {

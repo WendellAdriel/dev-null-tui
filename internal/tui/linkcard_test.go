@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
@@ -40,5 +41,23 @@ func TestLinkCardWaitsWhilePendingAndHidesWithoutATitle(t *testing.T) {
 	}
 	if lines := linkCardLines(nil, 60, p, nil); lines != nil {
 		t.Fatal("a missing card is drawn")
+	}
+}
+
+func TestCommitsShowTheirLinkCardInTheLog(t *testing.T) {
+	m := fixtureApp(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
+	c := fixtureCommit("card")
+	c.LinkPreview = &api.LinkPreview{URL: "https://laravel.com", Title: "Laravel", SiteName: "laravel.com"}
+	m = applyPage(next.(AppModel), 0, api.Page{Data: []api.Commit{c}})
+	if feed := ansi.Strip(m.feeds[0].viewport.GetContent()); !strings.Contains(feed, "Laravel") || !strings.Contains(feed, "laravel.com") {
+		t.Fatalf("the log does not show the link card:\n%s", feed)
+	}
+	quoting, quoted := fixtureCommit("quoting"), fixtureCommit("quoted")
+	quoted.LinkPreview = &api.LinkPreview{URL: "https://go.dev", Title: "The Go Programming Language", SiteName: "go.dev"}
+	quoting.QuotedID, quoting.Quote = &quoted.ID, &quoted
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{quoting}})
+	if feed := ansi.Strip(m.feeds[0].viewport.GetContent()); !strings.Contains(feed, "The Go Programming Language") {
+		t.Fatalf("the quote does not show its link card:\n%s", feed)
 	}
 }

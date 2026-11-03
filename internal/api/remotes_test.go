@@ -191,3 +191,13 @@ func TestMessageLinkPreviewReadsTheCard(t *testing.T) {
 		t.Fatalf("preview: %+v %v", preview, err)
 	}
 }
+
+func TestCommitsCarryTheirLinkCard(t *testing.T) {
+	client := fixtureClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"id":"c1","author":{"id":"u","handle":"ada"},"link_preview":{"url":"https://go.dev","title":"Go","site_name":"go.dev","is_pending":true}},"ancestors":[]}`)
+	})
+	thread, err := client.Thread(t.Context(), "c1")
+	if err != nil || thread.Commit.LinkPreview == nil || thread.Commit.LinkPreview.SiteName != "go.dev" || !thread.Commit.LinkPreview.Pending {
+		t.Fatalf("commit card: %+v %v", thread.Commit.LinkPreview, err)
+	}
+}

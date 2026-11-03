@@ -246,6 +246,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 				body = append(body[:4], text(p.muted).Render("…"))
 			}
 			quoteLines = append(quoteLines, body...)
+			quoteLines = append(quoteLines, linkCardLines(quote.LinkPreview, quoteWidth, p, manager)...)
 			for _, line := range quoteLines {
 				inside := lipgloss.NewStyle().Width(quoteWidth).MaxWidth(quoteWidth).Render(line)
 				lines = append(lines, text(p.hairline).Render("│ ")+inside+text(p.hairline).Render(" │"))
@@ -287,6 +288,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 		}
 		lines = append(lines, pollLines(commit.Poll, width, p, now, focus)...)
 	}
+	lines = append(lines, linkCardLines(commit.LinkPreview, width, p, manager)...)
 	label := "replies"
 	if commit.Replies == 1 {
 		label = "reply"
