@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 type Preview struct {
@@ -31,23 +34,90 @@ func (c *Client) Preview(ctx context.Context, body string) (Preview, error) {
 }
 
 type NewCommit struct {
-	Body     string `json:"body"`
-	ParentID string `json:"parent_id,omitempty"`
-	QuotedID string `json:"quoted_commit_id,omitempty"`
+	Body     string
+	ParentID string
+	QuotedID string
+	Poll     *NewPoll
+	Images   []ImageFile
+}
+
+// Validate applies the server's combination rules: a poll goes alone on a top-level commit, and images make text
+// optional.
+func (draft NewCommit) Validate() error {
+	if draft.ParentID != "" && draft.QuotedID != "" {
+		return errors.New("a commit cannot both reply and quote")
+	}
+	if draft.Poll != nil {
+		switch {
+		case draft.ParentID != "":
+			return errors.New("polls can't go on replies")
+		case draft.QuotedID != "":
+			return errors.New("polls can't go on quotes")
+		case len(draft.Images) > 0:
+			return errors.New("polls can't go with images")
+		}
+		if err := ValidatePoll(*draft.Poll); err != nil {
+			return err
+		}
+	}
+	if len(draft.Images) > MaxImages {
+		return fmt.Errorf("attach at most %d images", MaxImages)
+	}
+	for _, image := range draft.Images {
+		if err := validDescription(image.Description); err != nil {
+			return err
+		}
+	}
+	if len(draft.Images) > 0 && NormalizeBody(draft.Body) == "" {
+		return nil
+	}
+	return ValidateBody(draft.Body)
+}
+
+func (draft NewCommit) payload() ([]byte, error) {
+	payload := struct {
+		Body         string    `json:"body"`
+		ParentID     string    `json:"parent_id,omitempty"`
+		QuotedID     string    `json:"quoted_commit_id,omitempty"`
+		Poll         *NewPoll  `json:"poll,omitempty"`
+		Descriptions []*string `json:"image_descriptions,omitempty"`
+	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID}
+	if draft.Poll != nil {
+		poll := draft.Poll.trimmed()
+		payload.Poll = &poll
+	}
+	for _, image := range draft.Images {
+		description := trimInput(image.Description)
+		if description == "" {
+			payload.Descriptions = append(payload.Descriptions, nil)
+			continue
+		}
+		payload.Descriptions = append(payload.Descriptions, &description)
+	}
+	return json.Marshal(payload)
 }
 
 func (c *Client) CreateCommit(ctx context.Context, draft NewCommit) (Commit, error) {
-	if draft.ParentID != "" && draft.QuotedID != "" {
-		return Commit{}, errors.New("a commit cannot both reply and quote")
+	if err := draft.Validate(); err != nil {
+		return Commit{}, err
 	}
-	payload, err := json.Marshal(draft)
+	payload, err := draft.payload()
 	if err != nil {
 		return Commit{}, err
 	}
 	var result struct {
 		Data Commit `json:"data"`
 	}
-	if err := c.transport.PostJSON(ctx, "/api/v1/commits", payload, &result); err != nil {
+	if len(draft.Images) > 0 {
+		uploads := make([]auth.Upload, len(draft.Images))
+		for i, image := range draft.Images {
+			uploads[i] = image.Upload
+		}
+		err = c.transport.PostMultipart(ctx, "/api/v1/commits", payload, uploads, &result)
+	} else {
+		err = c.transport.PostJSON(ctx, "/api/v1/commits", payload, &result)
+	}
+	if err != nil {
 		return Commit{}, err
 	}
 	commit := result.Data

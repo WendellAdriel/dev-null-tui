@@ -19,12 +19,16 @@ const (
 )
 
 type Author struct {
+	Type      string          `json:"type"`
 	ID        string          `json:"id"`
 	Handle    string          `json:"handle"`
 	Name      string          `json:"name"`
 	Lane      json.RawMessage `json:"lane"`
 	AvatarURL string          `json:"avatar_url"`
 }
+
+// Organization reports an organization author, which has no users/{handle} profile.
+func (a *Author) Organization() bool { return a != nil && a.Type == "organization" }
 
 type Segment struct {
 	Type     string `json:"type"`
@@ -36,25 +40,25 @@ type Segment struct {
 }
 
 type Commit struct {
-	ID           string          `json:"id"`
-	Hash         string          `json:"short_hash"`
-	Body         string          `json:"body"`
-	ParentID     *string         `json:"parent_id"`
-	URL          string          `json:"html_url"`
-	CreatedAt    time.Time       `json:"created_at"`
-	DeletedAt    *time.Time      `json:"deleted_at"`
-	Author       *Author         `json:"author"`
-	Status       string          `json:"status"`
-	Stars        int             `json:"stars_count"`
-	Starred      *bool           `json:"starred"`
-	Pasteis      *int            `json:"pasteis_count"`
-	Replies      int             `json:"replies_count"`
-	Segments     []Segment       `json:"body_segments"`
-	Preview      []Segment       `json:"preview_segments"`
-	QuotedID     *string         `json:"quoted_commit_id"`
-	Quote        *Commit         `json:"quoted_commit"`
-	Images       []Image         `json:"images"`
-	Poll         json.RawMessage `json:"poll"`
+	ID           string     `json:"id"`
+	Hash         string     `json:"short_hash"`
+	Body         string     `json:"body"`
+	ParentID     *string    `json:"parent_id"`
+	URL          string     `json:"html_url"`
+	CreatedAt    time.Time  `json:"created_at"`
+	DeletedAt    *time.Time `json:"deleted_at"`
+	Author       *Author    `json:"author"`
+	Status       string     `json:"status"`
+	Stars        int        `json:"stars_count"`
+	Starred      *bool      `json:"starred"`
+	Pasteis      *int       `json:"pasteis_count"`
+	Replies      int        `json:"replies_count"`
+	Segments     []Segment  `json:"body_segments"`
+	Preview      []Segment  `json:"preview_segments"`
+	QuotedID     *string    `json:"quoted_commit_id"`
+	Quote        *Commit    `json:"quoted_commit"`
+	Images       []Image    `json:"images"`
+	Poll         *Poll      `json:"poll"`
 	ReplyPreview *struct {
 		Data []Commit `json:"data"`
 	} `json:"reply_preview"`

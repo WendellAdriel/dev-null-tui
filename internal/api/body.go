@@ -32,9 +32,14 @@ func mapProse(body string, fn func(string) string) string {
 	return out.String()
 }
 
+// trimInput matches what the server does to every field before validating it: drop NULs, then trim spaces and invisibles.
+func trimInput(value string) string {
+	value = strings.ReplaceAll(value, "\x00", "")
+	return strings.TrimFunc(value, func(r rune) bool { return unicode.IsSpace(r) || strings.ContainsRune(invisibleTrim, r) })
+}
+
 func NormalizeBody(body string) string {
-	body = strings.ReplaceAll(body, "\x00", "")
-	body = strings.TrimFunc(body, func(r rune) bool { return r == 0 || unicode.IsSpace(r) || strings.ContainsRune(invisibleTrim, r) })
+	body = trimInput(body)
 	body = strings.ReplaceAll(strings.ReplaceAll(body, "\r\n", "\n"), "\r", "\n")
 	return mapProse(body, func(prose string) string { return blankLines.ReplaceAllString(prose, "\n\n") })
 }
