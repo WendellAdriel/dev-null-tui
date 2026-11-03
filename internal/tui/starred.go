@@ -41,6 +41,7 @@ func (m AppModel) openStarred() (AppModel, tea.Cmd) {
 	m.cancelNotifications()
 	m.notificationsOpen = false
 	m.closeStarred()
+	m.closeRemotes()
 	f := &m.feeds[m.active]
 	if f.cancel != nil {
 		f.cancel()

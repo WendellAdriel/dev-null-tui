@@ -55,6 +55,8 @@ func (m AppModel) visibleMedia() []graphics.Request {
 		}
 	} else if m.notificationsOpen && len(m.threads) == 0 && len(m.profiles) == 0 {
 		avatars = append(avatars, m.notificationMedia()...)
+	} else if m.remotesOnTop() {
+		requests = m.remotesMedia()
 	} else {
 		f := &m.feeds[m.active]
 		commits, starts, ends, widths, view := f.commits, f.starts, f.ends, []int(nil), f.viewport

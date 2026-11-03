@@ -117,6 +117,8 @@ type AppModel struct {
 	starred                                feed
 	starredRemoved                         map[string]bool
 	loadStarred                            func(context.Context, string) (api.CommitPage, error)
+	remotes                                remotesState
+	remoteCalls                            remoteCalls
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -146,6 +148,10 @@ func (m AppModel) Close() error {
 	}
 	m.cancelNotifications()
 	m.closeStarred()
+	m.closeRemotes()
+	if m.remotes.countCancel != nil {
+		m.remotes.countCancel()
+	}
 	m.invalidateNotificationCount()
 	if m.composer.cancel != nil {
 		m.composer.cancel()
@@ -184,6 +190,21 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case settingsLoadResult:
 		cmd := m.acceptSettingsLoad(msg)
 		return m, cmd
+	case remotesInboxResult:
+		return m, m.acceptInbox(msg)
+	case remoteThreadResult:
+		return m, m.acceptRemoteThread(msg)
+	case remotesTick:
+		return m, m.acceptRemotesTick(msg)
+	case remoteActionResult:
+		return m, m.acceptRemoteAction(msg)
+	case remoteLinkPreviewResult:
+		return m, m.acceptLinkPreview(msg)
+	case remotesCountResult:
+		if msg.session == m.session && !m.remotes.open {
+			m.remotes.unread = max(0, msg.unread)
+		}
+		return m, nil
 	case starredResult:
 		msg.page.Data = m.safeCommits(msg.page.Data)
 		cmd := m.acceptStarred(msg)
@@ -285,6 +306,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		raw := m.images.Accept(msg)
 		m.renderFeed(m.active)
 		m.renderStarred()
+		m.renderRemoteThread()
 		if m.notificationsOpen {
 			m.renderNotifications()
 		}
@@ -331,6 +353,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.FocusMsg:
 		m.focused = true
 		m.resetSequence()
+		if m.remotesOnTop() {
+			m.now = time.Now()
+			return m, tea.Batch(m.pollRemotes(), m.markRemoteRead())
+		}
 		return m, nil
 	case tea.WindowSizeMsg, tea.BackgroundColorMsg, tea.ColorProfileMsg:
 		m.composer.input.EndSelection()
@@ -356,14 +382,15 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.renderNotifications()
 		}
 		var cmd tea.Cmd
-		if m.focused && !m.accountOpen && !m.notificationsOpen && !m.starredOpen && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
+		if m.focused && !m.accountOpen && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
 			cmd = m.load("count")
 		}
-		var count tea.Cmd
+		var count, remotes tea.Cmd
 		if m.focused && !m.accountOpen {
-			count = m.loadNotificationCount()
+			count, remotes = m.loadNotificationCount(), m.refreshRemotesCount()
 		}
-		return m, tea.Batch(cmd, count, m.poll())
+		m.renderRemoteThread()
+		return m, tea.Batch(cmd, count, remotes, m.poll())
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -554,6 +581,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.settingsAPI = client
 		m.setStar, m.givePastel, m.castVote = client.SetStar, client.GivePastel, client.Vote
 		m.loadStarred = client.Starred
+		if m.remoteCalls.inbox == nil {
+			m.remoteCalls = newRemoteCalls(client)
+		}
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
@@ -566,6 +596,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.session++
 		if m.account.user.UnreadNotifications != nil {
 			m.unreadNotifications = max(0, *m.account.user.UnreadNotifications)
+		}
+		if m.account.user.Remotes != nil {
+			m.remotes.unread = max(0, m.account.user.Remotes.UnreadCount)
 		}
 		m.resetSequence()
 		m.reflow()
@@ -587,6 +620,11 @@ func (m *AppModel) leaveApplication() {
 	m.setStar, m.givePastel = nil, nil
 	m.closeStarred()
 	m.loadStarred = nil
+	m.closeRemotes()
+	if m.remotes.countCancel != nil {
+		m.remotes.countCancel()
+	}
+	m.remotes, m.remoteCalls = remotesState{generation: m.remotes.generation + 1, tickGeneration: m.remotes.tickGeneration + 1}, remoteCalls{}
 	m.cancelNotifications()
 	m.invalidateNotificationCount()
 	m.notificationsOpen = false
@@ -704,7 +742,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		cmd := m.voteKey(pressed)
 		return m, cmd
 	}
-	if pressed == "?" {
+	if pressed == "?" && !m.remotesSearching() {
 		m.help = !m.help
 		m.helpScroll = 0
 		m.resetSequence()
@@ -733,6 +771,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if m.settings.open {
 		cmd := m.settingsKey(pressed)
 		return m, cmd
+	}
+	if m.remotesOnTop() && (m.remotes.dialog != "" || m.remotes.searching || (!m.pendingG && pressed != "g" && pressed != "c" && pressed != "a")) {
+		return m.remotesKey(pressed)
 	}
 	if pressed == "!" {
 		cmd := m.beginReport()
@@ -774,6 +815,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 				cmd := m.selectStarred(0)
 				return m, cmd
 			}
+			if m.remotesOnTop() {
+				return m.remotesKey("home")
+			}
 			return m.selectCommit(0)
 		case "l":
 			return m.switchLog(m.lastLog)
@@ -785,6 +829,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.openProfile(m.account.user.Handle)
 		case "s":
 			return m.openStarred()
+		case "r":
+			return m.openRemotes()
 		case ",":
 			cmd := m.openSettings()
 			return m, cmd
@@ -971,9 +1017,10 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	left := m.notificationsOpen || m.starredOpen || len(m.profiles) > 0
+	left := m.notificationsOpen || m.starredOpen || m.remotes.open || len(m.profiles) > 0
 	if left {
 		m.closeStarred()
+		m.closeRemotes()
 		m.cancelNotifications()
 		m.notificationsOpen = false
 		m.closeAllProfiles()
@@ -1025,6 +1072,9 @@ func (m AppModel) feedStatus() string {
 		return m.threadStatus()
 	}
 	if m.pendingG {
+		if m.remotesEnabled() {
+			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  (1 second)"
+		}
 		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  (1 second)"
 	}
 	if m.profileOnTop() && m.notice == "" {
@@ -1038,6 +1088,9 @@ func (m AppModel) feedStatus() string {
 	}
 	if m.starredOpen {
 		return m.starredStatus()
+	}
+	if m.remotes.open {
+		return m.remotesStatus()
 	}
 	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status

@@ -40,7 +40,7 @@ func (m AppModel) focusedEngagementCommit() (api.Commit, bool) {
 			return entries[t.selected].commit, true
 		}
 	}
-	if m.notificationsOpen {
+	if m.notificationsOpen || m.remotesOnTop() {
 		return api.Commit{}, false
 	}
 	if m.starredOnTop() {

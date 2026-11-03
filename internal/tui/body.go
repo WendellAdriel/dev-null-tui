@@ -689,7 +689,7 @@ func (r bodyRenderer) mentions(s string, offset int, colors []hexColor) []piece 
 			continue
 		}
 		end := handleEnd(s, i+1)
-		if end == i+1 || !mentionEnds(s[end:]) {
+		if end == i+1 || !mentionEnds(s[end:]) || (r.style.mentions != nil && !r.style.mentions[strings.ToLower(s[i+1:end])]) {
 			continue
 		}
 		pieces = append(pieces, r.colored(s[position:i], offset+position, colors)...)

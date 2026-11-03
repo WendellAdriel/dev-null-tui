@@ -64,6 +64,9 @@ func (m AppModel) bindings() appKeys {
 	if m.starredOnTop() {
 		return m.starredBindings(bind)
 	}
+	if m.remotesOnTop() {
+		return m.remotesBindings(bind)
+	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
@@ -129,6 +132,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.deleteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.remotes.dialog != "" && m.remotesOnTop() && m.connected && !m.accountOpen {
+		content, r, _ := m.remotesModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.vote.confirm && m.connected && !m.accountOpen {
 		content, r, _ := m.voteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
@@ -180,6 +187,9 @@ func (m AppModel) workspaceView() tea.View {
 		if m.starredOpen && m.manualLink == "" {
 			main = m.starredColumn(center, p)
 		}
+		if m.remotes.open && m.manualLink == "" {
+			main = m.remotesColumn(m.remotesWidth(), p)
+		}
 		if m.notificationsOpen && m.manualLink == "" {
 			main = m.notificationColumn(center, p)
 		}
@@ -194,7 +204,7 @@ func (m AppModel) workspaceView() tea.View {
 		}
 		rail := text(p.hairline).Render(strings.TrimSuffix(strings.Repeat("│\n", m.mainHeight()), "\n"))
 		main = lipgloss.JoinHorizontal(lipgloss.Top, m.navigation(nav, m.mainHeight(), p), rail, main, rail)
-		if aside > 0 {
+		if aside > 0 && !m.remotesWide() {
 			main = lipgloss.JoinHorizontal(lipgloss.Top, main, m.aside(aside, m.mainHeight(), p))
 		}
 		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + m.workspaceFooter(w)
@@ -348,19 +358,28 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		logo = " //"
 	}
 	logo = lipgloss.NewStyle().Height(2).Render(logo)
-	badge := ""
-	if m.unreadNotifications > 0 {
-		badge = fmt.Sprint(m.unreadNotifications)
-		if m.unreadNotifications > 99 {
-			badge = "99+"
-		}
-	}
+	badge := countBadge(m.unreadNotifications)
 	ownProfile := !m.settings.open && m.profileOnTop() && strings.EqualFold(m.profileHandle(), m.account.user.Handle)
-	top := "\n" + logo + "\n\n " + navRow(m.icons.log, "Log", "", "g l", !m.settings.open && !m.notificationsOpen && !m.starredOpen && !m.profileOnTop())
-	top += "\n\n " + navRow(m.icons.notifications, "Notifications", badge, "g n", !m.settings.open && m.notificationsOpen && !m.profileOnTop())
-	top += "\n\n " + navRow(m.icons.profile, "Profile", "", "g p", ownProfile)
-	top += "\n\n " + navRow(m.icons.starred, "Starred", "", "g s", !m.settings.open && m.starredOpen && !m.profileOnTop())
-	top += "\n\n " + navRow(m.icons.settings, "Settings", "", "g ,", m.settings.open)
+	idle := !m.settings.open && !m.profileOnTop()
+	type navEntry struct {
+		icon, label, badge, hint, action string
+		active                           bool
+	}
+	entries := []navEntry{
+		{m.icons.log, "Log", "", "g l", "log", idle && !m.notificationsOpen && !m.starredOpen && !m.remotes.open},
+		{m.icons.notifications, "Notifications", badge, "g n", "notifications", idle && m.notificationsOpen},
+	}
+	// The web's sidebar shows Remotes only to accounts that have them, between Notifications and Profile.
+	if m.remotesEnabled() {
+		entries = append(entries, navEntry{m.icons.remotes, "Remotes", countBadge(m.remotes.unread), "g r", "remotes", idle && m.remotes.open})
+	}
+	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
+	top := "\n" + logo
+	var areas []hitArea
+	for i, entry := range entries {
+		top += "\n\n " + navRow(entry.icon, entry.label, entry.badge, entry.hint, entry.active)
+		areas = append(areas, hitArea{uiRect{1, 4 + 2*i, inner, 1}, entry.action, 0})
+	}
 	compose, shortcut := m.icons.commit+"  Commit", "c"
 	if width < 12 {
 		compose, shortcut = m.icons.commit, ""
@@ -369,8 +388,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	buttonY := lipgloss.Height(top) + 1
 	buttonX := (width - lipgloss.Width(button)) / 2
 	top += "\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
-	areas := []hitArea{{uiRect{1, 4, inner, 1}, "log", 0}, {uiRect{1, 6, inner, 1}, "notifications", 0}, {uiRect{1, 8, inner, 1}, "profile", 0}, {uiRect{1, 10, inner, 1}, "starred", 0}, {uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0}}
-	areas = append(areas, hitArea{uiRect{1, 12, inner, 1}, "settings", 0})
+	areas = append(areas, hitArea{uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0})
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
 	avatar := lipgloss.NewStyle().Width(4).Height(2).Render(text(lane).Render("●"))
@@ -539,4 +557,19 @@ func (m AppModel) helpModal(p palette) string {
 	start := min(m.helpScroll, m.helpMaxScroll())
 	content := strings.Join(lines[start:min(len(lines), start+max(1, r.h-6))], "\n")
 	return panel("Keyboard shortcuts", content, "↑/↓ scroll · esc close", r, p, p.blue)
+}
+
+func countBadge(count int) string {
+	switch {
+	case count > 99:
+		return "99+"
+	case count > 0:
+		return fmt.Sprint(count)
+	}
+	return ""
+}
+
+// remotesWide reports Remotes drawn across the center column and the aside.
+func (m AppModel) remotesWide() bool {
+	return m.remotesOnTop() && m.manualLink == "" && !m.settings.open
 }

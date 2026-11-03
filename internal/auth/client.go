@@ -55,6 +55,7 @@ type RemotePreferences struct {
 	PullReceipts bool   `json:"pull_receipts"`
 	Everyone     bool   `json:"everyone"`
 	Requests     bool   `json:"requests"`
+	UnreadCount  int    `json:"unread_count"`
 }
 
 type APIError struct {

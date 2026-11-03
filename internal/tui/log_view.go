@@ -149,6 +149,8 @@ type statsStyle struct {
 	voteOption int
 	// unfolded holds the long commits opened with Show more.
 	unfolded map[string]bool
+	// mentions, when set, are the only lowercase handles linked, as the web's messages render with linksEveryMention off.
+	mentions map[string]bool
 }
 
 func (m AppModel) statsStyle() statsStyle {
@@ -429,6 +431,7 @@ func (m *AppModel) reflow() {
 	m.sizeThreads()
 	m.sizeProfiles()
 	m.sizeStarred()
+	m.sizeRemotes()
 	if m.notificationsOpen {
 		m.sizeNotifications()
 	}

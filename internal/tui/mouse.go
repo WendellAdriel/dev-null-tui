@@ -106,6 +106,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.connected && m.remotes.dialog != "" && m.remotesOnTop() {
+		return m.remotesDialogMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.deleting.id != "" {
 		_, _, areas := m.deleteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -175,6 +178,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				if area.action == "starred" {
 					return m.openStarred()
 				}
+				if area.action == "remotes" {
+					return m.openRemotes()
+				}
 				if area.action == "settings" {
 					cmd := m.openSettings()
 					return m, cmd
@@ -182,6 +188,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				m.settings.open = false
 				return m.mouseKey(area.action)
 			}
+		}
+		return m, nil
+	}
+	if m.remotesWide() {
+		if x := msg.X - left - nav - 1; x >= 0 && x < m.remotesWidth() {
+			return m.remotesMouse(x, msg.Y)
 		}
 		return m, nil
 	}
