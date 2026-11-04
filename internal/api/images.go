@@ -105,7 +105,7 @@ func DroppedPaths(pasted string) ([]string, bool) {
 			if err != nil || (u.Host != "" && u.Host != "localhost") {
 				return nil, false
 			}
-			entry = u.Path
+			entry = fileURLPath(u.Path, runtime.GOOS)
 		}
 		if strings.HasPrefix(entry, "~/") {
 			home, err := os.UserHomeDir()
@@ -124,6 +124,18 @@ func DroppedPaths(pasted string) ([]string, bool) {
 		paths = append(paths, entry)
 	}
 	return paths, true
+}
+
+// fileURLPath turns a file URL's path into a local path. Windows URLs carry the drive as /C:/, which needs the slash dropped.
+func fileURLPath(path, goos string) string {
+	if goos == "windows" && len(path) >= 3 && path[0] == '/' && path[2] == ':' && isASCIILetter(path[1]) {
+		path = path[1:]
+	}
+	return filepath.FromSlash(path)
+}
+
+func isASCIILetter(b byte) bool {
+	return 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
 }
 
 func splitPaths(text string) []string {

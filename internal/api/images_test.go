@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"image"
 	"image/png"
+	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -58,10 +60,12 @@ func TestDroppedPathsParsesQuotedAndEscapedImagePaths(t *testing.T) {
 	spaced := writePNG(t, dir, "my shot.png", 1, 1)
 	other := writePNG(t, dir, "b.png", 1, 1)
 	cases := map[string][]string{
-		"'" + spaced + "'": {spaced},
-		strings.ReplaceAll(spaced, " ", `\ `) + " " + other: {spaced, other},
-		"file://" + strings.ReplaceAll(spaced, " ", "%20"):  {spaced},
-		"\"" + spaced + "\"\n" + other:                      {spaced, other},
+		"'" + spaced + "'":             {spaced},
+		fileURL(spaced):                {spaced},
+		"\"" + spaced + "\"\n" + other: {spaced, other},
+	}
+	if runtime.GOOS != "windows" {
+		cases[strings.ReplaceAll(spaced, " ", `\ `)+" "+other] = []string{spaced, other}
 	}
 	for pasted, want := range cases {
 		got, ok := DroppedPaths(pasted)
@@ -77,5 +81,27 @@ func TestDroppedPathsParsesQuotedAndEscapedImagePaths(t *testing.T) {
 	t.Chdir(dir)
 	if _, ok := DroppedPaths("b.png"); ok {
 		t.Error("a relative file name was read as a dropped path")
+	}
+}
+
+func fileURL(path string) string {
+	slashed := filepath.ToSlash(path)
+	if !strings.HasPrefix(slashed, "/") {
+		slashed = "/" + slashed
+	}
+	return (&url.URL{Scheme: "file", Path: slashed}).String()
+}
+
+func TestFileURLPathDropsTheSlashBeforeAWindowsDrive(t *testing.T) {
+	cases := []struct{ goos, path, want string }{
+		{"windows", "/C:/Users/ada/my shot.png", "C:/Users/ada/my shot.png"},
+		{"windows", "/server/share.png", "/server/share.png"},
+		{"linux", "/C:/odd.png", "/C:/odd.png"},
+		{"darwin", "/Users/ada/b.png", "/Users/ada/b.png"},
+	}
+	for _, c := range cases {
+		if got := fileURLPath(c.path, c.goos); got != filepath.FromSlash(c.want) {
+			t.Errorf("%s %q: got %q", c.goos, c.path, got)
+		}
 	}
 }
