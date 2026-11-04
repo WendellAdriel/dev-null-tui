@@ -62,6 +62,8 @@ type APIError struct {
 	Status     int
 	Code       string
 	RetryAfter string
+	// Message is the server's reason for a refusal, such as a Remotes access denial.
+	Message    string
 	BodyErrors []string
 	// FieldErrors holds the poll, image, and vote messages, which are safe to show beside the draft.
 	FieldErrors []string
@@ -217,6 +219,18 @@ func (c *Client) PutJSON(ctx context.Context, target string, body []byte, result
 	return nil
 }
 
+// SendJSON sends a JSON body with any method, for routes like removing a reaction that take a body on DELETE.
+func (c *Client) SendJSON(ctx context.Context, method, target string, body []byte, result any) error {
+	data, err := c.send(ctx, method, target, body)
+	if err != nil {
+		return err
+	}
+	if json.Unmarshal(data, result) != nil {
+		return errors.New("server returned an invalid response")
+	}
+	return nil
+}
+
 func (c *Client) NoContent(ctx context.Context, method, target string, body []byte) error {
 	_, err := c.sendStatus(ctx, method, target, body, http.StatusNoContent)
 	return err
@@ -339,11 +353,12 @@ func (c *Client) do(ctx context.Context, request signedRequest, expected int) ([
 	}
 	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusNoContent {
 		var failure struct {
-			Code   string              `json:"code"`
-			Errors map[string][]string `json:"errors"`
+			Code    string              `json:"code"`
+			Message string              `json:"message"`
+			Errors  map[string][]string `json:"errors"`
 		}
 		_ = json.Unmarshal(data, &failure)
-		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors["body"], FieldErrors: fieldErrors(failure.Errors)}
+		return nil, &APIError{Status: response.StatusCode, Code: failure.Code, Message: failure.Message, RetryAfter: response.Header.Get("Retry-After"), BodyErrors: failure.Errors["body"], FieldErrors: fieldErrors(failure.Errors)}
 	}
 	if expected != 0 && response.StatusCode != expected {
 		return nil, errors.New("server did not confirm the operation; verify before retrying")
@@ -364,7 +379,8 @@ func fieldErrors(all map[string][]string) []string {
 	fields := make([]string, 0, len(all))
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
-		if name == "poll" || name == "images" || name == "image_descriptions" || name == "option" {
+		switch name {
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id":
 			fields = append(fields, field)
 		}
 	}
