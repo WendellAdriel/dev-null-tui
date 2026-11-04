@@ -111,7 +111,7 @@ func (s Store) Disconnect() error {
 	if err := os.Remove(filepath.Join(s.Dir, "connection.json")); err != nil && !os.IsNotExist(err) {
 		return errors.New("cannot delete the local device key")
 	}
-	return nil
+	return s.DeleteMessageDrafts()
 }
 
 func writePrivate(path string, data []byte) error {
