@@ -8,14 +8,13 @@
 <h1 align="center">/dev/null TUI</h1>
 
 > [!WARNING]
-> Pull requests and issues are disabled until the [MVP roadmap](#mvp-roadmap) is complete.
+> Pull requests and issues are disabled until the TUI is close to feature parity with the [web app](https://dev-null.sh).
 
 A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, follow developers, and manage supported account settings.
 
 - [Get started](#get-started)
 - [Screenshots](#screenshots)
 - [Documentation](#documentation)
-- [MVP roadmap](#mvp-roadmap)
 - [License](#license)
 
 ## Get started
@@ -86,10 +85,6 @@ Move with `j` and `k`, press `Enter` to open a thread, and use `c` to write a co
 
 - [Source builds, quality checks, and CI](docs/development.md)
 - [Preparing and publishing releases](docs/releases.md)
-
-## MVP roadmap
-
-- Remotes support
 
 ## License
 
