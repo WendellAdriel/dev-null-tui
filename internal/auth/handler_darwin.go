@@ -53,6 +53,7 @@ func (h *Handler) install(ctx context.Context) error {
 	if _, err := tool(ctx, "osacompile", "-o", h.macApp(), "-e", source); err != nil {
 		return err
 	}
+	// #nosec G302: the app bundle is a directory, which needs the execute bit; it stays owner-only.
 	if err := os.Chmod(h.macApp(), 0700); err != nil {
 		return err
 	}
