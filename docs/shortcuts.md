@@ -122,11 +122,13 @@ In the inbox:
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five conversations |
 | `Tab`, `]`, `Shift+Tab`, `[` | Switch between Open, Fetched, and Stashed |
 | `/` | Search by name or @handle. `Enter` searches and `Esc` cancels |
-| `Enter`, `l`, `Right` | Open the selected conversation |
+| `Enter`, `l`, `Right` | Open the selected conversation, or start one with a person found by the search |
+| `N` | New remote: find someone and open your conversation with them |
+| `O` | New org: name it and pick people. `Space` picks and `Ctrl+S` creates |
 | `n` | Load more conversations |
 | `Ctrl+R` | Refresh the inbox |
 | `Esc` | Clear the search, or return to the log |
-| Left click | Open a conversation, switch tabs, or start a search |
+| Left click | Open a conversation or a person, switch tabs, or start a search |
 
 In a conversation:
 
@@ -141,6 +143,10 @@ In a conversation:
 | `1`, `2`, `3` | Toggle a quick reaction on the selected message |
 | `e` | Open the reaction row. `1` to `3` react, `+` opens the picker |
 | `p` | Ping the partner, or everyone in the org |
+| `m`, `d` | Merge or drop a message request |
+| `I` | Org members. `u` opens a profile, `r` renames, `a` adds people, and `Enter` changes a member's role or removes them (maintainers) |
+| `!` | Pin or unpin the selected message for the org (maintainers) |
+| `L` | List the org's pinned messages. `Enter` jumps and `!` unpins |
 | `Ctrl+T` | Record a voice note in the composer |
 | `Space` | Play or pause the selected voice note |
 | `Left`, `Right` | Seek a playing or paused voice note 2 seconds |

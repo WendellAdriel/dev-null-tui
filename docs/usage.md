@@ -81,13 +81,13 @@ Unstarring with `s` removes the entry after confirmation. Selection moves to the
 
 Remotes are direct messages and orgs. **Remotes** appears between Notifications and Profile in the sidebar, with the unread count, only when Remotes is turned on in [Settings](settings.md). Press `g r` or click it to open the inbox. The badge refreshes every 15 seconds while Remotes is closed and the terminal is focused.
 
-The inbox has the web's tabs. **Open** holds your conversations, **Fetched** holds message requests and appears only when you accept requests, with the number waiting, and **Stashed** holds the conversations you put away. Switch tabs with `Tab`, `[`, and `]`, or click them. Press `/` to search by name or @handle, `Enter` to search, and `Esc` to clear the search.
+The inbox has the web's tabs. **Open** holds your conversations, **Fetched** holds message requests and appears only when you accept requests, with the number waiting, and **Stashed** holds the conversations you put away. Switch tabs with `Tab`, `[`, and `]`, or click them. Press `/` to search by name or @handle, `Enter` to search, and `Esc` to clear the search. On the Open tab, a search also lists up to five people under **Start a conversation**. Select one and press `Enter`, or click them, to open a conversation with them.
 
 Each row shows the partner's @handle and name, or an org's name, falling back to its other members' first names, with **org** and the member count. The second line is the latest message, prefixed with **you:** or the org member's first name. Your own direct messages show `✓` once pushed and `✓✓` once the partner pulled them. The right side shows the pin, then **N ahead** for unread messages, or the time of the latest message. Pinned conversations sort first.
 
 At 120 columns or wider, the inbox and the open conversation sit side by side. Narrower terminals show one at a time. `Enter` opens the selected conversation, and `Esc` closes it and returns to the inbox. The status line lists the inbox's shortcuts.
 
-Conversations show day markers, org events such as **\* @grace created the org**, your messages on the right, and everyone else's on the left under their name. Images, link cards, replies, reactions in outlined chips below the message, and the typing line follow the web. Pinned org messages are listed at the top. Older messages load at the top of the conversation or with `n`.
+Conversations show day markers, org events such as **\* @grace created the org**, your messages on the right, and everyone else's on the left under their name. Images, link cards, replies, reactions in outlined chips below the message, and the typing line follow the web. Older messages load at the top of the conversation or with `n`.
 
 Reading a conversation moves your read receipt to its newest message, pings included, and clears its unread count. Like the web, the receipt only moves while the conversation is on screen and scrolled to the newest message. Scrolled-up conversations and conversations covered by a profile or Settings don't mark anything read until you scroll back down. Message mentions link to profiles only when the server marks them as mentions. The open conversation checks for new messages every 1.5 seconds for a minute after activity, then every 4 seconds. The inbox refreshes every 15 seconds, or every 6 while a conversation is open. Polling pauses while the terminal is unfocused and checks at once when it gets focus back. Turning Remotes off in Settings closes the screen.
 
@@ -99,7 +99,7 @@ A pushed message shows **◌ staged** until the server stores it. If the server 
 
 Press `Ctrl+O` to attach up to three images, or paste or drop image paths into the composer. Attached images show thumbnails when terminal graphics and space are available, or a text list otherwise. Press `Tab` to edit images, `Enter` to add a description, and `Delete` to remove one. Press `Tab` again to return to writing. The partner sees **typing** while you write, at most every 3 seconds, once the conversation has started.
 
-When you can't push to the partner, the web's access bar takes the composer's place: a request waiting for your merge, your own request waiting for theirs, a partner who doesn't follow you, or a partner who isn't taking remotes.
+When you can't push to the partner, the web's access bar takes the composer's place: a request waiting for your merge, your own request waiting for theirs, a partner who doesn't follow you, or a partner who isn't taking remotes. On a request, press `m` or click **Merge** to accept it and start writing, or `d` or click **Drop** to remove it from Fetched after a confirmation. The sender isn't told either way.
 
 Unsent text is saved as a draft for each conversation and comes back when you open it again, with its reply target. Drafts are the only message text the TUI writes to disk. They live in an owner-only file under the config directory, hold the reply target as an id only, and are deleted when you push, disconnect, delete your account, or the device is revoked.
 
@@ -148,6 +148,29 @@ Press `.` or click **⋯** in the conversation header for its actions, in the we
 | `B` | Block the partner, or leave the org, after a confirmation |
 
 Blocking removes the conversation for both of you. Leaving an org removes it and its history from your inbox. A maintainer would have to add you back.
+
+### New remotes and orgs
+
+From the inbox, press `N` for **New remote** or `O` for **New org**. Type a name or @handle, and results appear after a short pause. People who can't be added show why, such as "only takes remotes from people they follow", and can't be chosen.
+
+- **New remote:** `Down` moves into the results, and `Enter` opens the conversation with the selected person, reusing an existing one.
+- **New org:** name the org (optional, up to 60 characters), then `Tab` to the search. `Space` or `Enter` picks or unpicks people, up to 99. `Ctrl+S` creates the org and opens it. You maintain it, and everyone you add contributes.
+
+If the server refuses, the dialog keeps your picks and shows its reason.
+
+### Members
+
+In an org, press `I` or click the member count in the header to see its members and their roles. Press `u` to open the highlighted member's profile, and `Esc` there returns to the list. Anyone can leave from their own row. Maintainers can also:
+
+- Press `r` to rename the org. An empty name clears it, and the org falls back to its members' first names.
+- Press `a` to add people. They join as contributors. Turn on **Share history** to let them read what was pushed before they joined. An org holds up to 100 people.
+- Press `Enter` on a member to make them a maintainer or a contributor, or to remove them after a confirmation. An org always keeps at least one maintainer.
+
+### Pinned messages
+
+An org's pinned messages show as one row under the conversation header: how many there are and the latest one. Press `L` or click the row to list them all. `Enter` jumps to a message. When it is further back, the list stays open while older messages load, and `Esc` cancels.
+
+Maintainers press `!` on a selected message to pin or unpin it for the whole org, and `!` in the list unpins. Everyone in the org sees pins, including people added without Share history, so pinning asks first. Check **Don't show this again** to skip the question. That choice is saved in [`tui.json`](settings.md#tui). An org can pin up to 25 messages.
 
 ## Write a commit
 
@@ -211,7 +234,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Org management is not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 
