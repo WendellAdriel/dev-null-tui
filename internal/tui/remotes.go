@@ -34,7 +34,7 @@ type remoteCalls struct {
 func newRemoteCalls(client *api.Client) remoteCalls {
 	return remoteCalls{
 		inbox: client.Inbox, thread: client.RemoteThread, markRead: client.MarkRead, stash: client.SetStashed,
-		mute: client.SetMute, pin: client.SetConversationPin, leave: client.LeaveOrg, linkPreview: client.MessageLinkPreview,
+		mute: client.SetMute, pin: client.SetConversationPin, leave: client.RemoveOrgMember, linkPreview: client.MessageLinkPreview,
 		push: client.PushMessage, typing: client.SendTyping, ping: client.Ping, react: client.SetReaction, usage: client.ReactionUsage,
 		block: func(ctx context.Context, handle string) error {
 			_, err := client.SetSafety(ctx, handle, "block", true)

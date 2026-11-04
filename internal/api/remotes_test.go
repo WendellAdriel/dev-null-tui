@@ -1,9 +1,15 @@
 package api
 
 import (
+	"errors"
 	"io"
 	"net/http"
+	"slices"
+	"strconv"
+	"strings"
 	"testing"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 const orgUUID = "9f1c2d3e-4b5a-6789-abcd-ef0123456789"
@@ -155,7 +161,7 @@ func TestConversationPreferencesUseTheirRoutes(t *testing.T) {
 	if err != nil || pinnedAt != nil {
 		t.Fatalf("pin: %v %v", pinnedAt, err)
 	}
-	if err := client.LeaveOrg(t.Context(), orgUUID, "me"); err != nil {
+	if err := client.RemoveOrgMember(t.Context(), orgUUID, "me"); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
@@ -199,5 +205,130 @@ func TestCommitsCarryTheirLinkCard(t *testing.T) {
 	thread, err := client.Thread(t.Context(), "c1")
 	if err != nil || thread.Commit.LinkPreview == nil || thread.Commit.LinkPreview.SiteName != "go.dev" || !thread.Commit.LinkPreview.Pending {
 		t.Fatalf("commit card: %+v %v", thread.Commit.LinkPreview, err)
+	}
+}
+
+func TestManagementCallsUseTheirRoutesAndBodies(t *testing.T) {
+	var requests []string
+	client := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		requests = append(requests, r.Method+" "+r.URL.RequestURI()+" "+string(body))
+		switch {
+		case r.URL.Path == "/api/v1/remotes/candidates":
+			_, _ = io.WriteString(w, `{"candidates":[{"user":{"id":"u1","handle":"ada","name":"Ada"},"reason":null},{"user":{"id":"u2","handle":"bob","name":"Bob"},"reason":"only takes remotes from people they follow"}]}`)
+		case r.URL.Path == "/api/v1/remotes/orgs" && r.Method == http.MethodPost:
+			w.WriteHeader(http.StatusCreated)
+			_, _ = io.WriteString(w, `{"org":{"id":"`+orgUUID+`"}}`)
+		case r.URL.Path == "/api/v1/remotes/messages/39/pin":
+			_, _ = io.WriteString(w, `{"pinned":[{"id":39,"user_id":"me","body":"runbook","created_at":"2026-11-01T10:00:00Z","pinned_at":"2026-11-02T10:00:00Z"}],"reactions_version":6}`)
+		default:
+			w.WriteHeader(http.StatusNoContent)
+		}
+	})
+	ctx := t.Context()
+	if err := client.Merge(ctx, "ada"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Drop(ctx, "ada"); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err := client.Candidates(ctx, CandidateQuery{Term: " ad ", For: ForOrg})
+	if err != nil || len(candidates) != 2 || candidates[0].User.Handle != "ada" || candidates[0].Reason != "" || candidates[1].Reason == "" {
+		t.Fatalf("candidates: %+v %v", candidates, err)
+	}
+	if _, err := client.Candidates(ctx, CandidateQuery{Org: orgUUID, For: ForRemote}); err != nil {
+		t.Fatal(err)
+	}
+	id, err := client.CreateOrg(ctx, " core ", []string{"ada", "bob"})
+	if err != nil || id != orgUUID {
+		t.Fatalf("create org: %q %v", id, err)
+	}
+	if err := client.RenameOrg(ctx, orgUUID, ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.AddOrgMembers(ctx, orgUUID, []string{"cy"}, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.SetOrgRole(ctx, orgUUID, "ada", RoleMaintainer); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.RemoveOrgMember(ctx, orgUUID, "bob"); err != nil {
+		t.Fatal(err)
+	}
+	pins, err := client.SetMessagePinned(ctx, 39, true)
+	if err != nil || len(pins.Pinned) != 1 || pins.Pinned[0].PinnedAt == nil || pins.ReactionsVersion != 6 {
+		t.Fatalf("pin: %+v %v", pins, err)
+	}
+	if _, err := client.SetMessagePinned(ctx, 39, false); err != nil {
+		t.Fatal(err)
+	}
+	org := "/api/v1/remotes/orgs/" + orgUUID
+	want := []string{
+		"POST /api/v1/remotes/@ada/merge ",
+		"POST /api/v1/remotes/@ada/drop ",
+		"GET /api/v1/remotes/candidates?for=org&q=ad ",
+		"GET /api/v1/remotes/candidates?for=remote&org=" + orgUUID + " ",
+		`POST /api/v1/remotes/orgs {"name":"core","members":["ada","bob"]}`,
+		"PUT " + org + ` {"name":null}`,
+		"POST " + org + `/members {"members":["cy"],"share_history":true}`,
+		"PUT " + org + `/members/ada {"role":"maintainer"}`,
+		"DELETE " + org + "/members/bob ",
+		"PUT /api/v1/remotes/messages/39/pin ",
+		"DELETE /api/v1/remotes/messages/39/pin ",
+	}
+	if len(requests) != len(want) {
+		t.Fatalf("requests %q", requests)
+	}
+	for i := range want {
+		if requests[i] != want[i] {
+			t.Fatalf("request %d = %q, want %q", i, requests[i], want[i])
+		}
+	}
+}
+
+func TestManagementCallsRefuseInvalidInputBeforeSending(t *testing.T) {
+	client := fixtureClient(t, func(http.ResponseWriter, *http.Request) { t.Error("sent an invalid request") })
+	ctx := t.Context()
+	many := make([]string, 100)
+	for i := range many {
+		many[i] = "user" + strconv.Itoa(i)
+	}
+	long := strings.Repeat("a", 61)
+	for name, call := range map[string]func() error{
+		"merge bad handle": func() error { return client.Merge(ctx, "../x") },
+		"drop bad handle":  func() error { return client.Drop(ctx, "") },
+		"query over 100": func() error {
+			_, err := client.Candidates(ctx, CandidateQuery{Term: strings.Repeat("a", 101)})
+			return err
+		},
+		"bad candidate org":   func() error { _, err := client.Candidates(ctx, CandidateQuery{Org: "nope"}); return err },
+		"bad candidate for":   func() error { _, err := client.Candidates(ctx, CandidateQuery{For: "everyone"}); return err },
+		"org name over 60":    func() error { _, err := client.CreateOrg(ctx, long, []string{"ada"}); return err },
+		"org without members": func() error { _, err := client.CreateOrg(ctx, "", nil); return err },
+		"org over 99 members": func() error { _, err := client.CreateOrg(ctx, "", many); return err },
+		"duplicate members":   func() error { _, err := client.CreateOrg(ctx, "", []string{"ada", "ADA"}); return err },
+		"bad member handle":   func() error { _, err := client.CreateOrg(ctx, "", []string{"a b"}); return err },
+		"rename over 60":      func() error { return client.RenameOrg(ctx, orgUUID, long) },
+		"rename bad org":      func() error { return client.RenameOrg(ctx, "x", "core") },
+		"add nobody":          func() error { return client.AddOrgMembers(ctx, orgUUID, nil, false) },
+		"unknown role":        func() error { return client.SetOrgRole(ctx, orgUUID, "ada", OrgRole("owner")) },
+		"remove bad handle":   func() error { return client.RemoveOrgMember(ctx, orgUUID, "../x") },
+		"pin bad id":          func() error { _, err := client.SetMessagePinned(ctx, 0, true); return err },
+	} {
+		if call() == nil {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}
+
+func TestOrgRefusalsKeepTheServersReasons(t *testing.T) {
+	client := fixtureClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		_, _ = io.WriteString(w, `{"message":"invalid","errors":{"members.1":["@bob only takes remotes from people they follow."],"name":["The name field must not be greater than 60 characters."]}}`)
+	})
+	_, err := client.CreateOrg(t.Context(), "core", []string{"ada", "bob"})
+	var failure *auth.APIError
+	if !errors.As(err, &failure) || !slices.Contains(failure.FieldErrors, "@bob only takes remotes from people they follow.") || len(failure.FieldErrors) != 2 {
+		t.Fatalf("refusal: %#v", err)
 	}
 }

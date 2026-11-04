@@ -65,7 +65,7 @@ type APIError struct {
 	// Message is the server's reason for a refusal, such as a Remotes access denial.
 	Message    string
 	BodyErrors []string
-	// FieldErrors holds the poll, image, and vote messages, which are safe to show beside the draft.
+	// FieldErrors holds the poll, image, vote, and org messages, which are safe to show beside the draft or dialog.
 	FieldErrors []string
 }
 
@@ -389,7 +389,7 @@ func fieldErrors(all map[string][]string) []string {
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
 		switch name {
-		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform":
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role":
 			fields = append(fields, field)
 		}
 	}

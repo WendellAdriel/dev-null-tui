@@ -4,12 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 var orgID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
@@ -332,8 +334,8 @@ func (c *Client) SetConversationPin(ctx context.Context, target Target, pinned b
 	return result.PinnedAt, nil
 }
 
-// LeaveOrg removes the user from an org, which takes it out of their inbox.
-func (c *Client) LeaveOrg(ctx context.Context, org, handle string) error {
+// RemoveOrgMember takes someone out of an org. Removing the user themself leaves it, which takes it out of their inbox.
+func (c *Client) RemoveOrgMember(ctx context.Context, org, handle string) error {
 	path, err := Target{Org: org}.path()
 	if err != nil || !handlePattern.MatchString(handle) {
 		return errors.New("invalid org member")
@@ -352,4 +354,219 @@ func (c *Client) MessageLinkPreview(ctx context.Context, id int64) (*LinkPreview
 		return nil, err
 	}
 	return result.Preview, nil
+}
+
+// Merge accepts a pending request, which opens the conversation for both sides.
+func (c *Client) Merge(ctx context.Context, handle string) error {
+	return c.answerRequest(ctx, handle, "merge")
+}
+
+// Drop declines a pending request without telling the sender.
+func (c *Client) Drop(ctx context.Context, handle string) error {
+	return c.answerRequest(ctx, handle, "drop")
+}
+
+func (c *Client) answerRequest(ctx context.Context, handle, answer string) error {
+	path, err := Target{Handle: handle}.path()
+	if err != nil {
+		return err
+	}
+	return c.transport.NoContent(ctx, http.MethodPost, path+"/"+answer, nil)
+}
+
+// CandidatesFor says what a candidate search is for, which changes the reasons a person can't be picked.
+type CandidatesFor string
+
+const (
+	ForRemote CandidatesFor = "remote"
+	ForOrg    CandidatesFor = "org"
+	ForShare  CandidatesFor = "share"
+)
+
+// The server's limits for an org: a name, its members, a candidate search, and pinned messages.
+const (
+	MaxOrgName       = 60
+	MaxOrgMembers    = 100
+	MaxCandidateTerm = 100
+	MaxPinned        = 25
+)
+
+type CandidateQuery struct {
+	Term string
+	Org  string
+	For  CandidatesFor
+}
+
+// Candidate is a person the user can push to or add. Reason says why they can't be picked, and is empty when they can.
+type Candidate struct {
+	User   User   `json:"user"`
+	Reason string `json:"reason"`
+}
+
+func (c *Client) Candidates(ctx context.Context, search CandidateQuery) ([]Candidate, error) {
+	term := trimInput(search.Term)
+	switch {
+	case utf8.RuneCountInString(term) > MaxCandidateTerm:
+		return nil, fmt.Errorf("searches are limited to %d characters", MaxCandidateTerm)
+	case search.Org != "" && !orgID.MatchString(search.Org):
+		return nil, errors.New("invalid conversation")
+	case search.For != "" && search.For != ForRemote && search.For != ForOrg && search.For != ForShare:
+		return nil, errors.New("unknown candidate search")
+	}
+	query := url.Values{}
+	for name, value := range map[string]string{"q": term, "org": search.Org, "for": string(search.For)} {
+		if value != "" {
+			query.Set(name, value)
+		}
+	}
+	path := "/api/v1/remotes/candidates"
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var result struct {
+		Candidates []Candidate `json:"candidates"`
+	}
+	if err := c.transport.GetJSON(ctx, path, &result); err != nil {
+		return nil, err
+	}
+	if result.Candidates == nil {
+		return nil, errors.New("server returned invalid candidates")
+	}
+	for _, candidate := range result.Candidates {
+		if !handlePattern.MatchString(candidate.User.Handle) {
+			return nil, errors.New("server returned invalid candidates")
+		}
+	}
+	return result.Candidates, nil
+}
+
+// CreateOrg starts an org the user maintains, with everyone else as a contributor, and returns its ID.
+func (c *Client) CreateOrg(ctx context.Context, name string, members []string) (string, error) {
+	title, err := orgName(name)
+	if err != nil {
+		return "", err
+	}
+	if err := validMembers(members); err != nil {
+		return "", err
+	}
+	body, _ := json.Marshal(struct {
+		Name    *string  `json:"name"`
+		Members []string `json:"members"`
+	}{title, members})
+	var result struct {
+		Org struct {
+			ID string `json:"id"`
+		} `json:"org"`
+	}
+	if err := c.transport.PostJSON(ctx, "/api/v1/remotes/orgs", body, &result); err != nil {
+		return "", err
+	}
+	if !orgID.MatchString(result.Org.ID) {
+		return "", errors.New("server returned an invalid org")
+	}
+	return result.Org.ID, nil
+}
+
+// RenameOrg sets an org's name. An empty name takes it away, so the org goes by its members.
+func (c *Client) RenameOrg(ctx context.Context, org, name string) error {
+	path, err := Target{Org: org}.path()
+	if err != nil {
+		return err
+	}
+	title, err := orgName(name)
+	if err != nil {
+		return err
+	}
+	body, _ := json.Marshal(map[string]*string{"name": title})
+	return c.transport.NoContent(ctx, http.MethodPut, path, body)
+}
+
+// AddOrgMembers adds contributors. With shareHistory they can read everything pushed before they joined.
+func (c *Client) AddOrgMembers(ctx context.Context, org string, members []string, shareHistory bool) error {
+	path, err := Target{Org: org}.path()
+	if err != nil {
+		return err
+	}
+	if err := validMembers(members); err != nil {
+		return err
+	}
+	body, _ := json.Marshal(struct {
+		Members      []string `json:"members"`
+		ShareHistory bool     `json:"share_history"`
+	}{members, shareHistory})
+	return c.transport.NoContent(ctx, http.MethodPost, path+"/members", body)
+}
+
+type OrgRole string
+
+const (
+	RoleMaintainer  OrgRole = "maintainer"
+	RoleContributor OrgRole = "contributor"
+)
+
+func (c *Client) SetOrgRole(ctx context.Context, org, handle string, role OrgRole) error {
+	path, err := Target{Org: org}.path()
+	if err != nil || !handlePattern.MatchString(handle) || (role != RoleMaintainer && role != RoleContributor) {
+		return errors.New("invalid org member")
+	}
+	body, _ := json.Marshal(map[string]OrgRole{"role": role})
+	return c.transport.NoContent(ctx, http.MethodPut, path+"/members/"+handle, body)
+}
+
+// MessagePins is an org's pinned messages after a pin or unpin, newest pin first.
+type MessagePins struct {
+	Pinned           []Message `json:"pinned"`
+	ReactionsVersion int64     `json:"reactions_version"`
+}
+
+// SetMessagePinned pins a message for everyone in its org, or unpins it.
+func (c *Client) SetMessagePinned(ctx context.Context, id int64, pinned bool) (MessagePins, error) {
+	if id <= 0 {
+		return MessagePins{}, errors.New("invalid message id")
+	}
+	method := http.MethodDelete
+	if pinned {
+		method = http.MethodPut
+	}
+	var result MessagePins
+	if err := c.transport.SendJSON(ctx, method, "/api/v1/remotes/messages/"+strconv.FormatInt(id, 10)+"/pin", nil, &result); err != nil {
+		return MessagePins{}, err
+	}
+	if result.Pinned == nil {
+		return MessagePins{}, errors.New("server returned invalid pins")
+	}
+	for _, message := range result.Pinned {
+		if !validMessage(message) {
+			return MessagePins{}, errors.New("server returned an invalid message")
+		}
+	}
+	return result, nil
+}
+
+// orgName trims a name like the server does. An empty name is sent as null.
+func orgName(name string) (*string, error) {
+	name = trimInput(name)
+	if utf8.RuneCountInString(name) > MaxOrgName {
+		return nil, fmt.Errorf("org names are limited to %d characters", MaxOrgName)
+	}
+	if name == "" {
+		return nil, nil
+	}
+	return &name, nil
+}
+
+// validMembers mirrors the server's rules: 1 to 99 distinct handles, since the creator or maintainer is already in.
+func validMembers(handles []string) error {
+	if len(handles) == 0 || len(handles) > MaxOrgMembers-1 {
+		return fmt.Errorf("pick from 1 to %d people", MaxOrgMembers-1)
+	}
+	seen := make(map[string]bool, len(handles))
+	for _, handle := range handles {
+		key := strings.ToLower(handle)
+		if !handlePattern.MatchString(handle) || seen[key] {
+			return errors.New("invalid org member")
+		}
+		seen[key] = true
+	}
+	return nil
 }
