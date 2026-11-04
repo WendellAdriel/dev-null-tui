@@ -318,9 +318,10 @@ func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 	c.input, cmd = c.input.Update(msg)
 	if c.input.Value() != before {
 		if !c.input.HasSelection() {
-			name, closed := emojiAtCaret(c.beforeCaret())
+			name, closed := emojiAtCaret(textBeforeCaret(c.input))
 			if value, ok := emojiCatalog[name]; closed && ok {
-				c.replaceEmoji(name, value, true)
+				replaceShortcode(&c.input, name, value, true)
+				c.emojis = nil
 			}
 		}
 		m.invalidatePreview()

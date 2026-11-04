@@ -338,7 +338,7 @@ func (m AppModel) stripView(width int, p palette) string {
 		return style.Render(fit(marker+items[i], width))
 	}
 	if thumbnails {
-		return strings.Join(append(append([]string{text(p.muted).Render(fit(header, width))}, m.thumbnailRows(width, p)...), line(c.strip)), "\n")
+		return strings.Join(append(append([]string{text(p.muted).Render(fit(header, width))}, m.thumbnailRows(c.images, c.strip, focused, width, p)...), line(c.strip)), "\n")
 	}
 	if rows < len(items)+1 {
 		more := fmt.Sprintf("%d more · %s", len(items)-1, header)
@@ -381,15 +381,14 @@ func (m AppModel) stripThumbnailRequests() []graphics.Request {
 }
 
 // thumbnailRows draws the images side by side. A bar marks the focused one, and a numbered box stands in until it loads.
-func (m AppModel) thumbnailRows(width int, p palette) []string {
-	c := m.composer
+func (m AppModel) thumbnailRows(images []api.ImageFile, selected int, focused bool, width int, p palette) []string {
 	rows := make([]string, stripThumbRows)
 	for row := range rows {
 		var cells []string
-		for i, file := range c.images {
+		for i, file := range images {
 			req := stripThumbnail(file)
 			marker := " "
-			if c.focus == composerStrip && i == c.strip {
+			if focused && i == selected {
 				marker = text(p.blue).Render("▌")
 			}
 			cell := ""

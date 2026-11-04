@@ -9,6 +9,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"charm.land/bubbles/v2/textarea"
 	tea "charm.land/bubbletea/v2"
 )
 
@@ -60,11 +61,12 @@ func searchEmoji(query string) []emojiSuggestion {
 	return matches[:min(8, len(matches))]
 }
 
-func (c composer) beforeCaret() string {
-	lines := strings.Split(c.input.Value(), "\n")
-	row := min(c.input.Line(), len(lines)-1)
+// textBeforeCaret is the editor's text up to the caret, where a typed shortcode ends.
+func textBeforeCaret(input textarea.Model) string {
+	lines := strings.Split(input.Value(), "\n")
+	row := min(input.Line(), len(lines)-1)
 	line := []rune(lines[row])
-	lines[row] = string(line[:min(c.input.Column(), len(line))])
+	lines[row] = string(line[:min(input.Column(), len(line))])
 	return strings.Join(lines[:row+1], "\n")
 }
 
@@ -90,16 +92,16 @@ func emojiAtCaret(prefix string) (string, bool) {
 	return prose[match[2]:match[3]], match[4] != match[5]
 }
 
-func (c *composer) replaceEmoji(name, value string, closed bool) {
+// replaceShortcode swaps the shortcode before the caret for its emoji.
+func replaceShortcode(input *textarea.Model, name, value string, closed bool) {
 	length := len(name) + 1
 	if closed {
 		length++
 	}
 	for range length {
-		c.input, _ = c.input.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
+		*input, _ = input.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
-	c.input.InsertString(value)
-	c.emojis = nil
+	input.InsertString(value)
 }
 
 func (m *AppModel) refreshEmoji() {
@@ -108,7 +110,7 @@ func (m *AppModel) refreshEmoji() {
 		c.emojis = nil
 		return
 	}
-	prefix := c.beforeCaret()
+	prefix := textBeforeCaret(c.input)
 	query, closed := emojiAtCaret(prefix)
 	if closed || query == "" || prefix == c.emojiDismissed {
 		c.emojis = nil
@@ -124,7 +126,8 @@ func (m *AppModel) refreshEmoji() {
 func (m *AppModel) acceptEmoji() {
 	c := &m.composer
 	choice := c.emojis[c.emojiIndex]
-	c.replaceEmoji(c.emojiQuery, choice.value, false)
+	replaceShortcode(&c.input, c.emojiQuery, choice.value, false)
+	c.emojis = nil
 	m.invalidatePreview()
 	m.refreshEmoji()
 }
