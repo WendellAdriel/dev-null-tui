@@ -29,6 +29,14 @@ type remoteCalls struct {
 	ping        func(context.Context, api.Target) (api.Message, error)
 	react       func(context.Context, int64, string, bool) ([]api.Reaction, error)
 	usage       func(context.Context) ([]api.EmojiUse, error)
+	merge       func(context.Context, string) error
+	drop        func(context.Context, string) error
+	candidates  func(context.Context, api.CandidateQuery) ([]api.Candidate, error)
+	createOrg   func(context.Context, string, []string) (string, error)
+	addMembers  func(context.Context, string, []string, bool) error
+	rename      func(context.Context, string, string) error
+	setRole     func(context.Context, string, string, api.OrgRole) error
+	setPinned   func(context.Context, int64, bool) (api.MessagePins, error)
 }
 
 func newRemoteCalls(client *api.Client) remoteCalls {
@@ -36,6 +44,8 @@ func newRemoteCalls(client *api.Client) remoteCalls {
 		inbox: client.Inbox, thread: client.RemoteThread, markRead: client.MarkRead, stash: client.SetStashed,
 		mute: client.SetMute, pin: client.SetConversationPin, leave: client.RemoveOrgMember, linkPreview: client.MessageLinkPreview,
 		push: client.PushMessage, typing: client.SendTyping, ping: client.Ping, react: client.SetReaction, usage: client.ReactionUsage,
+		merge: client.Merge, drop: client.Drop, candidates: client.Candidates, createOrg: client.CreateOrg, addMembers: client.AddOrgMembers,
+		rename: client.RenameOrg, setRole: client.SetOrgRole, setPinned: client.SetMessagePinned,
 		block: func(ctx context.Context, handle string) error {
 			_, err := client.SetSafety(ctx, handle, "block", true)
 			return err
@@ -67,6 +77,8 @@ type remoteThreadState struct {
 	spans    map[string][2]int
 	chips    []chipArea
 	voices   []voiceArea
+	// jumpTo is a pinned message to select once older pages bring it in.
+	jumpTo int64
 }
 
 type remotesState struct {
@@ -93,6 +105,12 @@ type remotesState struct {
 	dialogFocus    int
 	dialogTarget   api.Conversation
 	countCancel    context.CancelFunc
+	people         *peopleDialog
+	members        *membersDialog
+	pinWarning     *pinWarning
+	pinList        *pinList
+	// candidates are the people the Open tab's search offers to start a conversation with, after its rows.
+	candidates []api.Candidate
 }
 
 type remotesInboxResult struct {
@@ -136,7 +154,13 @@ func (m AppModel) remotesOnTop() bool {
 
 // remotesSearching reports the inbox search field taking typed keys, including the ones with workspace meanings.
 func (m AppModel) remotesSearching() bool {
-	return m.remotesOnTop() && m.remotes.searching && !m.settings.open
+	return m.remotesOnTop() && (m.remotes.searching || m.remotes.people != nil || m.remotes.members != nil) && !m.settings.open
+}
+
+// remotesOverlay reports a Remotes dialog taking every key.
+func (m AppModel) remotesOverlay() bool {
+	r := m.remotes
+	return r.people != nil || r.members != nil || r.pinWarning != nil || r.pinList != nil
 }
 
 // remotesWidth is the center column plus the aside, which Remotes takes over for its two panes.
@@ -161,7 +185,7 @@ func (m *AppModel) closeRemoteThread() {
 	m.flushMessageDrafts()
 	m.cancelRecording()
 	m.stopVoice()
-	m.remotes.thread = nil
+	m.remotes.thread, m.remotes.members, m.remotes.pinWarning, m.remotes.pinList = nil, nil, nil, nil
 	m.remotes.focusThread = false
 }
 
@@ -170,6 +194,7 @@ func (m *AppModel) closeRemotes() {
 		m.remotes.cancel()
 	}
 	m.closeRemoteThread()
+	m.closePeople()
 	unread, countCancel := m.remotes.unread, m.remotes.countCancel
 	m.remotes = remotesState{generation: m.remotes.generation + 1, tickGeneration: m.remotes.tickGeneration + 1, unread: unread, countCancel: countCancel}
 }
@@ -257,6 +282,7 @@ func (m *AppModel) acceptInbox(msg remotesInboxResult) tea.Cmd {
 		r.inbox = msg.inbox.Data
 	}
 	r.inbox = uniqueConversations(r.inbox)
+	m.adoptConversation()
 	if t := r.thread; t != nil {
 		for i := range r.inbox {
 			if r.inbox[i].ID == t.conversation.ID && t.data.ReadThroughID > 0 && lastIncoming(r.inbox[i]) <= t.data.ReadThroughID {
@@ -272,6 +298,24 @@ func (m *AppModel) acceptInbox(msg remotesInboxResult) tea.Cmd {
 		}
 	}
 	return m.scheduleRemotes()
+}
+
+// adoptConversation gives a thread opened by handle the conversation the inbox now lists with that person.
+func (m *AppModel) adoptConversation() {
+	t := m.remotes.thread
+	if t == nil || !strings.HasPrefix(t.conversation.ID, "@") {
+		return
+	}
+	for _, c := range m.remotes.inbox {
+		if c.Kind != "org" && c.Partner != nil && strings.EqualFold(c.Partner.Handle, t.conversation.Partner.Handle) {
+			if draft, ok := m.messaging.drafts[t.conversation.ID]; ok {
+				delete(m.messaging.drafts, t.conversation.ID)
+				m.messaging.drafts[c.ID] = draft
+			}
+			t.conversation = c
+			return
+		}
+	}
 }
 
 func uniqueConversations(list []api.Conversation) []api.Conversation {
@@ -385,6 +429,10 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 	}
 	t.cancel, t.loading = nil, false
 	if msg.err != nil {
+		t.jumpTo = 0
+		if list := m.remotes.pinList; list != nil && list.loading {
+			list.loading, list.err = false, "Could not load older messages. Try again."
+		}
 		if m.revoked(msg.err) {
 			return nil
 		}
@@ -455,7 +503,12 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 	case atBottom:
 		t.viewport.GotoBottom()
 	}
-	return tea.Batch(m.markRemoteRead(), m.refreshLinkPreviews(), m.scheduleRemotes())
+	var jump tea.Cmd
+	if id := t.jumpTo; id != 0 {
+		t.jumpTo = 0
+		jump = m.jumpToMessage(id)
+	}
+	return tea.Batch(jump, m.markRemoteRead(), m.refreshLinkPreviews(), m.scheduleRemotes())
 }
 
 func mergeMessages(first, second []api.Message) []api.Message {
@@ -647,12 +700,13 @@ type remotesCountResult struct{ session, unread int }
 
 func (m *AppModel) selectConversation(index int) tea.Cmd {
 	r := &m.remotes
-	if len(r.inbox) == 0 {
+	rows := len(r.inbox) + len(r.candidates)
+	if rows == 0 {
 		return nil
 	}
 	previous := r.selected
-	r.selected = max(0, min(index, len(r.inbox)-1))
-	if r.selected > previous && r.selected >= len(r.inbox)-2 {
+	r.selected = max(0, min(index, rows-1))
+	if r.selected > previous && r.selected < len(r.inbox) && r.selected >= len(r.inbox)-2 {
 		return m.fetchInbox("more")
 	}
 	return nil
@@ -662,7 +716,7 @@ func (m *AppModel) switchInboxTab(delta int) tea.Cmd {
 	tabs := m.remotesTabs()
 	current := max(0, slices.Index(tabs, m.remotes.tab))
 	m.remotes.tab = tabs[(current+delta+len(tabs))%len(tabs)]
-	m.remotes.inbox, m.remotes.selected, m.remotes.loaded, m.remotes.hasMore = nil, 0, false, false
+	m.remotes.inbox, m.remotes.selected, m.remotes.loaded, m.remotes.hasMore, m.remotes.candidates = nil, 0, false, false, nil
 	return m.fetchInbox("open")
 }
 
@@ -685,6 +739,22 @@ func (m AppModel) remotesKey(pressed string) (AppModel, tea.Cmd) {
 		cmd := m.remotesDialogKey(pressed)
 		return m, cmd
 	}
+	if r.people != nil {
+		cmd := m.peopleKey(pressed)
+		return m, cmd
+	}
+	if r.members != nil {
+		cmd := m.membersKey(pressed)
+		return m, cmd
+	}
+	if r.pinWarning != nil {
+		cmd := m.pinWarningKey(pressed)
+		return m, cmd
+	}
+	if r.pinList != nil {
+		cmd := m.pinListKey(pressed)
+		return m, cmd
+	}
 	if r.searching {
 		return m.remotesSearchKey(pressed)
 	}
@@ -698,7 +768,7 @@ func (m AppModel) remotesKey(pressed string) (AppModel, tea.Cmd) {
 	case "esc":
 		if r.term != "" {
 			r.term, r.query = "", ""
-			r.inbox, r.selected, r.loaded = nil, 0, false
+			r.inbox, r.selected, r.loaded, r.candidates = nil, 0, false, nil
 			return m, m.fetchInbox("open")
 		}
 		return m.switchLog(m.active)
@@ -713,7 +783,7 @@ func (m AppModel) remotesKey(pressed string) (AppModel, tea.Cmd) {
 	case "home":
 		return m, m.selectConversation(0)
 	case "G", "end":
-		return m, m.selectConversation(len(r.inbox) - 1)
+		return m, m.selectConversation(len(r.inbox) + len(r.candidates) - 1)
 	case "tab", "]":
 		return m, m.switchInboxTab(1)
 	case "shift+tab", "[":
@@ -725,9 +795,16 @@ func (m AppModel) remotesKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.fetchInbox("more")
 	case "ctrl+r":
 		return m, m.fetchInbox("refresh")
+	case "N":
+		m.openPeople("remote", api.Conversation{})
+	case "O":
+		m.openPeople("org", api.Conversation{})
 	case "enter", "l", "right":
 		if r.selected < len(r.inbox) {
 			return m, m.openRemoteThread(r.inbox[r.selected])
+		}
+		if i := r.selected - len(r.inbox); i < len(r.candidates) && r.candidates[i].Reason == "" {
+			return m, m.openPerson(r.candidates[i].User)
 		}
 	}
 	return m, nil
@@ -741,8 +818,8 @@ func (m AppModel) remotesSearchKey(pressed string) (AppModel, tea.Cmd) {
 	case "enter":
 		r.searching = false
 		r.term = strings.TrimSpace(r.query)
-		r.inbox, r.selected, r.loaded = nil, 0, false
-		return m, m.fetchInbox("open")
+		r.inbox, r.selected, r.loaded, r.candidates = nil, 0, false, nil
+		return m, tea.Batch(m.fetchInbox("open"), m.fetchInboxPeople())
 	case "backspace":
 		if runes := []rune(r.query); len(runes) > 0 {
 			r.query = string(runes[:len(runes)-1])
@@ -762,7 +839,22 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 	if cmd, ok := m.voiceKey(pressed); ok {
 		return m, cmd
 	}
+	if t.data.Access == "request" {
+		switch pressed {
+		case "m":
+			return m, m.startRemoteAction("merge", t.conversation, true, "")
+		case "d":
+			m.remotes.dialog, m.remotes.dialogFocus, m.remotes.dialogTarget = "drop", 0, t.conversation
+			return m, nil
+		}
+	}
 	switch pressed {
+	case "I":
+		m.openMembers()
+	case "!":
+		return m, m.pinKey()
+	case "L":
+		m.openPinList()
 	case "esc", "h", "left":
 		m.closeRemoteThread()
 	case "tab":
@@ -862,7 +954,14 @@ func (m AppModel) remotesStatus() string {
 		if hint := m.voiceKeysHint(); hint != "" {
 			return "Voice note  ·  " + strings.ReplaceAll(hint, " · ", "  ·  ") + "  ·  esc back"
 		}
-		return fmt.Sprintf("%d messages  ·  j/k select  ·  w write  ·  . actions  ·  esc back", len(t.messages))
+		hints := []string{fmt.Sprintf("%d messages", len(t.messages)), "j/k select", "w write"}
+		if t.conversation.Kind == "org" {
+			hints = append(hints, "I members")
+		}
+		if m.canPin() {
+			hints = append(hints, "! pin")
+		}
+		return strings.Join(append(hints, ". actions", "esc back"), "  ·  ")
 	}
 	switch {
 	case r.status != "":
@@ -871,14 +970,15 @@ func (m AppModel) remotesStatus() string {
 		return "Search by name or @handle  ·  enter search  ·  esc cancel"
 	case r.loading && !r.loaded:
 		return "Reading Remotes from /dev/null..."
-	case len(r.inbox) == 0:
-		return "No conversations here."
+	case len(r.inbox)+len(r.candidates) == 0:
+		return "No conversations here.  ·  N new remote  ·  O new org"
 	}
 	tabs := m.remotesTabs()
 	next := tabs[(max(0, slices.Index(tabs, r.tab))+1)%len(tabs)]
-	hints := []string{fmt.Sprintf("%d / %d", r.selected+1, len(r.inbox)), "enter open", "tab " + strings.ToLower(string(next)), "/ search", ". actions"}
+	hints := []string{fmt.Sprintf("%d / %d", r.selected+1, len(r.inbox)+len(r.candidates)), "enter open", "tab " + strings.ToLower(string(next)), "/ search", ". actions"}
 	if r.hasMore {
 		hints = append(hints, "n more")
 	}
+	hints = append(hints, "N new remote", "O new org")
 	return strings.Join(append(hints, "esc back"), "  ·  ")
 }

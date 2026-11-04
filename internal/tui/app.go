@@ -212,6 +212,19 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptBadgeTick(msg)
 	case remoteActionResult:
 		return m, m.acceptRemoteAction(msg)
+	case peopleSearchTick:
+		return m, m.acceptPeopleTick(msg)
+	case peopleSearchResult:
+		return m, m.acceptPeopleResult(msg)
+	case pinResult:
+		return m, m.acceptPin(msg)
+	case membersResult:
+		return m, m.acceptMembers(msg)
+	case peopleSaveResult:
+		return m, m.acceptPeopleSave(msg)
+	case inboxPeopleResult:
+		m.acceptInboxPeople(msg)
+		return m, nil
 	case remoteLinkPreviewResult:
 		return m, m.acceptLinkPreview(msg)
 	case remoteSendResult:
@@ -822,7 +835,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		cmd := m.settingsKey(pressed)
 		return m, cmd
 	}
-	if m.remotesOnTop() && (m.remotes.dialog != "" || m.remotes.searching || (!m.pendingG && pressed != "g" && pressed != "c" && pressed != "a")) {
+	if m.remotesOnTop() && (m.remotes.dialog != "" || m.remotes.searching || m.remotesOverlay() || (!m.pendingG && pressed != "g" && pressed != "c" && pressed != "a")) {
 		return m.remotesKey(pressed)
 	}
 	if pressed == "!" {

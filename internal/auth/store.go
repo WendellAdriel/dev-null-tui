@@ -178,6 +178,8 @@ type TUISettings struct {
 	SkippedVersion  string    `json:"skipped_version,omitempty"`
 	// VoiceVolume is the voice note volume from 0 to 1. A saved 0 means muted, so it has no omitempty.
 	VoiceVolume float64 `json:"voice_volume"`
+	// PinWarningDismissed skips the warning before pinning a message for a whole org, like the web's Don't show this again.
+	PinWarningDismissed bool `json:"pin_warning_dismissed,omitempty"`
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.

@@ -147,6 +147,22 @@ func (m AppModel) inboxLayout(width, height int, p palette) (string, []hitArea) 
 		areas = append(areas, hitArea{uiRect{0, len(lines), width, inboxRowHeight}, "row", i})
 		lines = append(append(lines, row...), "")
 	}
+	if len(r.candidates) > 0 {
+		lines = append(lines, "  "+text(p.muted).Bold(true).Render("Start a conversation"))
+		for i, candidate := range r.candidates {
+			index := len(r.inbox) + i
+			row := "  " + text(p.ink).Bold(true).Render(safeText(candidate.User.Name)) + " " + text(p.muted).Render("@"+safeText(candidate.User.Handle))
+			if candidate.Reason != "" {
+				row = "  " + text(p.muted).Render("@"+safeText(candidate.User.Handle)+" · "+safeText(candidate.Reason))
+			}
+			row = fit(row, width)
+			if index == r.selected && !r.focusThread {
+				row = withBackground(text(p.blue).Render("▌")+fit(row[1:], width-1), p.soft)
+			}
+			areas = append(areas, hitArea{uiRect{0, len(lines), width, 1}, "person", index})
+			lines = append(lines, row)
+		}
+	}
 	if r.hasMore && len(lines) < height {
 		lines = append(lines, lipgloss.PlaceHorizontal(width, lipgloss.Center, text(p.muted).Render("More ")+keyChip("n", p)))
 	}
@@ -205,8 +221,12 @@ func (m AppModel) conversationFace(c api.Conversation) *api.User {
 
 // inboxWindow is the range of inbox rows on screen, which keeps the selected row in view.
 func (m AppModel) inboxWindow(height int) (int, int) {
-	fits := max(1, (height-inboxHeaderHeight)/inboxRowHeight)
-	start := max(0, m.remotes.selected-fits+1)
+	people := 0
+	if len(m.remotes.candidates) > 0 {
+		people = len(m.remotes.candidates) + 1
+	}
+	fits := max(1, (height-inboxHeaderHeight-people)/inboxRowHeight)
+	start := max(0, min(m.remotes.selected, len(m.remotes.inbox)-1)-fits+1)
 	return start, min(len(m.remotes.inbox), start+fits)
 }
 
@@ -359,7 +379,11 @@ func (m AppModel) remoteThreadPane(width, height int, p palette) string {
 	if t.composer.browser != nil {
 		messages = indent(m.browserView(max(1, width-2), t.viewport.Height(), p))
 	}
-	content := header + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + messages + "\n" + footer
+	content := header + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n"
+	if banner := m.pinBanner(width, p); banner != "" {
+		content += banner + "\n"
+	}
+	content += messages + "\n" + footer
 	if composer, _ := m.messageComposerView(width, p); composer != "" {
 		content += "\n" + composer
 	}
@@ -403,10 +427,6 @@ func (m *AppModel) renderRemoteThread() {
 	t.media, t.chips, t.voices, t.spans = nil, nil, nil, map[string][2]int{}
 	if t.data.HasOlder {
 		lines = append(lines, center(text(p.muted).Render("Older messages ")+keyChip("n", p)))
-	}
-	for _, pinned := range t.data.Pinned {
-		excerpt := strings.Join(strings.Fields(safeText(pinned.Body)), " ")
-		lines = append(lines, " "+text(p.muted).Render(fit(m.icons.pin+" "+excerpt, width-2)))
 	}
 	day := ""
 	partner := t.data.Partner
@@ -745,13 +765,16 @@ func (m AppModel) remotesModal(p palette) (string, uiRect, []hitArea) {
 		areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
 		return panel(heading, strings.TrimSuffix(body, "\n"), footer, rect, p, p.hairline), rect, areas
 	}
-	verb, description := "Block", "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."
-	if c.Kind == "org" {
-		verb, description = "Leave", "You stop seeing the org and its history. A maintainer would have to add you back. If you are its only maintainer, the longest-standing member takes over."
+	verb, question, description := "Block", "Block "+title+"?", "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."
+	switch {
+	case r.dialog == "drop":
+		verb, question, description = "Drop", "Drop "+title+"'s request?", "It leaves your Fetched list without an answer. They won't be told."
+	case c.Kind == "org":
+		verb, question, description = "Leave", "Leave "+title+"?", "You stop seeing the org and its history. A maintainer would have to add you back. If you are its only maintainer, the longest-standing member takes over."
 	}
 	rect := centeredRect(max(1, m.account.width), max(1, m.account.height), 64, 13)
 	width := max(1, rect.w-4)
-	body = text(p.ink).Bold(true).Render(fit(verb+" "+title+"?", width)) + "\n\n" + text(p.muted).Render(lipgloss.NewStyle().Width(width).Render(description))
+	body = text(p.ink).Bold(true).Render(fit(question, width)) + "\n\n" + text(p.muted).Render(lipgloss.NewStyle().Width(width).Render(description))
 	footer, footerAreas := modalFooter([]modalAction{{"Cancel", "esc", "esc"}, {verb, "enter", "confirm"}}, width, r.dialogFocus+1, p)
 	for i := range footerAreas {
 		footerAreas[i].x += rect.x + 2
@@ -817,6 +840,9 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 			case "row":
 				m.remotes.selected = area.index
 				return m, m.openRemoteThread(m.remotes.inbox[area.index])
+			case "person":
+				m.remotes.selected = area.index
+				return m.remotesKey("enter")
 			}
 		}
 		return m, nil
@@ -831,16 +857,28 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		return m, cmd
 	}
 	t := m.remotes.thread
+	if row == 0 && t != nil && t.conversation.Kind == "org" {
+		// The header reads " ● title  org · N members"; the member count opens Members.
+		if x-left >= 6+ansi.StringWidth(m.conversationTitle(t.conversation)) {
+			m.openMembers()
+		}
+		return m, nil
+	}
 	if t == nil || t.composer.browser != nil {
 		return m, nil
 	}
 	x -= left
-	if line := t.viewport.YOffset() + row - 2; row >= 2 && row < 2+t.viewport.Height() {
+	banner := m.bannerRows()
+	if row == 2 && banner > 0 {
+		m.openPinList()
+		return m, nil
+	}
+	if line := t.viewport.YOffset() + row - 2 - banner; row >= 2+banner && row < 2+banner+t.viewport.Height() {
 		return m, m.threadClick(line, x)
 	}
 	_, areas := m.messageComposerView(m.threadPaneWidth(), p)
 	for _, area := range areas {
-		if !area.contains(x, row-3-t.viewport.Height()) {
+		if !area.contains(x, row-3-banner-t.viewport.Height()) {
 			continue
 		}
 		switch area.action {
@@ -848,6 +886,8 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 			return m, m.focusMessageComposer()
 		case "ping":
 			return m, m.sendPing()
+		case "merge", "drop":
+			return m.remoteThreadKey(area.action[:1])
 		case "react":
 			quick := quickReactions(m.messaging.usage)
 			if area.index == len(quick) {
@@ -901,8 +941,8 @@ func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys
 	}
 	all := append([]key.Binding(nil), short...)
 	if thread {
-		all = append(all, bind("enter", "push"), bind("shift+enter / ctrl+j", "new line"), bind("esc", "cancel the reply, then back to the messages"), bind("ctrl+o", "add an image"), bind("tab", "edit images / write"), bind("1 / 2 / 3", "quick reaction"), bind("p", "ping"), bind("r / d", "retry / discard a rejected push"), bind("space", "play or pause a voice note"), bind("ctrl+t", "record a voice note, up to a minute"), bind("left / right", "seek a playing note 2s"), bind("x", "voice note speed"), bind("- / +", "voice note volume"), bind("G", "newest message"), bind("n", "older messages"))
+		all = append(all, bind("enter", "push"), bind("shift+enter / ctrl+j", "new line"), bind("esc", "cancel the reply, then back to the messages"), bind("ctrl+o", "add an image"), bind("tab", "edit images / write"), bind("1 / 2 / 3", "quick reaction"), bind("p", "ping"), bind("r / d", "retry / discard a rejected push"), bind("space", "play or pause a voice note"), bind("ctrl+t", "record a voice note, up to a minute"), bind("left / right", "seek a playing note 2s"), bind("x", "voice note speed"), bind("- / +", "voice note volume"), bind("G", "newest message"), bind("n", "older messages"), bind("I", "org members: rename, add, roles, remove"), bind("!", "pin or unpin a message for the org (maintainers)"), bind("L", "pinned messages"), bind("m / d", "merge or drop a request"))
 	}
-	all = append(all, bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
+	all = append(all, bind("N", "new remote"), bind("O", "new org"), bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
 	return appKeys{short, all}
 }

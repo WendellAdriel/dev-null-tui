@@ -136,6 +136,27 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.remotesModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.remotes.members != nil && m.remotes.thread != nil && m.remotesOnTop() && m.connected && !m.accountOpen {
+		content, r, _ := m.membersModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.remotes.thread != nil && m.remotesOnTop() && m.connected && !m.accountOpen {
+		var content string
+		var r uiRect
+		switch {
+		case m.remotes.pinWarning != nil:
+			content, r, _ = m.pinWarningModal(p)
+		case m.remotes.pinList != nil:
+			content, r, _ = m.pinListModal(p)
+		}
+		if content != "" {
+			v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+		}
+	}
+	if m.remotes.people != nil && m.remotesOnTop() && m.connected && !m.accountOpen {
+		content, r, _ := m.peopleModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if menu := m.activeReactions(); menu != nil && menu.picking {
 		content, r, _ := m.reactionModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)

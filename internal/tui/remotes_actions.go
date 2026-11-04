@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 
@@ -116,7 +117,7 @@ func (m *AppModel) conversationActionKey(pressed string) (tea.Cmd, bool) {
 func (m *AppModel) remotesDialogKey(pressed string) tea.Cmd {
 	r := &m.remotes
 	c := r.dialogTarget
-	count := map[string]int{"menu": len(m.conversationMenu(c)), "mute": len(muteChoices), "block": 2}[r.dialog]
+	count := map[string]int{"menu": len(m.conversationMenu(c)), "mute": len(muteChoices), "block": 2, "drop": 2}[r.dialog]
 	switch pressed {
 	case "esc":
 		r.dialog = ""
@@ -147,16 +148,17 @@ func (m *AppModel) remotesDialogKey(pressed string) tea.Cmd {
 			r.dialog = ""
 			return m.startRemoteAction("mute", c, true, muteChoices[r.dialogFocus].duration)
 		}
-	case "block":
+	case "block", "drop":
 		if pressed == "enter" {
+			kind := r.dialog
 			r.dialog = ""
-			if r.dialogFocus == 1 {
-				kind := "block"
-				if c.Kind == "org" {
-					kind = "leave"
-				}
-				return m.startRemoteAction(kind, c, true, "")
+			if r.dialogFocus != 1 {
+				return nil
 			}
+			if kind == "block" && c.Kind == "org" {
+				kind = "leave"
+			}
+			return m.startRemoteAction(kind, c, true, "")
 		}
 	}
 	return nil
@@ -179,6 +181,10 @@ func (m *AppModel) startRemoteAction(kind string, c api.Conversation, value bool
 			result.err = calls.leave(ctx, c.ID, handle)
 		case "block":
 			result.err = calls.block(ctx, c.Partner.Handle)
+		case "merge":
+			result.err = calls.merge(ctx, c.Partner.Handle)
+		case "drop":
+			result.err = calls.drop(ctx, c.Partner.Handle)
 		}
 		return result
 	})
@@ -201,7 +207,7 @@ func (m *AppModel) acceptRemoteAction(msg remoteActionResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		failure := map[string]string{"pin": "Could not update the pin. Try again.", "mute": "Could not update the mute. Try again.", "stash": "Could not update the conversation. Try again.", "leave": "Could not leave " + title + ". Try again.", "block": "Could not block " + title + ". Try again."}[msg.kind]
+		failure := map[string]string{"pin": "Could not update the pin. Try again.", "mute": "Could not update the mute. Try again.", "stash": "Could not update the conversation. Try again.", "leave": "Could not leave " + title + ". Try again.", "block": "Could not block " + title + ". Try again.", "merge": requestFailure, "drop": requestFailure}[msg.kind]
 		return m.notify("error", failure, "")
 	}
 	switch msg.kind {
@@ -225,8 +231,32 @@ func (m *AppModel) acceptRemoteAction(msg remoteActionResult) tea.Cmd {
 	case "block":
 		m.dropConversation(msg.conversation.ID)
 		m.restrictSafetyContent(msg.conversation.Partner.Handle, "block")
+	case "merge":
+		m.answeredRequest(msg.conversation.ID)
+		if t := m.remotes.thread; t != nil && t.conversation.ID == msg.conversation.ID {
+			t.data.Access = "open"
+			m.renderRemoteThread()
+			m.resizeThread()
+		}
+	case "drop":
+		m.answeredRequest(msg.conversation.ID)
+		m.dropConversation(msg.conversation.ID)
 	}
 	return nil
+}
+
+const requestFailure = "Could not update the request. Try again."
+
+// answeredRequest takes a merged or dropped request off the Fetched tab. A merged one comes back in Open on the next
+// inbox load.
+func (m *AppModel) answeredRequest(id string) {
+	r := &m.remotes
+	r.requests = max(0, r.requests-1)
+	if r.tab != api.Fetched {
+		return
+	}
+	r.inbox = slices.DeleteFunc(r.inbox, func(c api.Conversation) bool { return c.ID == id })
+	r.selected = max(0, min(r.selected, len(r.inbox)-1))
 }
 
 func (m *AppModel) updateConversation(id string, change func(*api.Conversation)) {

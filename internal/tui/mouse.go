@@ -109,6 +109,15 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.connected && m.remotes.dialog != "" && m.remotesOnTop() {
 		return m.remotesDialogMouse(msg.X, msg.Y)
 	}
+	if m.connected && m.remotes.members != nil && m.remotes.thread != nil && m.remotesOnTop() {
+		return m.membersMouse(msg.X, msg.Y)
+	}
+	if m.connected && m.remotes.thread != nil && (m.remotes.pinWarning != nil || m.remotes.pinList != nil) && m.remotesOnTop() {
+		return m.pinModalMouse(msg.X, msg.Y)
+	}
+	if m.connected && m.remotes.people != nil && m.remotesOnTop() {
+		return m.peopleMouse(msg.X, msg.Y)
+	}
 	if menu := m.activeReactions(); menu != nil && menu.picking {
 		return m.reactionModalMouse(msg.X, msg.Y)
 	}

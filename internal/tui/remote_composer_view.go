@@ -112,7 +112,7 @@ func (m *AppModel) resizeThread() {
 	input.MaxHeight = max(1, min(composerMaxRows, m.mainHeight()-remotesHeaderHeight-4-overhead))
 	input.SetWidth(max(1, m.threadPaneWidth()-2))
 	view, _ = m.messageComposerView(m.threadPaneWidth(), colors(m.account.dark))
-	t.viewport.SetHeight(max(1, m.mainHeight()-remotesHeaderHeight-3-lipgloss.Height(view)))
+	t.viewport.SetHeight(max(1, m.mainHeight()-remotesHeaderHeight-3-m.bannerRows()-lipgloss.Height(view)))
 	if atBottom {
 		t.viewport.GotoBottom()
 	}
@@ -132,6 +132,17 @@ func accessText(access, handle string) string {
 		return handle + " isn't taking remotes"
 	}
 	return ""
+}
+
+// requestBar adds the web's Drop and Merge buttons under a fetched request's text, right-aligned.
+func requestBar(bar string, inner int, p palette) (string, []hitArea) {
+	drop := keyChip("d", p) + " " + text(p.muted).Render("Drop")
+	merge := keyChip("m", p) + " " + text(p.ink).Bold(true).Render("Merge")
+	row := lipgloss.Height(bar)
+	mergeX := 1 + inner - lipgloss.Width(merge)
+	dropX := mergeX - 3 - lipgloss.Width(drop)
+	areas := []hitArea{{uiRect{dropX, row, lipgloss.Width(drop), 1}, "drop", 0}, {uiRect{mergeX, row, lipgloss.Width(merge), 1}, "merge", 0}}
+	return bar + "\n " + split("", drop+"   "+merge, inner), areas
 }
 
 func (m AppModel) replyAuthor(message *api.Message) string {
@@ -168,7 +179,10 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 			return "", nil
 		}
 		bar := lipgloss.NewStyle().Width(inner).Foreground(lipgloss.Color(p.muted)).Render(accessText(t.data.Access, t.conversation.Partner.Handle))
-		return hairline + "\n" + indent(bar), nil
+		if t.data.Access != "request" {
+			return hairline + "\n" + indent(bar), nil
+		}
+		return requestBar(hairline+"\n"+indent(bar), inner, p)
 	}
 	if t.react != nil && !t.react.picking {
 		row, areas := m.reactionRow(width, p)
@@ -270,7 +284,11 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		right += "  " + style.Render(groupDigits(length)+"/"+groupDigits(api.MaxMessageLength))
 	}
-	hint := text(p.muted).Render("w write · ctrl+t voice · r reply · e react · j/k move")
+	keys := "w write · ctrl+t voice · r reply · e react · j/k move"
+	if m.canPin() {
+		keys += " · ! pin"
+	}
+	hint := text(p.muted).Render(keys)
 	if voice := m.voiceKeysHint(); voice != "" {
 		hint = text(p.muted).Render(voice)
 	}
