@@ -141,9 +141,14 @@ In a conversation:
 | `1`, `2`, `3` | Toggle a quick reaction on the selected message |
 | `e` | Open the reaction row. `1` to `3` react, `+` opens the picker |
 | `p` | Ping the partner, or everyone in the org |
+| `Ctrl+T` | Record a voice note in the composer |
+| `Space` | Play or pause the selected voice note |
+| `Left`, `Right` | Seek a playing or paused voice note 2 seconds |
+| `x` | Switch a playing or paused voice note between 1×, 1.5×, and 2× |
+| `-`, `+` | Lower or raise the voice note volume |
 | `n` | Load older messages |
 | `Ctrl+R` | Reload the conversation |
-| `Esc`, `h`, `Left` | Close the conversation and return to the inbox |
+| `Esc`, `h`, `Left` | Close the conversation and return to the inbox. `Left` seeks instead while the selected voice note plays or is paused |
 | `Tab` | Return to the inbox and keep the conversation on screen, from 120 columns |
 
 In the composer:
@@ -155,6 +160,7 @@ In the composer:
 | `Ctrl+O` | Attach images |
 | `Tab` | Edit attached images, or return to writing. `Enter` describes and `Delete` or `x` removes |
 | `Up`, `Down`, then `Tab` or `Enter` | Choose an emoji suggestion |
+| `Ctrl+T` | Record a voice note, up to one minute. `Enter` stops and `Esc` discards. Then `Space` listens, `Enter` pushes, and `d` discards |
 | `Esc` | Close suggestions, the image list, or the reply, then return to the messages |
 
 On the selected or open conversation:

@@ -48,7 +48,7 @@ Select a device and press Enter to revoke it. The dialog starts on Cancel. Revok
 
 The TUI tab holds preferences for this client only. They are saved in `tui.json` in the app's configuration directory, take effect without the server, and survive disconnecting.
 
-**Check for updates** is on by default. When on, devnull looks for a new release once a day at startup and offers to install it. See [update from the TUI](installation.md#update-from-the-tui). The same file remembers the last check time and any version you skipped.
+**Check for updates** is on by default. When on, devnull looks for a new release once a day at startup and offers to install it. See [update from the TUI](installation.md#update-from-the-tui). The same file remembers the last check time and any version you skipped, and the voice note volume set with `-` and `+` in a conversation.
 
 ## Account deletion
 

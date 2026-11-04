@@ -114,6 +114,27 @@ Unsent text is saved as a draft for each conversation and comes back when you op
 
 Reactions show at once and go back if the server refuses them. You can have up to 12 reactions on a message.
 
+### Voice notes
+
+A voice note shows its length and its waveform. Select it and press `Space` to play it, or click its ▶. The first play downloads the note, and the waveform fills as it plays. A note rewinds when it ends, and `Space` on a note paused at its end plays it from the start. Only one note plays at a time, and leaving the conversation stops it. While a voice note is selected, the status line lists its keys. While a note plays or is paused:
+
+- `Left` and `Right` seek 2 seconds, and clicking the waveform seeks to that point.
+- `x` switches between 1×, 1.5×, and 2×. The voice keeps its pitch, and the clock counts in the chosen speed, so 0:14 at 2× reads 0:07.
+- `-` and `+` change the volume. The volume is saved in [`tui.json`](settings.md#tui).
+
+If a download fails, the note shows **Retry**, and `Space` tries again. Audio stays in memory and is never written to disk.
+
+To record, press `Ctrl+T` in a conversation, from the messages or the composer. The composer shows "waiting for the microphone" until the microphone sends sound, which takes about a second on a Bluetooth headset. Then a meter and a clock run up to one minute, and the clock turns yellow for the last 10 seconds. If no sound arrives within 10 seconds, recording stops and asks whether the microphone is muted. `Enter` stops and `Esc` discards. A recording under half a second is dropped, as on the web. Recording over typed text or images asks first, because a voice note goes alone. It can still reply to a message. After stopping, `Space` plays the recording back, `Enter` pushes it, and `d` discards it. A rejected voice note can be retried with `r`, which sends the same recording again under the same client id.
+
+Recordings aren't saved with drafts, so leaving the conversation discards one that wasn't pushed. The TUI uploads 16 kHz mono WAV, about 1.9 MB a minute.
+
+Sound needs a sound server or device:
+
+- **Linux:** playback and recording go through PulseAudio, or PipeWire's PulseAudio service, with nothing else to install.
+- **macOS and Windows:** playback uses the system's audio. Recording needs `ffmpeg` or `sox` on your `PATH`. With `ffmpeg` it records from the first microphone `ffmpeg` lists, and with `sox` only from the system's default input.
+
+Without sound output, a note shows **Open on the web**, and `Space` copies the conversation's web link. Without a recorder, `Ctrl+T` says so.
+
 ### Conversation actions
 
 Press `.` or click **⋯** in the conversation header for its actions, in the web's order:
@@ -190,7 +211,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Voice notes and org management are not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Org management is not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 
