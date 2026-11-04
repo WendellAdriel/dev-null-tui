@@ -89,10 +89,10 @@ If GitHub is unavailable or its API rate limit is reached, retry later or instal
 
 ### Update from the TUI
 
-When the TUI starts, it checks GitHub for a newer stable release at most once a day. A failed check is silent and waits another day. If a release is available, a dialog shows its version with three choices:
+Each time the TUI starts, it checks GitHub for a newer stable release. A failed check is silent. If a release is available, a dialog shows its version with three choices:
 
 - **Update and restart** installs it the same way as `devnull update`, closes the TUI, and starts the new version with the same flags. On Windows, the choice is **Update**, and you start `devnull` again yourself.
-- **Later** closes the dialog. It shows again at the next daily check.
+- **Later** closes the dialog. It shows again the next time you start the TUI.
 - **Skip this version** hides that version. A newer release shows again.
 
 If the install fails, the dialog shows the error, and you can retry or run `devnull update` in a terminal. Turn the check off in [Settings > TUI](settings.md#tui). Builds labeled `dev` never check.

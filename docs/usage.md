@@ -16,7 +16,7 @@ Run `devnull` to open the workspace. If you have not connected an account, follo
 
 After an upgrade, the first launch opens **What's new** with a summary of the release. Scroll with `↑`, `↓`, `PageUp`, `PageDown`, `Home`, and `End`, and close it with `Esc`, `Enter`, or `q`. It shows once per version, and never on a fresh install. The last version you saw is stored in `last-seen-version` in the app's configuration directory. Disconnecting keeps it.
 
-The TUI also checks for a new release once a day and offers to update and restart. See [update from the TUI](installation.md#update-from-the-tui).
+The TUI also checks for a new release each time it starts and offers to update and restart. See [update from the TUI](installation.md#update-from-the-tui).
 
 ## Logs
 
