@@ -49,32 +49,26 @@ func (m AppModel) WithUpdates(updates Updates) AppModel {
 // RestartRequested reports that an update was installed and the caller should start the new binary.
 func (m AppModel) RestartRequested() bool { return m.upgrade.restart }
 
-func upgradeCheckDue(settings auth.TUISettings, current string, now time.Time) bool {
-	if !settings.CheckForUpdates || !release.ValidVersion(current) {
-		return false
-	}
-	since := now.Sub(settings.LastUpdateCheck)
-	return since >= 24*time.Hour || since < 0
+func upgradeCheckDue(settings auth.TUISettings, current string) bool {
+	return settings.CheckForUpdates && release.ValidVersion(current)
 }
 
-// startUpgradeCheck records the attempt before the request, so an unreachable server still waits a day.
+// startUpgradeCheck looks for a new release once per launch.
 func (m *AppModel) startUpgradeCheck() tea.Cmd {
 	if m.upgrade.checked || m.updates.Check == nil {
 		return nil
 	}
 	m.upgrade.checked = true
-	now := time.Now()
-	if !upgradeCheckDue(m.tuiSettings, m.version, now) {
+	if !upgradeCheckDue(m.tuiSettings, m.version) {
 		return nil
 	}
-	m.tuiSettings.LastUpdateCheck = now
 	check, life := m.updates.Check, m.account.life
-	return tea.Batch(m.saveTUISettings(true), life.command(func() tea.Msg {
+	return life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(life.ctx, 15*time.Second)
 		defer cancel()
 		latest, err := check(ctx)
 		return upgradeChecked{latest: latest, err: err}
-	}))
+	})
 }
 
 func (m *AppModel) acceptUpgradeChecked(msg upgradeChecked) {

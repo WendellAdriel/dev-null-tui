@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -14,27 +13,23 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
-func TestUpdateCheckRunsAtMostOnceADay(t *testing.T) {
-	now := time.Date(2026, 11, 2, 12, 0, 0, 0, time.UTC)
+func TestUpdateCheckRunsWhenOnForReleaseBuilds(t *testing.T) {
 	for _, tc := range []struct {
 		name, current string
 		settings      auth.TUISettings
 		due           bool
 	}{
-		{"never checked", "v0.2.0", auth.TUISettings{CheckForUpdates: true}, true},
-		{"checked a day ago", "v0.2.0", auth.TUISettings{CheckForUpdates: true, LastUpdateCheck: now.Add(-24 * time.Hour)}, true},
-		{"checked this morning", "v0.2.0", auth.TUISettings{CheckForUpdates: true, LastUpdateCheck: now.Add(-3 * time.Hour)}, false},
-		{"clock moved back", "v0.2.0", auth.TUISettings{CheckForUpdates: true, LastUpdateCheck: now.Add(48 * time.Hour)}, true},
+		{"turned on", "v0.2.0", auth.TUISettings{CheckForUpdates: true}, true},
 		{"turned off", "v0.2.0", auth.TUISettings{}, false},
 		{"development build", "dev", auth.TUISettings{CheckForUpdates: true}, false},
 	} {
-		if got := upgradeCheckDue(tc.settings, tc.current, now); got != tc.due {
+		if got := upgradeCheckDue(tc.settings, tc.current); got != tc.due {
 			t.Errorf("%s: due=%v", tc.name, got)
 		}
 	}
 }
 
-func TestLaunchCheckRecordsTheTimeAndFailsSilently(t *testing.T) {
+func TestEveryLaunchChecksOnceAndFailsSilently(t *testing.T) {
 	store := auth.Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
 	if err := store.Prepare(); err != nil {
 		t.Fatal(err)
@@ -51,14 +46,13 @@ func TestLaunchCheckRecordsTheTimeAndFailsSilently(t *testing.T) {
 	if calls != 1 || m.upgrade.open || m.toast.visible {
 		t.Fatalf("a failed check must stay silent: calls=%d open=%v toast=%v", calls, m.upgrade.open, m.toast.visible)
 	}
-	if last := store.TUISettings().LastUpdateCheck; time.Since(last) > time.Minute {
-		t.Fatalf("check time not recorded: %v", last)
-	}
 	if m.startUpgradeCheck() != nil {
 		t.Fatal("the check must run once per launch")
 	}
-	if _, cmd := launch(); cmd != nil {
-		t.Fatal("a second launch on the same day must not check again")
+	_, cmd = launch()
+	deliver(m, runAll(cmd))
+	if calls != 2 {
+		t.Fatalf("a second launch checked %d times in all", calls)
 	}
 }
 

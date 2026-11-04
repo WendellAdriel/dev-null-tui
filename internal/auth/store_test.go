@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestStorePreservesKeyAndDisconnectDeletesIt(t *testing.T) {
@@ -152,14 +151,14 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	if err := store.Prepare(); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.TUISettings(); !got.CheckForUpdates || !got.LastUpdateCheck.IsZero() || got.SkippedVersion != "" || got.PinWarningDismissed {
+	if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "" || got.PinWarningDismissed {
 		t.Fatalf("missing file must default to checking for updates: %+v", got)
 	}
-	want := TUISettings{CheckForUpdates: false, LastUpdateCheck: time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC), SkippedVersion: "v0.3.0", PinWarningDismissed: true}
+	want := TUISettings{CheckForUpdates: false, SkippedVersion: "v0.3.0", PinWarningDismissed: true}
 	if err := store.SaveTUISettings(want); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.TUISettings(); !got.LastUpdateCheck.Equal(want.LastUpdateCheck) || got.CheckForUpdates || got.SkippedVersion != "v0.3.0" || !got.PinWarningDismissed {
+	if got := store.TUISettings(); got.CheckForUpdates || got.SkippedVersion != "v0.3.0" || !got.PinWarningDismissed {
 		t.Fatalf("got %+v, want %+v", got, want)
 	}
 	if err := store.Disconnect(); err != nil || store.TUISettings().SkippedVersion != "v0.3.0" {

@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 type Store struct{ Dir string }
@@ -173,9 +172,8 @@ const tuiSettingsFile = "tui.json"
 
 // TUISettings holds local preferences for this client. They stay on this device and survive disconnecting.
 type TUISettings struct {
-	CheckForUpdates bool      `json:"check_for_updates"`
-	LastUpdateCheck time.Time `json:"last_update_check,omitzero"`
-	SkippedVersion  string    `json:"skipped_version,omitempty"`
+	CheckForUpdates bool   `json:"check_for_updates"`
+	SkippedVersion  string `json:"skipped_version,omitempty"`
 	// VoiceVolume is the voice note volume from 0 to 1. A saved 0 means muted, so it has no omitempty.
 	VoiceVolume float64 `json:"voice_volume"`
 	// PinWarningDismissed skips the warning before pinning a message for a whole org, like the web's Don't show this again.
