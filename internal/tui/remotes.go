@@ -24,12 +24,18 @@ type remoteCalls struct {
 	leave       func(context.Context, string, string) error
 	block       func(context.Context, string) error
 	linkPreview func(context.Context, int64) (*api.LinkPreview, error)
+	push        func(context.Context, api.Target, api.NewMessage) (api.Message, error)
+	typing      func(context.Context, api.Target) error
+	ping        func(context.Context, api.Target) (api.Message, error)
+	react       func(context.Context, int64, string, bool) ([]api.Reaction, error)
+	usage       func(context.Context) ([]api.EmojiUse, error)
 }
 
 func newRemoteCalls(client *api.Client) remoteCalls {
 	return remoteCalls{
 		inbox: client.Inbox, thread: client.RemoteThread, markRead: client.MarkRead, stash: client.SetStashed,
 		mute: client.SetMute, pin: client.SetConversationPin, leave: client.LeaveOrg, linkPreview: client.MessageLinkPreview,
+		push: client.PushMessage, typing: client.SendTyping, ping: client.Ping, react: client.SetReaction, usage: client.ReactionUsage,
 		block: func(ctx context.Context, handle string) error {
 			_, err := client.SetSafety(ctx, handle, "block", true)
 			return err
@@ -38,20 +44,28 @@ func newRemoteCalls(client *api.Client) remoteCalls {
 }
 
 type remoteThreadState struct {
-	conversation api.Conversation
-	data         api.RemoteThread
-	messages     []api.Message
-	loading      bool
-	loadingMode  string
-	loaded       bool
-	status       string
-	generation   int
-	cancel       context.CancelFunc
-	viewport     viewport.Model
+	conversation   api.Conversation
+	data           api.RemoteThread
+	messages       []api.Message
+	fetchedThrough int64
+	reacting       map[int64]bool
+	loading        bool
+	loadingMode    string
+	loaded         bool
+	status         string
+	generation     int
+	cancel         context.CancelFunc
+	viewport       viewport.Model
 	// active is when the thread last changed, which keeps polling fast for a minute.
 	active    time.Time
 	media     []remoteMedia
 	refreshed map[int64]bool
+	composer  messageComposer
+	react     *reactionMenu
+	// selected is the item the message cursor is on, by itemKey, or empty while it follows the newest message.
+	selected string
+	spans    map[string][2]int
+	chips    []chipArea
 }
 
 type remotesState struct {
@@ -143,6 +157,7 @@ func (m *AppModel) closeRemoteThread() {
 	if t := m.remotes.thread; t != nil && t.cancel != nil {
 		t.cancel()
 	}
+	m.flushMessageDrafts()
 	m.remotes.thread = nil
 	m.remotes.focusThread = false
 }
@@ -319,10 +334,10 @@ func sortInbox(list []api.Conversation) { slices.SortStableFunc(list, compareCon
 
 func (m *AppModel) openRemoteThread(c api.Conversation) tea.Cmd {
 	m.closeRemoteThread()
-	t := &remoteThreadState{conversation: c, viewport: viewport.New(), active: m.now, refreshed: map[int64]bool{}}
+	t := &remoteThreadState{conversation: c, viewport: viewport.New(), active: m.now, refreshed: map[int64]bool{}, composer: m.restoreComposer(c)}
 	m.remotes.thread, m.remotes.focusThread = t, true
 	m.sizeRemotes()
-	return m.fetchRemoteThread("open")
+	return tea.Batch(m.fetchRemoteThread("open"), m.askReactionUsage())
 }
 
 func (m *AppModel) fetchRemoteThread(mode string) tea.Cmd {
@@ -333,9 +348,7 @@ func (m *AppModel) fetchRemoteThread(mode string) tea.Cmd {
 	query := api.ThreadQuery{}
 	switch mode {
 	case "poll":
-		if len(t.messages) > 0 {
-			query.After = t.messages[len(t.messages)-1].ID
-		}
+		query.After = t.fetchedThrough
 		query.ReactionsAfter = t.data.ReactionsVersion
 	case "older":
 		if t.loading || !t.data.HasOlder || len(t.messages) == 0 {
@@ -382,6 +395,14 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 	atBottom := !t.loaded || t.viewport.AtBottom()
 	previousHeight := t.viewport.TotalLineCount()
 	data := msg.thread
+	if msg.mode != "older" {
+		if msg.mode != "poll" {
+			t.fetchedThrough = 0
+		}
+		for _, message := range data.Messages {
+			t.fetchedThrough = max(t.fetchedThrough, message.ID)
+		}
+	}
 	switch msg.mode {
 	case "poll":
 		if len(data.Messages) > 0 {
@@ -410,9 +431,21 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 		t.messages = data.Messages
 		t.refreshed = map[int64]bool{}
 	}
+	for _, message := range data.Messages {
+		if message.UserID == m.account.user.ID && m.confirmPending(t.conversation.ID, message.ClientID) {
+			m.touchConversation(t.conversation, message)
+		}
+	}
+	if mc := &t.composer; mc.reply == nil && mc.replyID != 0 {
+		if i := slices.IndexFunc(t.messages, func(message api.Message) bool { return message.ID == mc.replyID }); i >= 0 {
+			reply := t.messages[i]
+			mc.reply = &reply
+		}
+	}
 	data.Messages = nil
 	t.data, t.loaded = data, true
 	m.renderRemoteThread()
+	m.resizeThread()
 	switch {
 	case msg.mode == "older":
 		t.viewport.SetYOffset(t.viewport.YOffset() + t.viewport.TotalLineCount() - previousHeight)
@@ -732,13 +765,9 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 			m.closeRemoteThread()
 		}
 	case "j", "down":
-		t.viewport.ScrollDown(1)
-		return m, m.markRemoteRead()
+		return m, m.moveMessageCursor(1)
 	case "k", "up":
-		t.viewport.ScrollUp(1)
-		if t.viewport.AtTop() {
-			return m, m.fetchRemoteThread("older")
-		}
+		return m, m.moveMessageCursor(-1)
 	case "pgdown", "ctrl+d":
 		t.viewport.PageDown()
 		return m, m.markRemoteRead()
@@ -748,6 +777,8 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.fetchRemoteThread("older")
 		}
 	case "G", "end":
+		t.selected = ""
+		m.renderRemoteThread()
 		t.viewport.GotoBottom()
 		return m, m.markRemoteRead()
 	case "home":
@@ -757,8 +788,48 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.fetchRemoteThread("older")
 	case "ctrl+r":
 		return m, m.fetchRemoteThread("refresh")
+	case "w", "enter":
+		return m, m.focusMessageComposer()
+	case "p":
+		return m, m.sendPing()
+	case "r", "d", "e", "1", "2", "3":
+		return m, m.messageAction(pressed)
 	}
 	return m, nil
+}
+
+// messageAction runs a message key on the item under the cursor, or the newest one: reply, react, or retry and
+// discard for a rejected push.
+func (m *AppModel) messageAction(pressed string) tea.Cmd {
+	t := m.remotes.thread
+	item, ok := m.selectedItem()
+	if !ok {
+		return nil
+	}
+	if item.pending != nil {
+		switch pressed {
+		case "r":
+			return m.retryMessage(item.pending.clientID)
+		case "d":
+			m.discardMessage(item.pending.clientID)
+		}
+		return nil
+	}
+	message := item.message
+	if _, ok := t.reactable(message.ID); !ok {
+		return nil
+	}
+	switch pressed {
+	case "r":
+		reply := *message
+		t.composer.reply, t.composer.replyID = &reply, reply.ID
+		return tea.Batch(m.focusMessageComposer(), m.scheduleDraftSave())
+	case "e":
+		return m.openReactions(message.ID, false)
+	case "1", "2", "3":
+		return m.toggleReaction(message.ID, quickReactions(m.messaging.usage)[pressed[0]-'1'])
+	}
+	return nil
 }
 
 func (m AppModel) remotesStatus() string {
@@ -772,7 +843,10 @@ func (m AppModel) remotesStatus() string {
 		case t.loading && t.loadingMode == "older":
 			return "Loading older messages..."
 		}
-		return fmt.Sprintf("%d messages  ·  . actions  ·  esc back", len(t.messages))
+		if t.composer.focused {
+			return "Write to " + m.conversationTitle(t.conversation) + "  ·  enter push  ·  esc messages"
+		}
+		return fmt.Sprintf("%d messages  ·  j/k select  ·  w write  ·  . actions  ·  esc back", len(t.messages))
 	}
 	switch {
 	case r.status != "":

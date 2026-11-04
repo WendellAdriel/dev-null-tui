@@ -109,6 +109,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.connected && m.remotes.dialog != "" && m.remotesOnTop() {
 		return m.remotesDialogMouse(msg.X, msg.Y)
 	}
+	if menu := m.activeReactions(); menu != nil && menu.picking {
+		return m.reactionModalMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.deleting.id != "" {
 		_, _, areas := m.deleteModal(colors(m.account.dark))
 		for _, area := range areas {

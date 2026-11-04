@@ -99,6 +99,9 @@ func (m *AppModel) acceptTUISettingsSaved(msg tuiSettingsSaved) tea.Cmd {
 // upgradeVisible keeps the modal behind What's new and away from open text inputs, so a late check result never
 // takes keys meant for a draft.
 func (m AppModel) upgradeVisible() bool {
+	if t := m.remotes.thread; t != nil && (t.composer.focused || t.react != nil) {
+		return false
+	}
 	return m.upgrade.open && !m.whatsNew.open && m.connected && !m.accountOpen && !m.composer.open && m.settings.dialog == "" && !m.vote.confirm
 }
 
@@ -167,8 +170,7 @@ func (m *AppModel) acceptUpgradeInstalled(msg upgradeInstalled) tea.Cmd {
 	u.latest = msg.version
 	if m.updates.Restart {
 		u.restart = true
-		m.account.life.cancel()
-		return tea.Quit
+		return m.quit()
 	}
 	u.installed = true
 	return nil

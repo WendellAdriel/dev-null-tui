@@ -114,8 +114,7 @@ func (m *AppModel) requestDraftAction(action string) tea.Cmd {
 	if !c.hasDraft() && !c.sending {
 		m.clearComposer()
 		if action == "exit" {
-			m.account.life.cancel()
-			return tea.Quit
+			return m.quit()
 		}
 		return nil
 	}
@@ -302,8 +301,7 @@ func (m *AppModel) confirmDraftAction() tea.Cmd {
 	}
 	m.clearComposer()
 	if action == "exit" {
-		m.account.life.cancel()
-		return tea.Quit
+		return m.quit()
 	}
 	return nil
 }
@@ -507,6 +505,7 @@ func (m *AppModel) reconnectComposer(err error) bool {
 		return false
 	}
 	m.leaveApplication()
+	_ = m.account.store.DeleteMessageDrafts()
 	m.account.state, m.account.status = "failed", "Device approval is invalid. Reconnect to recover your in-memory draft."
 	m.account.approvalRequired = true
 	return true

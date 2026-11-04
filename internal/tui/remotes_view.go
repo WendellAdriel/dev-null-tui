@@ -44,8 +44,9 @@ func (m *AppModel) sizeRemotes() {
 	}
 	atBottom := t.viewport.AtBottom()
 	t.viewport.SetWidth(m.threadPaneWidth())
-	t.viewport.SetHeight(max(1, m.mainHeight()-remotesHeaderHeight-3))
+	t.composer.input.SetWidth(max(1, m.threadPaneWidth()-2))
 	m.renderRemoteThread()
+	m.resizeThread()
 	if atBottom {
 		t.viewport.GotoBottom()
 	}
@@ -354,7 +355,14 @@ func (m AppModel) remoteThreadPane(width, height int, p palette) string {
 		typing = []string{c.Partner.Handle}
 	}
 	footer := " " + text(p.muted).Italic(true).Render(fit(typingText(typing), width-2))
-	content := header + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + t.viewport.View() + "\n" + footer
+	messages := t.viewport.View()
+	if t.composer.browser != nil {
+		messages = indent(m.browserView(max(1, width-2), t.viewport.Height(), p))
+	}
+	content := header + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + messages + "\n" + footer
+	if composer, _ := m.messageComposerView(width, p); composer != "" {
+		content += "\n" + composer
+	}
 	return box.Render(content)
 }
 
@@ -392,7 +400,7 @@ func (m *AppModel) renderRemoteThread() {
 	style := statsStyle{icons: m.images, glyphs: m.icons, origin: m.account.origin}
 	center := func(value string) string { return lipgloss.PlaceHorizontal(width, lipgloss.Center, value) }
 	var lines []string
-	t.media = nil
+	t.media, t.chips, t.spans = nil, nil, map[string][2]int{}
 	if t.data.HasOlder {
 		lines = append(lines, center(text(p.muted).Render("Older messages ")+keyChip("n", p)))
 	}
@@ -447,6 +455,7 @@ func (m *AppModel) renderRemoteThread() {
 		default:
 			lines = append(lines, "")
 		}
+		spanStart := len(lines)
 		if reply := message.ReplyTo; reply != nil {
 			excerpt := strings.Join(strings.Fields(safeText(reply.Body)), " ")
 			if excerpt == "" && reply.HasVoice {
@@ -498,16 +507,24 @@ func (m *AppModel) renderRemoteThread() {
 			seconds := (voice.DurationMS + 500) / 1000
 			lines = append(lines, align(paintLine(fmt.Sprintf(" ▶ Voice note · %d:%02d ", seconds/60, seconds%60), foreground, background)))
 		}
-		if chips := reactionChips(message.Reactions, p); chips != nil {
+		if chips, spans := reactionChips(message.Reactions, m.account.user.ID, p); chips != nil {
+			left := 1
+			if mine {
+				left = width - 1 - lipgloss.Width(chips[0])
+			}
+			for _, span := range spans {
+				t.chips = append(t.chips, chipArea{len(lines), left + span.x, span.w, message.ID, span.emoji})
+			}
 			for _, line := range chips {
 				lines = append(lines, align(line))
 			}
 		}
+		t.spans[fmt.Sprint("m:", message.ID)] = [2]int{spanStart, len(lines)}
 		if !endsRun {
 			continue
 		}
 		footer := text(p.muted).Render(message.CreatedAt.In(time.Local).Format("3:04 PM"))
-		if mine && i == len(t.messages)-1 && t.conversation.Kind != "org" {
+		if mine && i == len(t.messages)-1 && t.conversation.Kind != "org" && len(m.messaging.pending[t.conversation.ID]) == 0 {
 			state := "✓ pushed"
 			if t.data.PartnerReadThroughID >= message.ID {
 				state = "✓✓ pulled"
@@ -516,12 +533,21 @@ func (m *AppModel) renderRemoteThread() {
 		}
 		lines = append(lines, align(footer))
 	}
+	for _, pending := range m.messaging.pending[t.conversation.ID] {
+		lines = append(lines, "")
+		start := len(lines)
+		lines = append(lines, m.pendingLines(pending, width, bubble, p)...)
+		t.spans["p:"+pending.clientID] = [2]int{start, len(lines)}
+	}
+	if span, ok := t.spans[t.selected]; ok {
+		markSelected(lines, span, width, p)
+	}
 	switch {
 	case t.status != "":
 		lines = append(lines, "", "  "+text(p.muted).Render(fit(t.status, width-4)))
 	case !t.loaded:
 		lines = append(lines, "", "  "+text(p.muted).Render("Reading the conversation from /dev/null..."))
-	case len(t.messages) == 0:
+	case len(t.messages) == 0 && len(m.messaging.pending[t.conversation.ID]) == 0:
 		lines = append(lines, "", center(text(p.muted).Render("nothing pushed yet")))
 	}
 	t.viewport.SetContent(strings.Join(lines, "\n"))
@@ -556,22 +582,56 @@ func paintLine(line, foreground, background string) string {
 	}) + ansi.ResetStyle
 }
 
-// reactionChips is the web's row of reaction pills: each emoji with its count.
-// reactionChips are the web's outlined reaction pills: one rounded box per emoji, a cell apart.
-func reactionChips(reactions []api.Reaction, p palette) []string {
-	summary := reactionSummary(reactions)
-	if summary == "" {
-		return nil
+// chipSpan is where one reaction chip sits on its row.
+type chipSpan struct {
+	x, w  int
+	emoji string
+}
+
+// reactionChips are the web's outlined reaction pills: one rounded box per emoji with its count, a cell apart, in
+// the order each was first left. The user's own reactions get a blue outline.
+func reactionChips(reactions []api.Reaction, user string, p palette) ([]string, []chipSpan) {
+	var order []string
+	counts, mine := map[string]int{}, map[string]bool{}
+	for _, reaction := range reactions {
+		emoji := safeText(reaction.Emoji)
+		if counts[emoji] == 0 {
+			order = append(order, emoji)
+		}
+		counts[emoji]++
+		mine[emoji] = mine[emoji] || reaction.UserID == user
 	}
-	chip := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(p.hairline)).Foreground(lipgloss.Color(p.ink)).Padding(0, 1)
+	if len(order) == 0 {
+		return nil, nil
+	}
 	var parts []string
-	for i, part := range strings.Split(summary, "  ") {
+	var spans []chipSpan
+	x := 0
+	for i, emoji := range order {
 		if i > 0 {
 			parts = append(parts, " ")
+			x++
 		}
-		parts = append(parts, chip.Render(part))
+		border := p.hairline
+		if mine[emoji] {
+			border = p.blue
+		}
+		chip := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(border)).Foreground(lipgloss.Color(p.ink)).Padding(0, 1).Render(fmt.Sprintf("%s %d", emoji, counts[emoji]))
+		parts = append(parts, chip)
+		spans = append(spans, chipSpan{x, lipgloss.Width(chip), reactionOriginal(reactions, emoji)})
+		x += lipgloss.Width(chip)
 	}
-	return strings.Split(lipgloss.JoinHorizontal(lipgloss.Top, parts...), "\n")
+	return strings.Split(lipgloss.JoinHorizontal(lipgloss.Top, parts...), "\n"), spans
+}
+
+// reactionOriginal is the emoji as the server sent it, for toggling a chip whose label was made safe to draw.
+func reactionOriginal(reactions []api.Reaction, shown string) string {
+	for _, reaction := range reactions {
+		if safeText(reaction.Emoji) == shown {
+			return reaction.Emoji
+		}
+	}
+	return shown
 }
 
 // userAvatar is a Remotes user's picture, or their lane dot until it is ready.
@@ -599,23 +659,6 @@ func (m AppModel) userAvatar(u *api.User, cols, rows int, p palette) (graphics.R
 		lines[0] = text(lane).Render("●") + strings.Repeat(" ", cols-1)
 	}
 	return req, lines
-}
-
-func reactionSummary(reactions []api.Reaction) string {
-	var order []string
-	counts := map[string]int{}
-	for _, reaction := range reactions {
-		emoji := safeText(reaction.Emoji)
-		if counts[emoji] == 0 {
-			order = append(order, emoji)
-		}
-		counts[emoji]++
-	}
-	parts := make([]string, len(order))
-	for i, emoji := range order {
-		parts[i] = fmt.Sprintf("%s %d", emoji, counts[emoji])
-	}
-	return strings.Join(parts, "  ")
 }
 
 func (m AppModel) remotesMedia() []graphics.Request {
@@ -782,14 +825,67 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		cmd, _ := m.conversationActionKey(".")
 		return m, cmd
 	}
+	t := m.remotes.thread
+	if t == nil || t.composer.browser != nil {
+		return m, nil
+	}
+	x -= left
+	if line := t.viewport.YOffset() + row - 2; row >= 2 && row < 2+t.viewport.Height() {
+		return m, m.threadClick(line, x)
+	}
+	_, areas := m.messageComposerView(m.threadPaneWidth(), p)
+	for _, area := range areas {
+		if !area.contains(x, row-3-t.viewport.Height()) {
+			continue
+		}
+		switch area.action {
+		case "write":
+			return m, m.focusMessageComposer()
+		case "ping":
+			return m, m.sendPing()
+		case "react":
+			quick := quickReactions(m.messaging.usage)
+			if area.index == len(quick) {
+				t.react.picking = true
+				return m, nil
+			}
+			return m, m.chooseReaction(quick[area.index])
+		}
+	}
 	return m, nil
+}
+
+// threadClick toggles the reaction chip under the pointer, or puts the cursor on the message there.
+func (m *AppModel) threadClick(line, x int) tea.Cmd {
+	t := m.remotes.thread
+	for _, chip := range t.chips {
+		if chip.line <= line && line < chip.line+3 && chip.x <= x && x < chip.x+chip.w {
+			return m.toggleReaction(chip.id, chip.emoji)
+		}
+	}
+	for key, span := range t.spans {
+		if span[0] <= line && line < span[1] {
+			if t.composer.focused {
+				m.blurMessageComposer()
+			}
+			t.selected = key
+			m.renderRemoteThread()
+			return nil
+		}
+	}
+	return nil
 }
 
 func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys {
 	short := []key.Binding{bind("j/k", "move"), bind("enter", "open"), bind("tab", "inbox tab"), bind("/", "search"), bind(".", "actions"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	if m.remotes.thread != nil && m.remotes.focusThread {
-		short = []key.Binding{bind("j/k", "scroll"), bind("n", "older messages"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
+	thread := m.remotes.thread != nil && m.remotes.focusThread
+	if thread {
+		short = []key.Binding{bind("j/k", "select"), bind("w", "write"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
 	}
-	all := append(append([]key.Binding(nil), short...), bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
+	all := append([]key.Binding(nil), short...)
+	if thread {
+		all = append(all, bind("enter", "push"), bind("shift+enter / ctrl+j", "new line"), bind("esc", "cancel the reply, then back to the messages"), bind("ctrl+o", "add an image"), bind("tab", "edit images / write"), bind("1 / 2 / 3", "quick reaction"), bind("p", "ping"), bind("r / d", "retry / discard a rejected push"), bind("G", "newest message"), bind("n", "older messages"))
+	}
+	all = append(all, bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
 	return appKeys{short, all}
 }

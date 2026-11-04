@@ -136,6 +136,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.remotesModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if menu := m.activeReactions(); menu != nil && menu.picking {
+		content, r, _ := m.reactionModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.vote.confirm && m.connected && !m.accountOpen {
 		content, r, _ := m.voteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)

@@ -102,11 +102,7 @@ func (m *AppModel) openBrowser() tea.Cmd {
 		return nil
 	}
 	b := &fileBrowser{}
-	dir := m.imageDir
-	if dir == "" {
-		dir, _ = os.UserHomeDir()
-	}
-	if err := b.load(dir); err != nil {
+	if err := b.load(m.browserStart()); err != nil {
 		c.status = "That folder cannot be read."
 		return nil
 	}
@@ -115,14 +111,50 @@ func (m *AppModel) openBrowser() tea.Cmd {
 	return nil
 }
 
+// browserStart is the folder the picker opens in: the last one an image came from, else home.
+func (m AppModel) browserStart() string {
+	if m.imageDir != "" {
+		return m.imageDir
+	}
+	dir, _ := os.UserHomeDir()
+	return dir
+}
+
+// messageBrowser is the open thread's message composer while its picker is open, which takes the place of the commit
+// composer's.
+func (m AppModel) messageBrowser() *messageComposer {
+	if t := m.remotes.thread; t != nil && t.composer.browser != nil && !m.composer.open {
+		return &t.composer
+	}
+	return nil
+}
+
+func (m AppModel) activeBrowser() *fileBrowser {
+	if mc := m.messageBrowser(); mc != nil {
+		return mc.browser
+	}
+	return m.composer.browser
+}
+
 func (m *AppModel) closeBrowser() tea.Cmd {
+	if mc := m.messageBrowser(); mc != nil {
+		m.imageDir, mc.browser = mc.browser.dir, nil
+		return mc.input.Focus()
+	}
 	m.imageDir = m.composer.browser.dir
 	m.composer.browser = nil
 	return m.focusComposer()
 }
 
+func (m *AppModel) attachPicked(path string) string {
+	if m.messageBrowser() != nil {
+		return m.attachMessageImages([]string{path})
+	}
+	return m.attachImages([]string{path})
+}
+
 func (m *AppModel) browserKey(msg tea.KeyPressMsg) tea.Cmd {
-	b := m.composer.browser
+	b := m.activeBrowser()
 	switch msg.String() {
 	case "esc":
 		return m.closeBrowser()
@@ -150,11 +182,15 @@ func (m *AppModel) browserKey(msg tea.KeyPressMsg) tea.Cmd {
 			m.enterFolder(path)
 			return nil
 		}
-		if reason := m.attachImages([]string{path}); reason != "" {
+		if reason := m.attachPicked(path); reason != "" {
 			b.reason = reason
 			return nil
 		}
-		return m.closeBrowser()
+		cmd := m.closeBrowser()
+		if m.remotes.thread != nil {
+			return tea.Batch(cmd, m.scheduleDraftSave())
+		}
+		return cmd
 	default:
 		m.filterBrowser(msg.Text)
 	}
@@ -162,7 +198,7 @@ func (m *AppModel) browserKey(msg tea.KeyPressMsg) tea.Cmd {
 }
 
 func (m *AppModel) enterFolder(dir string) {
-	b := m.composer.browser
+	b := m.activeBrowser()
 	if err := b.load(dir); err != nil {
 		b.reason = filepath.Base(dir) + " cannot be read."
 	}
@@ -173,23 +209,30 @@ func (m *AppModel) filterBrowser(typed string) {
 	if typed == "" {
 		return
 	}
-	b := m.composer.browser
+	b := m.activeBrowser()
 	b.filter += typed
 	b.applyFilter()
 }
 
 // browserPane sizes the preview beside the list. It needs terminal graphics and room for both.
 func (m AppModel) browserPane() (cols, rows int) {
-	width := max(1, m.composerBounds().w-4)
-	height := m.composer.input.Height() + m.composerStatusRows()
-	if m.composer.browser == nil || m.images == nil || !m.images.Enabled || width < 56 || height < 8 {
+	width, height := m.browserBox()
+	if m.activeBrowser() == nil || m.images == nil || !m.images.Enabled || width < 56 || height < 8 {
 		return 0, 0
 	}
 	return 24, min(12, height-3)
 }
 
+// browserBox is the room the picker has: the thread's message area, or the commit composer's editor and status rows.
+func (m AppModel) browserBox() (width, height int) {
+	if m.messageBrowser() != nil {
+		return max(1, m.threadPaneWidth()-2), m.remotes.thread.viewport.Height()
+	}
+	return max(1, m.composerBounds().w-4), m.composer.input.Height() + m.composerStatusRows()
+}
+
 func (m AppModel) browserThumbnail() (graphics.Request, bool) {
-	b := m.composer.browser
+	b := m.activeBrowser()
 	cols, rows := m.browserPane()
 	if cols == 0 || b.picture.width <= 0 || b.picture.height <= 0 {
 		return graphics.Request{}, false
@@ -210,12 +253,12 @@ func (m AppModel) browserPreview(p palette) []string {
 			lines[row] = withBackground(strings.Repeat(" ", req.Cols), p.soft)
 		}
 	}
-	b := m.composer.browser
+	b := m.activeBrowser()
 	return append(lines, text(p.muted).Render(fmt.Sprintf("%d×%d", b.picture.width, b.picture.height)))
 }
 
 func (m AppModel) browserView(width, height int, p palette) string {
-	b := m.composer.browser
+	b := m.activeBrowser()
 	rows := []string{
 		text(p.ink).Bold(true).Render(fit("Add an image · "+safeText(b.dir), width)),
 		text(p.muted).Render(fit("Filter: "+safeText(b.filter)+"▏  ↑/↓ move · Enter open · Backspace up · Esc close", width)),

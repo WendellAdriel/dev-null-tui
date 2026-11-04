@@ -196,6 +196,8 @@ func (m *AppModel) revoked(err error) bool {
 		return true
 	}
 	m.leaveApplication()
+	// A revoked device may not be the user's any more, so its drafts go too.
+	_ = m.account.store.DeleteMessageDrafts()
 	m.account.state, m.account.status = "failed", "Device approval is no longer valid. Connect again."
 	m.account.approvalRequired = true
 	return true

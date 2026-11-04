@@ -214,5 +214,8 @@ func (m AppModel) composerThumbnails() []graphics.Request {
 	if req, ok := m.browserThumbnail(); ok {
 		return []graphics.Request{req}
 	}
+	if m.remotesOnTop() && !m.composer.open {
+		return m.messageThumbnailRequests()
+	}
 	return m.stripThumbnailRequests()
 }

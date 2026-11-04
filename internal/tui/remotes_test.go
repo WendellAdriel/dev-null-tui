@@ -713,7 +713,7 @@ func TestRemotesInboxStatusShowsItsShortcuts(t *testing.T) {
 }
 
 func TestRemotesReactionsSitInBorderedChipsBelowTheBubble(t *testing.T) {
-	chips := reactionChips([]api.Reaction{{UserID: "a", Emoji: "🚀"}, {UserID: "b", Emoji: "🚀"}, {UserID: "a", Emoji: "👍"}}, colors(true))
+	chips, _ := reactionChips([]api.Reaction{{UserID: "a", Emoji: "🚀"}, {UserID: "b", Emoji: "🚀"}, {UserID: "a", Emoji: "👍"}}, "c", colors(true))
 	if len(chips) != 3 {
 		t.Fatalf("chips are %d rows, want a bordered row of 3", len(chips))
 	}

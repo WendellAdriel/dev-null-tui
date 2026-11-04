@@ -56,6 +56,7 @@ type clipboardResult struct {
 
 type AppModel struct {
 	account                                AccountModel
+	messaging                              messagingState
 	connected, accountOpen, help, pendingG bool
 	active, generation, session, lastLog   int
 	feeds                                  [3]feed
@@ -202,6 +203,20 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptRemoteAction(msg)
 	case remoteLinkPreviewResult:
 		return m, m.acceptLinkPreview(msg)
+	case remoteSendResult:
+		return m, m.acceptRemoteSend(msg)
+	case remotePingResult:
+		return m, m.acceptRemotePing(msg)
+	case remoteReactionResult:
+		return m, m.acceptReaction(msg)
+	case reactionUsageResult:
+		if msg.session == m.session {
+			m.messaging.usage = msg.usage
+		}
+		return m, nil
+	case draftSaveTick:
+		m.acceptDraftSave(msg)
+		return m, nil
 	case remotesCountResult:
 		if msg.session == m.session && !m.remotes.open {
 			m.remotes.unread = max(0, msg.unread)
@@ -511,6 +526,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.deleteKey(msg.String())
 			return m, cmd
 		}
+		if menu := m.activeReactions(); menu != nil && msg.String() != "ctrl+c" {
+			cmd := m.reactionKey(msg)
+			return m, cmd
+		}
+		if m.activeMessageComposer() != nil && msg.String() != "ctrl+c" {
+			cmd := m.messageComposerKey(msg)
+			return m, cmd
+		}
 		if m.connected && !m.accountOpen && m.settings.dialog != "" && msg.String() != "ctrl+c" {
 			cmd := m.settingsDialogKey(msg)
 			return m, cmd
@@ -526,8 +549,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				cmd := m.requestDraftAction("exit")
 				return m, cmd
 			}
-			m.account.life.cancel()
-			return m, tea.Quit
+			return m, m.quit()
 		}
 		if m.connected && !m.accountOpen {
 			next, cmd := m.handleKey(msg.String())
@@ -546,6 +568,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m, nil
+	}
+	if mc := m.activeMessageComposer(); mc != nil {
+		if paste, ok := msg.(tea.PasteMsg); ok {
+			return m, m.messagePaste(paste)
+		}
+		if mc.browser == nil && !mc.editing && !mc.stripFocus {
+			return m, m.updateMessageInput(msg)
+		}
 	}
 	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.confirm == "" {
 		if paste, ok := msg.(tea.PasteMsg); ok {
@@ -582,6 +612,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.remoteCalls.inbox == nil {
 			m.remoteCalls = newRemoteCalls(client)
 		}
+		m.startMessaging()
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
@@ -607,6 +638,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *AppModel) leaveApplication() {
+	// Cleared first, so closing the thread below can't write the drafts back.
+	m.messaging = messagingState{}
 	m.settings.generation++
 	m.settings = settingsState{generation: m.settings.generation}
 	m.settingsAPI = nil
@@ -716,8 +749,7 @@ func (m *AppModel) load(mode string) tea.Cmd {
 
 func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if pressed == "ctrl+c" {
-		m.account.life.cancel()
-		return m, tea.Quit
+		return m, m.quit()
 	}
 	if m.manualLink != "" {
 		if pressed == "esc" {
