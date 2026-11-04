@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -175,11 +176,13 @@ type TUISettings struct {
 	CheckForUpdates bool      `json:"check_for_updates"`
 	LastUpdateCheck time.Time `json:"last_update_check,omitzero"`
 	SkippedVersion  string    `json:"skipped_version,omitempty"`
+	// VoiceVolume is the voice note volume from 0 to 1. A saved 0 means muted, so it has no omitempty.
+	VoiceVolume float64 `json:"voice_volume"`
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.
 func (s Store) TUISettings() TUISettings {
-	defaults := TUISettings{CheckForUpdates: true}
+	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1}
 	data, ok := s.readState(tuiSettingsFile, 4096)
 	if !ok {
 		return defaults
@@ -188,6 +191,8 @@ func (s Store) TUISettings() TUISettings {
 	if json.Unmarshal(data, &settings) != nil {
 		return defaults
 	}
+	// Like the web's voiceVolumeOf: anything outside 0 to 1 is clamped, to whole percents.
+	settings.VoiceVolume = math.Round(min(1, max(0, settings.VoiceVolume))*100) / 100
 	return settings
 }
 

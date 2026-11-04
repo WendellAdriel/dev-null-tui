@@ -18,6 +18,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/audio"
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
@@ -49,6 +50,8 @@ type messageComposer struct {
 	emojiQuery, emojiPrefix, emojiDismissed string
 	status                                  string
 	typedAt                                 time.Time
+	recording                               *voiceRecording
+	voiceConfirm                            bool
 }
 
 // messagingState outlives the Remotes screen, so a push still in flight or a draft survives closing it.
@@ -208,6 +211,10 @@ func (m *AppModel) flushMessageDrafts() {
 
 func (m *AppModel) quit() tea.Cmd {
 	m.flushMessageDrafts()
+	m.cancelRecording()
+	if m.voice.volumePending {
+		_ = m.account.store.SaveTUISettings(m.tuiSettings)
+	}
 	m.account.life.cancel()
 	return tea.Quit
 }
@@ -267,6 +274,9 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if mc.editing {
 		return m.messageDescriptionKey(msg)
+	}
+	if cmd, ok := m.recordingKey(pressed); ok {
+		return cmd
 	}
 	switch pressed {
 	case "esc":
@@ -499,6 +509,13 @@ func (m *AppModel) pushMessage() tea.Cmd {
 	if !t.canPush() || m.remoteCalls.push == nil {
 		return nil
 	}
+	if rec := mc.recording; rec != nil {
+		if rec.samples == nil {
+			return nil
+		}
+		m.cancelRecording()
+		return m.stagePush(api.NewMessage{ClientID: newClientID(), ReplyToID: mc.replyTarget(), Voice: &api.VoiceNote{WAV: audio.EncodeWAV(rec.samples), Waveform: rec.waveform}})
+	}
 	var images []api.ImageFile
 	for _, image := range mc.images {
 		fresh, err := api.ReadImage(image.Path)
@@ -523,6 +540,13 @@ func (m *AppModel) pushMessage() tea.Cmd {
 		}
 		return nil
 	}
+	return m.stagePush(draft)
+}
+
+// stagePush draws the message as staged at once, clears the composer and its draft, and sends it.
+func (m *AppModel) stagePush(draft api.NewMessage) tea.Cmd {
+	t := m.remotes.thread
+	mc := &t.composer
 	pending := pendingMessage{clientID: draft.ClientID, draft: draft, reply: mc.reply, status: "staged", at: time.Now()}
 	id := t.conversation.ID
 	m.messaging.pending[id] = append(m.messaging.pending[id], pending)
@@ -540,7 +564,7 @@ func (m *AppModel) pushMessage() tea.Cmd {
 func (m *AppModel) deliver(c api.Conversation, pending pendingMessage) tea.Cmd {
 	session, push, life := m.session, m.remoteCalls.push, m.account.life
 	timeout := 30 * time.Second
-	if len(pending.draft.Images) > 0 {
+	if len(pending.draft.Images) > 0 || pending.draft.Voice != nil {
 		timeout = auth.UploadTimeout
 	}
 	return life.command(func() tea.Msg {

@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/audio"
 	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
@@ -243,8 +244,12 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		lines = append(lines, " "+fit(strings.Join(choices, "  "), inner))
 	}
 	editorTop := len(lines)
-	for _, line := range strings.Split(mc.input.View(), "\n") {
-		lines = append(lines, " "+fit(line, inner))
+	if mc.recording != nil {
+		lines = append(lines, m.recordingLines(mc.recording, inner, p)...)
+	} else {
+		for _, line := range strings.Split(mc.input.View(), "\n") {
+			lines = append(lines, " "+fit(line, inner))
+		}
 	}
 	areas = append(areas, hitArea{uiRect{0, editorTop, width, len(lines) - editorTop}, "write", 0})
 	right := ""
@@ -265,16 +270,29 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		right += "  " + style.Render(groupDigits(length)+"/"+groupDigits(api.MaxMessageLength))
 	}
-	hint := text(p.muted).Render("w write · r reply · e react · j/k move")
+	hint := text(p.muted).Render("w write · ctrl+t voice · r reply · e react · j/k move")
+	if voice := m.voiceKeysHint(); voice != "" {
+		hint = text(p.muted).Render(voice)
+	}
 	switch {
+	case mc.voiceConfirm:
+		hint = text(p.warning).Render("Recording replaces the draft · enter record · esc keep writing")
+	case mc.recording != nil && mc.recording.recorder != nil:
+		hint = text(p.muted).Render("recording · enter stop · esc discard")
 	case mc.status != "":
 		hint = text(p.danger).Render(safeText(mc.status))
+	case mc.recording != nil:
+		hint = text(p.muted).Render("space listen · enter push · d discard · esc messages")
 	case mc.editing:
 		hint = text(p.muted).Render("enter save · esc cancel")
 	case mc.stripFocus:
 		hint = text(p.muted).Render("←/→ choose image · tab write")
 	case mc.focused:
-		hint = text(p.muted).Render("enter push · shift+enter new line · ctrl+o image · esc messages")
+		hint = text(p.muted).Render(fitting(inner-lipgloss.Width(right)-1,
+			"enter push · ctrl+t voice (max. 1 min) · shift+enter new line · ctrl+o image · esc messages",
+			"enter push · ctrl+t voice · ctrl+o image · esc messages",
+			"enter push · ctrl+t voice",
+			"enter push, ctrl+t voice"))
 	}
 	if right != "" {
 		pingWidth := lipgloss.Width(right)
@@ -321,6 +339,16 @@ func indent(block string) string {
 
 // pendingLines draws a push the server hasn't stored: a soft bubble on the right with its state, and how to retry or
 // discard it once it was rejected.
+// fitting is the first hint that fits the width, so the keys users can't guess stay visible on narrow panes.
+func fitting(width int, hints ...string) string {
+	for _, hint := range hints {
+		if lipgloss.Width(hint) <= width {
+			return hint
+		}
+	}
+	return hints[len(hints)-1]
+}
+
 func (m AppModel) pendingLines(pending pendingMessage, width, bubble int, p palette) []string {
 	align := func(line string) string { return lipgloss.PlaceHorizontal(width-1, lipgloss.Right, line) }
 	var lines []string
@@ -332,6 +360,10 @@ func (m AppModel) pendingLines(pending pendingMessage, width, bubble int, p pale
 		for _, line := range bubbleLines(bodyLines(api.Commit{ID: "pending-" + pending.clientID, Body: body}, bubble-2, p, style), p.ink, p.wash) {
 			lines = append(lines, align(line))
 		}
+	}
+	if voice := pending.draft.Voice; voice != nil {
+		seconds := (len(voice.WAV) - 44) / (2 * audio.RecordRate)
+		lines = append(lines, align(text(p.muted).Render(fmt.Sprintf("♪ voice note · %d:%02d", seconds/60, seconds%60))))
 	}
 	if count := len(pending.draft.Images); count > 0 {
 		lines = append(lines, align(text(p.muted).Render(fmt.Sprintf("▧ %d image%s", count, map[bool]string{true: "", false: "s"}[count == 1]))))

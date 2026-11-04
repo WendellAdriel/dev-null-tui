@@ -14,6 +14,7 @@ import (
 	uv "github.com/charmbracelet/ultraviolet"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/audio"
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
@@ -57,6 +58,7 @@ type clipboardResult struct {
 type AppModel struct {
 	account                                AccountModel
 	messaging                              messagingState
+	voice                                  voiceState
 	connected, accountOpen, help, pendingG bool
 	active, generation, session, lastLog   int
 	feeds                                  [3]feed
@@ -126,6 +128,11 @@ func NewApp(theme string, store auth.Store, origin string, ctx context.Context) 
 	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
 	m.tuiSettings = store.TUISettings()
 	m.images = graphics.New(origin)
+	images := m.images
+	m.voice.openSound, m.voice.record = audio.OpenDevice, audio.StartRecording
+	m.voice.download = func(ctx context.Context, url string) ([]byte, error) {
+		return images.Download(ctx, url, audio.MaxUploadBytes)
+	}
 	m.images.Tmux = os.Getenv("TMUX") != ""
 	for i := range m.feeds {
 		m.feeds[i].viewport = viewport.New()
@@ -144,6 +151,10 @@ func (m AppModel) WithVersion(version string) AppModel {
 
 func (m AppModel) GraphicsCleanup() string { return m.images.Clear() }
 func (m AppModel) Close() error {
+	m.cancelRecording()
+	if m.voice.device != nil {
+		m.voice.device.Close()
+	}
 	if m.engagement.cancel != nil {
 		m.engagement.cancel()
 	}
@@ -214,6 +225,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.messaging.usage = msg.usage
 		}
 		return m, nil
+	case voiceLoaded:
+		return m, m.acceptVoiceLoaded(msg)
+	case voiceTick:
+		return m, m.acceptVoiceTick(msg)
+	case recordingTick:
+		return m, m.acceptRecordingTick(msg)
+	case volumeSaveTick:
+		return m, m.acceptVolumeSave(msg)
 	case draftSaveTick:
 		m.acceptDraftSave(msg)
 		return m, nil
@@ -640,6 +659,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *AppModel) leaveApplication() {
 	// Cleared first, so closing the thread below can't write the drafts back.
 	m.messaging = messagingState{}
+	m.closeVoice()
 	m.settings.generation++
 	m.settings = settingsState{generation: m.settings.generation}
 	m.settingsAPI = nil

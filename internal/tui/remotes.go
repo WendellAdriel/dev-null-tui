@@ -66,6 +66,7 @@ type remoteThreadState struct {
 	selected string
 	spans    map[string][2]int
 	chips    []chipArea
+	voices   []voiceArea
 }
 
 type remotesState struct {
@@ -158,6 +159,8 @@ func (m *AppModel) closeRemoteThread() {
 		t.cancel()
 	}
 	m.flushMessageDrafts()
+	m.cancelRecording()
+	m.stopVoice()
 	m.remotes.thread = nil
 	m.remotes.focusThread = false
 }
@@ -756,6 +759,9 @@ func (m AppModel) remotesSearchKey(pressed string) (AppModel, tea.Cmd) {
 
 func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 	t := m.remotes.thread
+	if cmd, ok := m.voiceKey(pressed); ok {
+		return m, cmd
+	}
 	switch pressed {
 	case "esc", "h", "left":
 		m.closeRemoteThread()
@@ -790,6 +796,13 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.fetchRemoteThread("refresh")
 	case "w", "enter":
 		return m, m.focusMessageComposer()
+	case "ctrl+t":
+		focus := m.focusMessageComposer()
+		if focus == nil {
+			return m, nil
+		}
+		record, _ := m.recordingKey(pressed)
+		return m, tea.Batch(focus, record)
 	case "p":
 		return m, m.sendPing()
 	case "r", "d", "e", "1", "2", "3":
@@ -845,6 +858,9 @@ func (m AppModel) remotesStatus() string {
 		}
 		if t.composer.focused {
 			return "Write to " + m.conversationTitle(t.conversation) + "  ·  enter push  ·  esc messages"
+		}
+		if hint := m.voiceKeysHint(); hint != "" {
+			return "Voice note  ·  " + strings.ReplaceAll(hint, " · ", "  ·  ") + "  ·  esc back"
 		}
 		return fmt.Sprintf("%d messages  ·  j/k select  ·  w write  ·  . actions  ·  esc back", len(t.messages))
 	}

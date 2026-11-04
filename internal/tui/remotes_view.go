@@ -400,7 +400,7 @@ func (m *AppModel) renderRemoteThread() {
 	style := statsStyle{icons: m.images, glyphs: m.icons, origin: m.account.origin}
 	center := func(value string) string { return lipgloss.PlaceHorizontal(width, lipgloss.Center, value) }
 	var lines []string
-	t.media, t.chips, t.spans = nil, nil, map[string][2]int{}
+	t.media, t.chips, t.voices, t.spans = nil, nil, nil, map[string][2]int{}
 	if t.data.HasOlder {
 		lines = append(lines, center(text(p.muted).Render("Older messages ")+keyChip("n", p)))
 	}
@@ -503,9 +503,14 @@ func (m *AppModel) renderRemoteThread() {
 				lines = append(lines, align(line))
 			}
 		}
-		if voice := message.Voice; voice != nil {
-			seconds := (voice.DurationMS + 500) / 1000
-			lines = append(lines, align(paintLine(fmt.Sprintf(" ▶ Voice note · %d:%02d ", seconds/60, seconds%60), foreground, background)))
+		if message.Voice != nil {
+			line, play, bars, wave := m.voiceLine(message, bubble, foreground, background, p)
+			left := 1
+			if mine {
+				left = width - 1 - lipgloss.Width(line)
+			}
+			t.voices = append(t.voices, voiceArea{len(lines), left + play, left + bars, wave, message.ID})
+			lines = append(lines, align(line))
 		}
 		if chips, spans := reactionChips(message.Reactions, m.account.user.ID, p); chips != nil {
 			left := 1
@@ -858,6 +863,18 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 // threadClick toggles the reaction chip under the pointer, or puts the cursor on the message there.
 func (m *AppModel) threadClick(line, x int) tea.Cmd {
 	t := m.remotes.thread
+	// While the microphone is open, a click could play a note into the recording, so the thread waits.
+	if rec := t.composer.recording; rec != nil && rec.recorder != nil {
+		return nil
+	}
+	for _, area := range t.voices {
+		if area.line == line && x >= area.play && x < area.bars+area.width {
+			if t.composer.focused {
+				m.blurMessageComposer()
+			}
+			return m.voiceClick(area, x)
+		}
+	}
 	for _, chip := range t.chips {
 		if chip.line <= line && line < chip.line+3 && chip.x <= x && x < chip.x+chip.w {
 			return m.toggleReaction(chip.id, chip.emoji)
@@ -880,11 +897,11 @@ func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys
 	short := []key.Binding{bind("j/k", "move"), bind("enter", "open"), bind("tab", "inbox tab"), bind("/", "search"), bind(".", "actions"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	thread := m.remotes.thread != nil && m.remotes.focusThread
 	if thread {
-		short = []key.Binding{bind("j/k", "select"), bind("w", "write"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short = []key.Binding{bind("j/k", "select"), bind("w", "write"), bind("ctrl+t", "voice"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
 	}
 	all := append([]key.Binding(nil), short...)
 	if thread {
-		all = append(all, bind("enter", "push"), bind("shift+enter / ctrl+j", "new line"), bind("esc", "cancel the reply, then back to the messages"), bind("ctrl+o", "add an image"), bind("tab", "edit images / write"), bind("1 / 2 / 3", "quick reaction"), bind("p", "ping"), bind("r / d", "retry / discard a rejected push"), bind("G", "newest message"), bind("n", "older messages"))
+		all = append(all, bind("enter", "push"), bind("shift+enter / ctrl+j", "new line"), bind("esc", "cancel the reply, then back to the messages"), bind("ctrl+o", "add an image"), bind("tab", "edit images / write"), bind("1 / 2 / 3", "quick reaction"), bind("p", "ping"), bind("r / d", "retry / discard a rejected push"), bind("space", "play or pause a voice note"), bind("ctrl+t", "record a voice note, up to a minute"), bind("left / right", "seek a playing note 2s"), bind("x", "voice note speed"), bind("- / +", "voice note volume"), bind("G", "newest message"), bind("n", "older messages"))
 	}
 	all = append(all, bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
 	return appKeys{short, all}
