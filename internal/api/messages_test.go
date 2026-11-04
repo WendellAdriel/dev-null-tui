@@ -57,15 +57,58 @@ func TestPushMessageWithImagesSendsThemInAMultipartPayload(t *testing.T) {
 	}
 }
 
+func voiceWaveform() []int {
+	waveform := make([]int, 48)
+	for i := range waveform {
+		waveform[i] = i * 2
+	}
+	return waveform
+}
+
+func TestPushMessageWithVoiceSendsItAloneWithItsWaveform(t *testing.T) {
+	client := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		reader, err := r.MultipartReader()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var payload, voice []byte
+		var names []string
+		for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
+			names = append(names, part.FormName())
+			data, _ := io.ReadAll(part)
+			switch part.FormName() {
+			case "payload":
+				payload = data
+			case "voice":
+				voice = data
+			}
+		}
+		want := `{"client_id":"c1d2e3f4-0000-4000-8000-000000000003","reply_to_id":5,"voice_waveform":[0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,82,84,86,88,90,92,94]}`
+		if strings.Join(names, ",") != "payload,voice" || string(payload) != want || string(voice) != "RIFF-note" {
+			t.Errorf("unexpected voice upload: parts %v, payload %s", names, payload)
+		}
+		_, _ = io.WriteString(w, pushedMessage)
+	})
+	draft := NewMessage{ClientID: "c1d2e3f4-0000-4000-8000-000000000003", ReplyToID: 5, Voice: &VoiceNote{WAV: []byte("RIFF-note"), Waveform: voiceWaveform()}}
+	if _, err := client.PushMessage(t.Context(), Target{Handle: "ada"}, draft); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNewMessageValidatesWhatTheServerRefuses(t *testing.T) {
 	image := ImageFile{Upload: auth.Upload{Name: "a.png", Type: "image/png", Data: []byte("a")}}
 	for name, draft := range map[string]NewMessage{
-		"empty":         {ClientID: "id"},
-		"blank":         {Body: " \n ", ClientID: "id"},
-		"too long":      {Body: strings.Repeat("é", MaxMessageLength+1), ClientID: "id"},
-		"no client id":  {Body: "hi"},
-		"four images":   {ClientID: "id", Images: []ImageFile{image, image, image, image}},
-		"long describe": {ClientID: "id", Images: []ImageFile{{Upload: image.Upload, Description: strings.Repeat("a", MaxDescriptionLength+1)}}},
+		"empty":            {ClientID: "id"},
+		"blank":            {Body: " \n ", ClientID: "id"},
+		"too long":         {Body: strings.Repeat("é", MaxMessageLength+1), ClientID: "id"},
+		"no client id":     {Body: "hi"},
+		"four images":      {ClientID: "id", Images: []ImageFile{image, image, image, image}},
+		"long describe":    {ClientID: "id", Images: []ImageFile{{Upload: image.Upload, Description: strings.Repeat("a", MaxDescriptionLength+1)}}},
+		"voice and body":   {ClientID: "id", Body: "hi", Voice: &VoiceNote{WAV: []byte("a"), Waveform: voiceWaveform()}},
+		"voice and images": {ClientID: "id", Images: []ImageFile{image}, Voice: &VoiceNote{WAV: []byte("a"), Waveform: voiceWaveform()}},
+		"short waveform":   {ClientID: "id", Voice: &VoiceNote{WAV: []byte("a"), Waveform: voiceWaveform()[:47]}},
+		"loud waveform":    {ClientID: "id", Voice: &VoiceNote{WAV: []byte("a"), Waveform: append(voiceWaveform()[:47], 101)}},
+		"huge voice":       {ClientID: "id", Voice: &VoiceNote{WAV: make([]byte, 1950*1024+1), Waveform: voiceWaveform()}},
 	} {
 		if draft.Validate() == nil {
 			t.Errorf("%s: accepted %+v", name, draft)
@@ -74,6 +117,7 @@ func TestNewMessageValidatesWhatTheServerRefuses(t *testing.T) {
 	for name, draft := range map[string]NewMessage{
 		"limit":       {Body: strings.Repeat("é", MaxMessageLength), ClientID: "id"},
 		"images only": {ClientID: "id", Images: []ImageFile{image}},
+		"voice only":  {ClientID: "id", Voice: &VoiceNote{WAV: make([]byte, 1950*1024), Waveform: voiceWaveform()}},
 	} {
 		if err := draft.Validate(); err != nil {
 			t.Errorf("%s: %v", name, err)

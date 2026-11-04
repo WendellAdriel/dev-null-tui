@@ -15,6 +15,18 @@ import (
 // MaxMessageLength is the server's Message::MAX_LENGTH, counted in characters after trimming.
 const MaxMessageLength = 2000
 
+// MaxVoiceBytes is VoiceNotes::MAX_UPLOAD_KILOBYTES, in Laravel's 1024-byte kilobytes, and VoiceBars its waveform size.
+const (
+	MaxVoiceBytes = 1950 * 1024
+	VoiceBars     = 48
+)
+
+// VoiceNote is a recorded note as 16 kHz mono WAV, with the waveform drawn from its samples.
+type VoiceNote struct {
+	WAV      []byte
+	Waveform []int
+}
+
 // NewMessage is a message to push. ClientID stays the same across retries, so the server answers a resend with the
 // message it already created instead of a duplicate.
 type NewMessage struct {
@@ -22,6 +34,7 @@ type NewMessage struct {
 	ClientID  string
 	ReplyToID int64
 	Images    []ImageFile
+	Voice     *VoiceNote
 }
 
 // EmojiUse is how often the user reacted with an emoji, which ranks the quick reactions and the picker.
@@ -35,6 +48,9 @@ func MessageLength(body string) int { return utf8.RuneCountInString(trimInput(bo
 func (draft NewMessage) Validate() error {
 	if draft.ClientID == "" {
 		return errors.New("a message needs a client id")
+	}
+	if draft.Voice != nil {
+		return draft.validateVoice()
 	}
 	if len(draft.Images) > MaxImages {
 		return fmt.Errorf("attach at most %d images", MaxImages)
@@ -54,7 +70,33 @@ func (draft NewMessage) Validate() error {
 	return nil
 }
 
+// validateVoice mirrors the server's rules: a voice note goes alone, or with a reply, and has 48 levels from 0 to 100.
+func (draft NewMessage) validateVoice() error {
+	if MessageLength(draft.Body) > 0 || len(draft.Images) > 0 {
+		return errors.New("a voice note goes without text or images")
+	}
+	if len(draft.Voice.WAV) > MaxVoiceBytes {
+		return errors.New("the voice note is too large")
+	}
+	if len(draft.Voice.Waveform) != VoiceBars {
+		return fmt.Errorf("a voice note needs %d waveform levels", VoiceBars)
+	}
+	for _, level := range draft.Voice.Waveform {
+		if level < 0 || level > 100 {
+			return errors.New("waveform levels go from 0 to 100")
+		}
+	}
+	return nil
+}
+
 func (draft NewMessage) payload() ([]byte, error) {
+	if draft.Voice != nil {
+		return json.Marshal(struct {
+			ClientID  string `json:"client_id"`
+			ReplyToID int64  `json:"reply_to_id,omitempty"`
+			Waveform  []int  `json:"voice_waveform"`
+		}{draft.ClientID, draft.ReplyToID, draft.Voice.Waveform})
+	}
 	payload := struct {
 		Body         string    `json:"body"`
 		ClientID     string    `json:"client_id"`
@@ -89,13 +131,16 @@ func (c *Client) PushMessage(ctx context.Context, target Target, draft NewMessag
 	var result struct {
 		Data Message `json:"data"`
 	}
-	if len(draft.Images) > 0 {
+	switch {
+	case draft.Voice != nil:
+		err = c.transport.PostVoice(ctx, path+"/messages", payload, auth.Upload{Name: "voice.wav", Type: "audio/wav", Data: draft.Voice.WAV}, &result)
+	case len(draft.Images) > 0:
 		uploads := make([]auth.Upload, len(draft.Images))
 		for i, image := range draft.Images {
 			uploads[i] = image.Upload
 		}
 		err = c.transport.PostMultipart(ctx, path+"/messages", payload, uploads, &result)
-	} else {
+	default:
 		err = c.transport.PostJSON(ctx, path+"/messages", payload, &result)
 	}
 	if err != nil {

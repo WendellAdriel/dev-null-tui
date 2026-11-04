@@ -72,6 +72,36 @@ func TestMultipartPostSignsPayloadAndImageHashesInOrder(t *testing.T) {
 	}
 }
 
+func TestVoicePostSendsOneVoicePartSignedByItsHash(t *testing.T) {
+	key, _ := GenerateKey()
+	payload := []byte(`{"client_id":"synthetic"}`)
+	voice := Upload{Name: "voice.wav", Type: "audio/wav", Data: []byte("RIFF-synthetic")}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reader, err := r.MultipartReader()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var names []string
+		for part, err := reader.NextPart(); err == nil; part, err = reader.NextPart() {
+			names = append(names, part.FormName()+":"+part.FileName()+":"+part.Header.Get("Content-Type"))
+		}
+		if strings.Join(names, ",") != "payload:payload.json:application/json,voice:voice.wav:audio/wav" {
+			t.Fatalf("parts %v", names)
+		}
+		sum := sha256.Sum256(voice.Data)
+		message := strings.Join([]string{r.Header.Get("X-Devnull-Timestamp"), r.Header.Get("X-Devnull-Nonce"), r.Method, r.RequestURI, hex.EncodeToString(sum[:]), string(payload)}, "\n")
+		verifyNamespacedSignature(t, key, "devnull-api-images", r.Header.Get("X-SSH-Signature"), []byte(message))
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"data":{"id":"synthetic"}}`)
+	}))
+	defer server.Close()
+	client, _ := NewClient(server.URL, key)
+	var result struct{ Data struct{ ID string } }
+	if err := client.PostVoice(t.Context(), "/api/v1/remotes/@ada/messages", payload, voice, &result); err != nil || result.Data.ID != "synthetic" {
+		t.Fatalf("voice response: %+v %v", result, err)
+	}
+}
+
 func TestValidationMessagesIncludeAttachmentAndVoteFieldsOnly(t *testing.T) {
 	key, _ := GenerateKey()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

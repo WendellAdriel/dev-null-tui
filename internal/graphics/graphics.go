@@ -414,27 +414,40 @@ func (m *Manager) dial(ctx context.Context, network, address string) (net.Conn, 
 }
 
 func (m *Manager) download(ctx context.Context, raw string) ([]byte, error) {
+	data, err := m.fetch(ctx, raw, "image/png,image/jpeg,image/webp", 10<<20)
+	if err != nil {
+		return nil, errors.New("image unavailable")
+	}
+	return data, nil
+}
+
+// Download fetches other unsigned media, such as a voice note, with the same address checks as images.
+func (m *Manager) Download(ctx context.Context, raw string, limit int64) ([]byte, error) {
+	return m.fetch(ctx, raw, "*/*", limit)
+}
+
+func (m *Manager) fetch(ctx context.Context, raw, accept string, limit int64) ([]byte, error) {
+	unavailable := errors.New("media unavailable")
 	u, err := url.Parse(raw)
 	if err != nil || !m.validURL(u) {
-		return nil, errors.New("image unavailable")
+		return nil, unavailable
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
-		return nil, err
+		return nil, unavailable
 	}
-	req.Header.Set("Accept", "image/png,image/jpeg,image/webp")
+	req.Header.Set("Accept", accept)
 	response, err := m.client.Do(req)
 	if err != nil {
-		return nil, errors.New("image unavailable")
+		return nil, unavailable
 	}
 	defer func() { _ = response.Body.Close() }()
-	const limit = 10 << 20
 	if response.StatusCode != http.StatusOK || response.ContentLength > limit {
-		return nil, errors.New("image unavailable")
+		return nil, unavailable
 	}
 	data, err := io.ReadAll(io.LimitReader(response.Body, limit+1))
-	if err != nil || len(data) > limit {
-		return nil, errors.New("image unavailable")
+	if err != nil || int64(len(data)) > limit {
+		return nil, unavailable
 	}
 	return data, nil
 }

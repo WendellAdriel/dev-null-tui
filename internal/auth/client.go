@@ -248,16 +248,25 @@ func (c *Client) PostMultipart(ctx context.Context, target string, payload []byt
 	if len(images) == 0 {
 		return errors.New("a multipart request needs at least one image")
 	}
+	return c.postFiles(ctx, target, payload, "images[]", images, result)
+}
+
+// PostVoice sends a voice note the same way, alone in a voice part, signed by its own SHA-256.
+func (c *Client) PostVoice(ctx context.Context, target string, payload []byte, voice Upload, result any) error {
+	return c.postFiles(ctx, target, payload, "voice", []Upload{voice}, result)
+}
+
+func (c *Client) postFiles(ctx context.Context, target string, payload []byte, field string, files []Upload, result any) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
-	hashes := make([]string, len(images))
+	hashes := make([]string, len(files))
 	if err := writePart(writer, "payload", "payload.json", "application/json", payload); err != nil {
 		return err
 	}
-	for i, image := range images {
-		sum := sha256.Sum256(image.Data)
+	for i, file := range files {
+		sum := sha256.Sum256(file.Data)
 		hashes[i] = hex.EncodeToString(sum[:])
-		if err := writePart(writer, "images[]", image.Name, image.Type, image.Data); err != nil {
+		if err := writePart(writer, field, file.Name, file.Type, file.Data); err != nil {
 			return err
 		}
 	}
@@ -380,7 +389,7 @@ func fieldErrors(all map[string][]string) []string {
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
 		switch name {
-		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id":
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform":
 			fields = append(fields, field)
 		}
 	}

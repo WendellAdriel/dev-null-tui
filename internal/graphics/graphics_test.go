@@ -266,3 +266,24 @@ func TestLocalImagesDrawFromAbsolutePathsWithinTheUploadLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestDownloadFetchesSmallFilesAndRefusesUnsafeOrLargeOnes(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/large" {
+			_, _ = w.Write(make([]byte, 2048))
+			return
+		}
+		_, _ = io.WriteString(w, "voice")
+	}))
+	defer server.Close()
+	m := New(server.URL)
+	data, err := m.Download(t.Context(), server.URL+"/note", 1024)
+	if err != nil || string(data) != "voice" {
+		t.Fatalf("download returned %q, %v", data, err)
+	}
+	for _, target := range []string{server.URL + "/large", "http://example.test/note", "file:///etc/passwd"} {
+		if _, err := m.Download(t.Context(), target, 1024); err == nil {
+			t.Fatalf("%s downloaded", target)
+		}
+	}
+}
