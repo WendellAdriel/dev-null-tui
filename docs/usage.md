@@ -91,6 +91,31 @@ Conversations show day markers, org events such as **\* @grace created the org**
 
 Reading a conversation moves your read receipt to its newest message, pings included, and clears its unread count. Like the web, the receipt only moves while the conversation is on screen and scrolled to the newest message. Scrolled-up conversations and conversations covered by a profile or Settings don't mark anything read until you scroll back down. Message mentions link to profiles only when the server marks them as mentions. The open conversation checks for new messages every 1.5 seconds for a minute after activity, then every 4 seconds. The inbox refreshes every 15 seconds, or every 6 while a conversation is open. Polling pauses while the terminal is unfocused and checks at once when it gets focus back. Turning Remotes off in Settings closes the screen.
 
+### Writing messages
+
+The composer sits at the bottom of the conversation. Press `w` or `Enter`, or click it, to write, and `Enter` to push. `Shift+Enter`, `Alt+Enter`, or `Ctrl+J` start a new line. Messages hold up to 2,000 characters, and the count appears from 1,600. A paste that would go past the limit is refused. Shortcodes such as `:rocket:` become emoji as you type, with suggestions above the editor.
+
+A pushed message shows **◌ staged** until the server stores it. If the server refuses it, the message stays with **✕ rejected** and the reason: select it and press `r` to push it again or `d` to discard it. A retry reuses the message's client id, so the server never stores it twice. Pushing to a stashed conversation moves it back to Open, as the web does.
+
+Press `Ctrl+O` to attach up to three images, or paste or drop image paths into the composer. Attached images show thumbnails when terminal graphics and space are available, or a text list otherwise. Press `Tab` to edit images, `Enter` to add a description, and `Delete` to remove one. Press `Tab` again to return to writing. The partner sees **typing** while you write, at most every 3 seconds, once the conversation has started.
+
+When you can't push to the partner, the web's access bar takes the composer's place: a request waiting for your merge, your own request waiting for theirs, a partner who doesn't follow you, or a partner who isn't taking remotes.
+
+Unsent text is saved as a draft for each conversation and comes back when you open it again, with its reply target. Drafts are the only message text the TUI writes to disk. They live in an owner-only file under the config directory, hold the reply target as an id only, and are deleted when you push, disconnect, delete your account, or the device is revoked.
+
+### Replies, reactions, and pings
+
+`j` and `k` move a cursor through the messages, marked with a bar on the left. Past the newest message the cursor follows new messages again. The message keys act on the selected message, or on the newest one when nothing is selected:
+
+- `r` replies. The composer shows **Replying to** with the message, and `Esc` cancels the reply.
+- `1`, `2`, and `3` toggle the three quick reactions. They start as 😂 ✅ ❤️ and slowly follow the emoji you use most, like the web.
+- `e` opens the reaction row. `+` opens the picker, where typing searches the emoji. Clicking a reaction chip toggles it too.
+- `p` pings the partner, or everyone in an org. A conversation needs a first message before it can be pinged.
+
+Reactions show at once and go back if the server refuses them. You can have up to 12 reactions on a message.
+
+### Conversation actions
+
 Press `.` or click **⋯** in the conversation header for its actions, in the web's order:
 
 | Keys | Action |
@@ -165,7 +190,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Sending messages in Remotes, voice notes, and org management are not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Voice notes and org management are not implemented yet. Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 

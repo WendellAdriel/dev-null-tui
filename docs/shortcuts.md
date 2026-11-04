@@ -132,12 +132,30 @@ In a conversation:
 
 | Keys | Action |
 | --- | --- |
-| `j`, `k`, `PageUp`, `PageDown` | Scroll. Scrolling past the top loads older messages |
+| `j`, `k`, `Down`, `Up` | Select the next or previous message. At the oldest, older messages load |
+| `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Scroll. Scrolling past the top loads older messages |
 | `G`, `End`, `Home` | Jump to the newest or oldest loaded message |
+| `w`, `Enter` | Write a message |
+| `r` | Reply to the selected message, or push a rejected message again |
+| `d` | Discard a rejected message |
+| `1`, `2`, `3` | Toggle a quick reaction on the selected message |
+| `e` | Open the reaction row. `1` to `3` react, `+` opens the picker |
+| `p` | Ping the partner, or everyone in the org |
 | `n` | Load older messages |
 | `Ctrl+R` | Reload the conversation |
 | `Esc`, `h`, `Left` | Close the conversation and return to the inbox |
 | `Tab` | Return to the inbox and keep the conversation on screen, from 120 columns |
+
+In the composer:
+
+| Keys | Action |
+| --- | --- |
+| `Enter`, `Ctrl+S` | Push the message |
+| `Shift+Enter`, `Alt+Enter`, `Ctrl+J` | New line |
+| `Ctrl+O` | Attach images |
+| `Tab` | Edit attached images, or return to writing. `Enter` describes and `Delete` or `x` removes |
+| `Up`, `Down`, then `Tab` or `Enter` | Choose an emoji suggestion |
+| `Esc` | Close suggestions, the image list, or the reply, then return to the messages |
 
 On the selected or open conversation:
 
