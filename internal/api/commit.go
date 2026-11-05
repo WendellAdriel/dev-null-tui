@@ -34,7 +34,9 @@ func (c *Client) Preview(ctx context.Context, body string) (Preview, error) {
 }
 
 type NewCommit struct {
-	Body     string
+	Body string
+	// Author is the handle of an organization to post as, or empty to post as yourself.
+	Author   string
 	ParentID string
 	QuotedID string
 	Poll     *NewPoll
@@ -44,6 +46,9 @@ type NewCommit struct {
 // Validate applies the server's combination rules: a poll goes alone on a top-level commit, and images make text
 // optional.
 func (draft NewCommit) Validate() error {
+	if draft.Author != "" && !handlePattern.MatchString(draft.Author) {
+		return errors.New("invalid organization handle")
+	}
 	if draft.ParentID != "" && draft.QuotedID != "" {
 		return errors.New("a commit cannot both reply and quote")
 	}
@@ -79,9 +84,10 @@ func (draft NewCommit) payload() ([]byte, error) {
 		Body         string    `json:"body"`
 		ParentID     string    `json:"parent_id,omitempty"`
 		QuotedID     string    `json:"quoted_commit_id,omitempty"`
+		Author       string    `json:"author,omitempty"`
 		Poll         *NewPoll  `json:"poll,omitempty"`
 		Descriptions []*string `json:"image_descriptions,omitempty"`
-	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID}
+	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID, Author: draft.Author}
 	if draft.Poll != nil {
 		poll := draft.Poll.trimmed()
 		payload.Poll = &poll

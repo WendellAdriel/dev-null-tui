@@ -8,9 +8,14 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 var handlePattern = regexp.MustCompile(`^[0-9A-Za-z-]{1,39}$`)
+
+// ValidHandle reports whether a handle has the server's shape, for checks before a request.
+func ValidHandle(handle string) bool { return handlePattern.MatchString(handle) }
 
 type Connections string
 
@@ -37,7 +42,10 @@ type User struct {
 	Lane       json.RawMessage `json:"lane"`
 	IsFollowed *bool           `json:"is_followed"`
 	FollowsYou *bool           `json:"follows_you"`
+	Live       *LiveStream     `json:"live"`
 }
+
+type LiveStream = auth.LiveStream
 
 type Activity struct {
 	Scale   string `json:"scale"`

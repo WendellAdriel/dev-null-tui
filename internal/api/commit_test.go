@@ -92,3 +92,20 @@ func TestBodyBudgetMatchesBackendUnicodeWhitespace(t *testing.T) {
 		}
 	}
 }
+
+func TestCommitsCanPostAsAnOrganization(t *testing.T) {
+	var payload string
+	client := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		payload = string(body)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"data":{"id":"c1","status":"approved","author":{"type":"organization","id":"o1","handle":"laravel"}}}`)
+	})
+	commit, err := client.CreateCommit(t.Context(), NewCommit{Body: "Laravel 13 is out", Author: "laravel"})
+	if err != nil || !commit.Author.Organization() || payload != `{"body":"Laravel 13 is out","author":"laravel"}` {
+		t.Fatalf("commit %+v payload %s err %v", commit, payload, err)
+	}
+	if err := (NewCommit{Body: "hi", Author: "../x"}).Validate(); err == nil {
+		t.Fatal("accepted an unsafe author handle")
+	}
+}

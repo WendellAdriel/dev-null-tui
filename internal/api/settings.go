@@ -22,11 +22,15 @@ func (c *Client) updateAccount(ctx context.Context, route string, body any) (aut
 	if err != nil {
 		return auth.User{}, err
 	}
+	return c.sendAccount(ctx, http.MethodPut, route, data)
+}
+
+func (c *Client) sendAccount(ctx context.Context, method, route string, data []byte) (auth.User, error) {
 	var response struct {
 		Data   auth.User `json:"data"`
 		Unread *int      `json:"unread_notifications_count"`
 	}
-	if err := c.transport.PutJSON(ctx, "/api/v1/me/"+route, data, &response); err != nil {
+	if err := c.transport.SendJSON(ctx, method, "/api/v1/me/"+route, data, &response); err != nil {
 		return auth.User{}, err
 	}
 	if response.Data.ID == "" || !handlePattern.MatchString(response.Data.Handle) {

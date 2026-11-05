@@ -25,30 +25,54 @@ import (
 const DefaultOrigin = "https://dev-null.sh"
 
 type User struct {
-	ID                  string             `json:"id"`
-	Name                string             `json:"name"`
-	Handle              string             `json:"handle"`
-	AvatarURL           string             `json:"avatar_url"`
-	Bio                 string             `json:"bio"`
-	Company             string             `json:"company"`
-	Location            string             `json:"location"`
-	Website             string             `json:"website"`
-	GitHubURL           string             `json:"github_url"`
-	SponsorsURL         string             `json:"sponsors_url"`
-	GitHubSyncedAt      string             `json:"github_synced_at"`
-	PreferredLane       json.RawMessage    `json:"preferred_lane"`
-	AutomaticLane       int                `json:"automatic_lane"`
-	Remotes             *RemotePreferences `json:"remotes"`
-	Commits             *int               `json:"commits_count"`
-	Following           *int               `json:"following_count"`
-	Followers           *int               `json:"followers_count"`
-	Lane                json.RawMessage    `json:"lane"`
-	PasteisMode         bool               `json:"pasteis_mode"`
-	PasteisRemaining    *int               `json:"pasteis_remaining"`
-	TermsVersion        string             `json:"terms_version"`
-	TermsAccepted       bool               `json:"terms_accepted"`
-	UnreadNotifications *int               `json:"-"`
+	ID               string             `json:"id"`
+	Name             string             `json:"name"`
+	Handle           string             `json:"handle"`
+	AvatarURL        string             `json:"avatar_url"`
+	Bio              string             `json:"bio"`
+	Company          string             `json:"company"`
+	Location         string             `json:"location"`
+	Website          string             `json:"website"`
+	GitHubURL        string             `json:"github_url"`
+	SponsorsURL      string             `json:"sponsors_url"`
+	GitHubSyncedAt   string             `json:"github_synced_at"`
+	PreferredLane    json.RawMessage    `json:"preferred_lane"`
+	AutomaticLane    int                `json:"automatic_lane"`
+	Remotes          *RemotePreferences `json:"remotes"`
+	Commits          *int               `json:"commits_count"`
+	Following        *int               `json:"following_count"`
+	Followers        *int               `json:"followers_count"`
+	Lane             json.RawMessage    `json:"lane"`
+	PasteisMode      bool               `json:"pasteis_mode"`
+	PasteisRemaining *int               `json:"pasteis_remaining"`
+	TermsVersion     string             `json:"terms_version"`
+	TermsAccepted    bool               `json:"terms_accepted"`
+	Live             *LiveStream        `json:"live"`
+	// Organizations and CanPostAsOrganization stay nil on servers that don't send them yet.
+	Organizations         *[]Organization `json:"organizations"`
+	CanPostAsOrganization *bool           `json:"can_post_as_organization"`
+	UnreadNotifications   *int            `json:"-"`
 }
+
+// Organization is one the account is a member of, as its role in it says.
+type Organization struct {
+	ID        string          `json:"id"`
+	Role      string          `json:"role"`
+	Handle    string          `json:"handle"`
+	Name      string          `json:"name"`
+	AvatarURL string          `json:"avatar_url"`
+	Lane      json.RawMessage `json:"lane"`
+}
+
+// LiveStream is the stream a user is on, which the web keeps showing only until it ends.
+type LiveStream struct {
+	Platform     string    `json:"platform"`
+	URL          string    `json:"url"`
+	ThumbnailURL string    `json:"thumbnail_url"`
+	EndsAt       time.Time `json:"ends_at"`
+}
+
+func (s *LiveStream) On(now time.Time) bool { return s != nil && s.URL != "" && now.Before(s.EndsAt) }
 
 type RemotePreferences struct {
 	From         string `json:"from"`
@@ -65,7 +89,7 @@ type APIError struct {
 	// Message is the server's reason for a refusal, such as a Remotes access denial.
 	Message    string
 	BodyErrors []string
-	// FieldErrors holds the poll, image, vote, and org messages, which are safe to show beside the draft or dialog.
+	// FieldErrors holds the poll, image, vote, org, author, and live stream messages, which are safe to show beside the draft or dialog.
 	FieldErrors []string
 }
 
@@ -389,7 +413,7 @@ func fieldErrors(all map[string][]string) []string {
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
 		switch name {
-		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role":
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role", "author", "url", "hours":
 			fields = append(fields, field)
 		}
 	}

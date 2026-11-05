@@ -25,9 +25,10 @@ type Author struct {
 	Name      string          `json:"name"`
 	Lane      json.RawMessage `json:"lane"`
 	AvatarURL string          `json:"avatar_url"`
+	Live      *LiveStream     `json:"live"`
 }
 
-// Organization reports an organization author, which has no users/{handle} profile.
+// Organization reports an organization author, whose page is organizations/{handle}.
 func (a *Author) Organization() bool { return a != nil && a.Type == "organization" }
 
 type Segment struct {
