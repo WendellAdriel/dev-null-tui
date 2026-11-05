@@ -51,7 +51,23 @@ To choose a directory or version:
 
 ## Manual installation
 
-Download your executable and `checksums.txt` from the same release:
+Each release has an archive and a plain executable for every platform. Pick amd64 for Intel and AMD processors, and arm64 for Apple silicon and other ARM machines. On Windows, **Settings > System > About** shows the system type. On Linux and macOS, `uname -m` prints `x86_64` for amd64 and `aarch64` or `arm64` for arm64.
+
+### Archives
+
+Archives are named with the version, such as `devnull_v0.5.0_linux_amd64.tar.gz`:
+
+| OS | amd64 | arm64 |
+| --- | --- | --- |
+| Linux | `devnull_<version>_linux_amd64.tar.gz` | `devnull_<version>_linux_arm64.tar.gz` |
+| macOS | `devnull_<version>_darwin_amd64.tar.gz` | `devnull_<version>_darwin_arm64.tar.gz` |
+| Windows | `devnull_<version>_windows_amd64.zip` | `devnull_<version>_windows_arm64.zip` |
+
+Each archive holds the `devnull` or `devnull.exe` executable, the license, and short install notes. Extract it with `tar -xzf <archive>` on Linux and macOS, or **Extract All** on Windows, then move the executable to a directory on your `PATH`.
+
+### Plain executables
+
+The installers and `devnull update` use these files, which have no version in their names:
 
 | OS | amd64 | arm64 |
 | --- | --- | --- |
@@ -59,9 +75,20 @@ Download your executable and `checksums.txt` from the same release:
 | macOS | `devnull_darwin_amd64` | `devnull_darwin_arm64` |
 | Windows | `devnull_windows_amd64.exe` | `devnull_windows_arm64.exe` |
 
-Compare the file's SHA-256 hash with its entry in `checksums.txt`. Use `sha256sum` on Linux, `shasum -a 256` on macOS, or `Get-FileHash -Algorithm SHA256` in PowerShell. These checksums detect changed downloads, but are not independent publisher signatures.
+Rename the executable to `devnull` or `devnull.exe` and place it in a directory on your `PATH`. On Linux and macOS, make it executable with `chmod +x devnull`.
 
-Rename the executable to `devnull` or `devnull.exe` and place it in a directory on your `PATH`. On Linux and macOS, make it executable with `chmod +x devnull`. macOS may require approval under **System Settings > Privacy & Security** for a downloaded executable. Release binaries are not code-signed or notarized by this tooling.
+### Verify the download
+
+Download `checksums.txt` from the same release, and compare your file's SHA-256 hash with its line. Use `sha256sum` on Linux, `shasum -a 256` on macOS, or `Get-FileHash -Algorithm SHA256` in PowerShell. Checksums detect a damaged or changed download, but they do not prove who published the file.
+
+### Operating system warnings
+
+Release binaries are not code-signed or notarized.
+
+- **macOS:** a file downloaded through a browser can be blocked on first launch. Allow it under **System Settings > Privacy & Security**, or run `xattr -d com.apple.quarantine <path-to-devnull>`.
+- **Windows:** SmartScreen may warn about an unrecognized app the first time it runs. Choose **More info**, then **Run anyway**.
+
+The Linux binaries are statically linked, so they need no system libraries. See [terminal setup](terminal.md) for terminal size, fonts, and image support.
 
 ## Check your version
 

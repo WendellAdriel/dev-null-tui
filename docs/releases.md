@@ -17,7 +17,7 @@ Run the release script with the version you want to build. Use a POSIX shell wit
 scripts/release.sh v0.1.0
 ```
 
-The script runs tests and builds six cgo-disabled executables in `dist/release`, plus `checksums.txt`. Asset names match the [manual installation table](installation.md#manual-installation). They are executable files, not archives. The version is embedded through the existing CLI linker variable.
+The script runs tests and builds six cgo-disabled executables in `dist/release`, one versioned archive for each, and `checksums.txt` covering all twelve files. Names match the [manual installation tables](installation.md#manual-installation). Linux and macOS archives are `.tar.gz` and Windows archives are `.zip`. Each holds the executable, `LICENSE`, and the install notes from `tools/build/INSTALL.md`. Archive timestamps are fixed, so rebuilding the same revision with the same Go version produces the same bytes. The installers and `devnull update` download the plain executables, so keep their names unchanged. The version is embedded through the existing CLI linker variable.
 
 Preparation does not need GitHub credentials, create a tag, or publish anything. You can also build directly on any platform:
 
@@ -40,7 +40,7 @@ Commit the reviewed changes and push `main` to `origin`. The script requires a c
 scripts/release.sh v0.1.0 --publish
 ```
 
-The script repeats tests and builds, then asks you to type the version to confirm publication. It refuses an existing tag or release. It uploads the six executables, checksums, and MIT license to a draft release, then publishes it as the latest release with generated notes. No GitHub Actions release workflow is needed for cross-compilation.
+The script repeats tests and builds, then asks you to type the version to confirm publication. It refuses an existing tag or release. It uploads every file listed in `checksums.txt` (the six executables and six archives), the checksums file, and the MIT license to a draft release, then publishes it as the latest release with generated notes. No GitHub Actions release workflow is needed for cross-compilation.
 
 The installers and `devnull update` use `WendellAdriel/dev-null-tui` as their fixed release source. The Go module and linker variable still use the existing `github.com/WendellAdriel/dev-null-cli` module path.
 
