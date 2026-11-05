@@ -43,6 +43,9 @@ func prepare(data []byte, req Request) (*image.NRGBA, error) {
 		for y := range height {
 			for x := range width {
 				distance := math.Hypot(float64(x)+0.5-48, float64(y)+0.5-48)
+				if req.Square {
+					distance = max(math.Abs(float64(x)+0.5-48), math.Abs(float64(y)+0.5-48))
+				}
 				switch {
 				case distance > 47.5:
 					output.SetNRGBA(x, y, color.NRGBA{})

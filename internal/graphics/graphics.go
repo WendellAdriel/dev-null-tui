@@ -43,6 +43,8 @@ type Request struct {
 	Cols, Rows int
 	Ring       string
 	Icon       string
+	// Square draws an organization's avatar, ringed like a person's but square, as the web does.
+	Square bool
 }
 type Job struct {
 	Request Request
@@ -63,7 +65,10 @@ type entry struct {
 	avatar        *image.NRGBA
 }
 
-type avatarKey struct{ url, ring, icon string }
+type avatarKey struct {
+	url, ring, icon string
+	square          bool
+}
 
 type sourceCache struct {
 	mu    sync.Mutex
@@ -184,7 +189,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 	avatars := make(map[avatarKey]*image.NRGBA)
 	for req, e := range m.entries {
 		if e.ready && e.avatar != nil {
-			avatars[avatarKey{req.URL, req.Ring, req.Icon}] = e.avatar
+			avatars[avatarKey{req.URL, req.Ring, req.Icon, req.Square}] = e.avatar
 		}
 	}
 	var cleanup strings.Builder
@@ -207,7 +212,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		if !e.ready && !e.failed {
 			active++
 			if req.Ring != "" {
-				loading[avatarKey{req.URL, req.Ring, req.Icon}] = true
+				loading[avatarKey{req.URL, req.Ring, req.Icon, req.Square}] = true
 			}
 		}
 	}
@@ -218,7 +223,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		if _, ok := m.entries[req]; ok {
 			continue
 		}
-		key := avatarKey{req.URL, req.Ring, req.Icon}
+		key := avatarKey{req.URL, req.Ring, req.Icon, req.Square}
 		if req.Ring != "" && loading[key] {
 			continue
 		}

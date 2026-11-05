@@ -48,6 +48,13 @@ func TestRoundAvatarAndImageSizing(t *testing.T) {
 	if frameAvatar(out, 4, 2) != out {
 		t.Fatal("a square avatar box needs no frame")
 	}
+	square, err := prepare(picture(t), Request{Cols: 4, Rows: 2, Ring: "#ff8a4c", Square: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if square.NRGBAAt(2, 2).R != 255 || square.NRGBAAt(2, 2).A == 0 || square.NRGBAAt(10, 10).A != 255 {
+		t.Fatal("an organization avatar must be square, so it never passes for a person")
+	}
 	cols, rows := Fit(1600, 900, 40, 12)
 	if cols != 40 || rows != 11 {
 		t.Fatalf("landscape fit: %dx%d", cols, rows)
