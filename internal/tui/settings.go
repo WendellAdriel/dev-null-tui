@@ -855,6 +855,7 @@ func (m *AppModel) restrictSafetyContent(handle, kind string) {
 		f.commits = m.safeCommits(f.commits)
 		f.suggestions = m.safeCommits(f.suggestions)
 		f.submitted = m.safeCommits(f.submitted)
+		f.arrivals = m.safeCommits(f.arrivals)
 		f.selected = max(0, min(f.selected, len(f.commits)-1))
 		for j, c := range f.commits {
 			if c.ID == anchor {

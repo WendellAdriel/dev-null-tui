@@ -124,6 +124,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			}
 		}
 	}
+	for _, author := range m.arrivalAvatars() {
+		avatars = append(avatars, m.authorAvatar(author, p, 2, 1))
+	}
 	u := m.account.user
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 2, 1))
 	if u.PasteisMode {

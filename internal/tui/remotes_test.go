@@ -506,9 +506,6 @@ func TestRemotesTickRunsOnceAndStopsWithTheScreen(t *testing.T) {
 	}
 	tick := remotesTick{m.session, m.remotes.tickGeneration}
 	m.focused = false
-	if cmd := m.acceptRemotesTick(tick); cmd == nil || m.remotes.loading {
-		t.Fatal("an unfocused tick polled or stopped the chain")
-	}
 	next, cmd := m.update(tea.FocusMsg{})
 	m = next.(AppModel)
 	if cmd == nil || !m.remotes.loading {
@@ -601,20 +598,14 @@ func TestRemotesBadgeRefreshesWhileClosed(t *testing.T) {
 	}
 }
 
-func TestBadgeTickRefreshesOnlyWhileFocused(t *testing.T) {
+func TestBadgeTickRefreshesBothBadges(t *testing.T) {
 	m, log := remotesApp(t, auth.RemotePreferences{UnreadCount: 7})
-	counts := 0
-	m.fetchNotificationCount = func(context.Context) (int, error) { counts++; return 4, nil }
-	m.focused = false
-	if m.acceptBadgeTick(badgeTick{m.session}) == nil || log.String() != "" || counts != 0 {
-		t.Fatalf("an unfocused tick stopped the chain or fetched: %s, %d counts", log, counts)
-	}
-	m.focused = true
-	m = settleCmd(m, m.acceptBadgeTick(badgeTick{m.session}))
+	m.fetchNotificationCount = func(context.Context) (int, error) { return 4, nil }
+	m = settleCmd(m, m.acceptBadgeTick(badgeTick{m.session, m.badgeTicks}))
 	if m.remotes.unread != 1 || log.String() != `inbox open "" ` || m.unreadNotifications != 4 {
 		t.Fatalf("remotes %d, notifications %d after %s", m.remotes.unread, m.unreadNotifications, log)
 	}
-	if m.acceptBadgeTick(badgeTick{m.session - 1}) != nil {
+	if m.acceptBadgeTick(badgeTick{m.session - 1, m.badgeTicks}) != nil {
 		t.Fatal("a tick from an old session keeps running")
 	}
 }

@@ -101,7 +101,7 @@ func TestReadOnlyPreviewsDoNotLeakDeletedContentOrHTML(t *testing.T) {
 	}
 }
 
-func TestRefreshReturnsToFirstPageAndCountsDoNotInsertRows(t *testing.T) {
+func TestRefreshReturnsToFirstPage(t *testing.T) {
 	m := fixtureApp(t)
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}})
 	m.feeds[0].selected = 1
@@ -127,12 +127,6 @@ func TestRefreshReturnsToFirstPageAndCountsDoNotInsertRows(t *testing.T) {
 	m = updated.(AppModel)
 	if requests != 1 || m.feeds[0].selected != 0 || m.feeds[0].commits[0].ID != "new" || m.feeds[0].viewport.YOffset() != 0 || m.feeds[0].next != "older" {
 		t.Fatal("refresh must load only the first page and select its first commit")
-	}
-	cmd = m.load("count")
-	updated, _ = m.Update(cmd())
-	m = updated.(AppModel)
-	if len(m.feeds[0].commits) != 2 || m.feeds[0].newCount != 3 {
-		t.Fatal("count poll inserted content or lost indicator")
 	}
 }
 

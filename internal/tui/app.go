@@ -10,6 +10,7 @@ import (
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/colorprofile"
 	uv "github.com/charmbracelet/ultraviolet"
 
@@ -33,9 +34,11 @@ type feed struct {
 	next, status         string
 	loadingMode          string
 	loaded, loading      bool
-	newCount, generation int
-	cancel               context.CancelFunc
-	cursors              map[string]bool
+	generation           int
+	// arrivals are the new commits the reader hasn't seen yet, newest first, for the New commits notice.
+	arrivals []api.Commit
+	cancel   context.CancelFunc
+	cursors  map[string]bool
 }
 
 type logResult struct {
@@ -45,7 +48,9 @@ type logResult struct {
 	err               error
 }
 type gExpired struct{ generation int }
-type pollLogs struct {
+
+// clockTick advances the clock once a minute, so ages, live streams, and Live now stay current.
+type clockTick struct {
 	session int
 	at      time.Time
 }
@@ -102,33 +107,36 @@ type AppModel struct {
 	fetchNotificationCount                 func(context.Context) (int, error)
 	unreadNotifications                    int
 	notificationCountGeneration            int
-	notificationCountCancel                context.CancelFunc
-	deletedNotificationCommits             map[string]time.Time
-	loadProfile                            func(context.Context, string) (api.Profile, error)
-	loadUserCommits                        func(context.Context, string, bool, string) (api.CommitPage, error)
-	loadConnections                        func(context.Context, string, api.Connections, string) (api.People, error)
-	setFollow                              func(context.Context, string, bool) error
-	profiles                               []profileState
-	profileGeneration                      int
-	follow                                 followState
-	icons                                  iconSet
-	version                                string
-	settings                               settingsState
-	settingsAPI                            *api.Client
-	safetyHidden                           map[string]uint8
-	starredOpen                            bool
-	starred                                feed
-	starredRemoved                         map[string]bool
-	loadStarred                            func(context.Context, string) (api.CommitPage, error)
-	remotes                                remotesState
-	remoteCalls                            remoteCalls
-	organizationCalls                      organizationCalls
-	claiming                               string
-	openURL                                func(context.Context, string) error
-	liveCalls                              liveCalls
-	live                                   *liveDialog
-	liveEnding                             bool
-	liveNow                                []api.User
+	logTicks, badgeTicks                   int
+	// logAway and badgeAway mark ticks scheduled at the away pace, which focus restarts.
+	logAway, badgeAway         bool
+	notificationCountCancel    context.CancelFunc
+	deletedNotificationCommits map[string]time.Time
+	loadProfile                func(context.Context, string) (api.Profile, error)
+	loadUserCommits            func(context.Context, string, bool, string) (api.CommitPage, error)
+	loadConnections            func(context.Context, string, api.Connections, string) (api.People, error)
+	setFollow                  func(context.Context, string, bool) error
+	profiles                   []profileState
+	profileGeneration          int
+	follow                     followState
+	icons                      iconSet
+	version                    string
+	settings                   settingsState
+	settingsAPI                *api.Client
+	safetyHidden               map[string]uint8
+	starredOpen                bool
+	starred                    feed
+	starredRemoved             map[string]bool
+	loadStarred                func(context.Context, string) (api.CommitPage, error)
+	remotes                    remotesState
+	remoteCalls                remoteCalls
+	organizationCalls          organizationCalls
+	claiming                   string
+	openURL                    func(context.Context, string) error
+	liveCalls                  liveCalls
+	live                       *liveDialog
+	liveEnding                 bool
+	liveNow                    []api.User
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -194,6 +202,7 @@ func (m *AppModel) resetSequence() { m.pendingG = false; m.generation++ }
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	app := next.(AppModel)
+	app.settleArrivals()
 	images := app.syncImages()
 	return app, tea.Batch(cmd, images)
 }
@@ -217,6 +226,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptRemotesTick(msg)
 	case badgeTick:
 		return m, m.acceptBadgeTick(msg)
+	case logTick:
+		return m, m.acceptLogTick(msg)
 	case remoteActionResult:
 		return m, m.acceptRemoteAction(msg)
 	case peopleSearchTick:
@@ -421,11 +432,15 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.FocusMsg:
 		m.focused = true
 		m.resetSequence()
+		if !m.connected {
+			return m, nil
+		}
+		polls := m.restartPolls()
 		if m.remotesOnTop() {
 			m.now = time.Now()
-			return m, tea.Batch(m.pollRemotes(), m.markRemoteRead())
+			return m, tea.Batch(polls, m.pollRemotes(), m.markRemoteRead())
 		}
-		return m, nil
+		return m, polls
 	case tea.WindowSizeMsg, tea.BackgroundColorMsg, tea.ColorProfileMsg:
 		m.composer.input.EndSelection()
 		m.composer.dragging = false
@@ -434,12 +449,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.images.Enabled = m.graphicsSupported && m.account.profile == colorprofile.TrueColor
 		m.reflow()
 		return m, cmd
-	case pollLogs:
+	case clockTick:
 		if msg.session != m.session || !m.connected {
 			return m, nil
 		}
 		if m.settings.signingOut() {
-			return m, m.poll()
+			return m, m.tickClock()
 		}
 		m.now = msg.at
 		for i := range m.feeds {
@@ -448,10 +463,6 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.renderStarred()
 		if m.notificationsOpen {
 			m.renderNotifications()
-		}
-		var cmd tea.Cmd
-		if m.focused && !m.accountOpen && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && m.active != 2 && len(m.feeds[m.active].commits) > 0 {
-			cmd = m.load("count")
 		}
 		m.renderRemoteThread()
 		if m.threadOnTop() {
@@ -464,7 +475,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if _, _, aside := m.columns(); m.focused && !m.accountOpen && aside > 0 {
 			live = m.fetchLiveNow()
 		}
-		return m, tea.Batch(cmd, m.poll(), live)
+		return m, tea.Batch(m.tickClock(), live)
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -512,9 +523,16 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.mode == "count" {
-			if msg.index != 2 {
-				f.newCount = msg.page.NewCount
+			if msg.index == 2 {
+				return m, nil
 			}
+			if msg.page.NewCount > 0 && msg.index == m.active {
+				return m, m.load("new")
+			}
+			return m, nil
+		}
+		if msg.mode == "new" {
+			m.acceptNewest(msg.index, msg.page)
 			return m, nil
 		}
 		for i, submitted := range f.submitted {
@@ -548,7 +566,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				break
 			}
 		}
-		f.next, f.loaded, f.status, f.newCount = msg.page.Next, true, "", 0
+		f.next, f.loaded, f.status = msg.page.Next, true, ""
 		if f.cursors[f.next] {
 			f.next = ""
 			f.status = "Repeated pagination cursor. Ctrl+R to refresh."
@@ -560,7 +578,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))
 		}
 		if msg.mode == "refresh" {
-			return m, m.notify("success", "Log refreshed", logNames[msg.index]+" is up to date.")
+			return m, m.notify("success", "Refreshed", logNames[msg.index]+" is up to date.")
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -728,7 +746,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.poll(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow())
+		return m, tea.Batch(cmd, load, m.tickClock(), m.scheduleLogCheck(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow())
 	}
 	return m, cmd
 }
@@ -804,9 +822,9 @@ func (m *AppModel) leaveApplication() {
 	m.account.workspace = false
 }
 
-func (m AppModel) poll() tea.Cmd {
+func (m AppModel) tickClock() tea.Cmd {
 	session := m.session
-	return tea.Tick(time.Minute, func(at time.Time) tea.Msg { return pollLogs{session: session, at: at} })
+	return tea.Tick(time.Minute, func(at time.Time) tea.Msg { return clockTick{session: session, at: at} })
 }
 
 func uniqueCommits(commits []api.Commit) []api.Commit {
@@ -823,8 +841,15 @@ func uniqueCommits(commits []api.Commit) []api.Commit {
 
 func (m *AppModel) load(mode string) tea.Cmd {
 	f := &m.feeds[m.active]
-	if f.loading || (mode == "more" && f.next == "") || (mode == "count" && m.active == 2) {
+	if (mode == "more" && f.next == "") || (backgroundLoad(mode) && m.active == 2) {
 		return nil
+	}
+	if f.loading {
+		// A quiet check for new commits gives way to a load the reader asked for.
+		if !backgroundLoad(f.loadingMode) || backgroundLoad(mode) {
+			return nil
+		}
+		f.cancel()
 	}
 	f.generation++
 	f.loading = true
@@ -841,9 +866,19 @@ func (m *AppModel) load(mode string) tea.Cmd {
 	if mode == "count" && len(f.commits) > 0 {
 		since = f.commits[0].ID
 	}
+	var known map[string]bool
+	if mode == "new" {
+		known = make(map[string]bool, len(f.commits))
+		for _, c := range f.commits {
+			known[c.ID] = true
+		}
+	}
 	return m.account.life.command(func() tea.Msg {
 		defer cancel()
 		page, err := fetch(ctx, logs[index], next, since)
+		if mode == "new" && err == nil {
+			page, err = newestThrough(ctx, fetch, logs[index], page, known)
+		}
 		return logResult{index: index, generation: generation, mode: mode, page: page, err: err}
 	})
 }
@@ -1037,8 +1072,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			f.generation++
 		}
 		cmd := m.load("refresh")
-		expiry := m.notify("info", "Refreshing log", "Checking "+logNames[m.active]+" for the latest commits.")
-		return m, tea.Batch(cmd, expiry)
+		expiry := m.notify("info", "Refreshing", "Checking "+m.refreshScope()+".")
+		return m, tea.Batch(cmd, m.loadNotificationCount(), m.refreshRemotesCount(), expiry)
 	case "j", "down", "k", "up":
 		delta := 1
 		if pressed == "k" || pressed == "up" {
@@ -1121,6 +1156,10 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	f := &m.feeds[m.active]
 	if msg.Y < feedHeaderHeight || msg.Y >= m.mainHeight() {
 		return m, nil
+	}
+	if pill, at := m.arrivalsPill(center, colors(m.account.dark)); pill != "" && msg.Y >= feedHeaderHeight && msg.Y < feedHeaderHeight+lipgloss.Height(pill) && x >= at && x < at+lipgloss.Width(pill) {
+		f.arrivals = nil
+		return m.selectCommit(0)
 	}
 	row := msg.Y - feedHeaderHeight + f.viewport.YOffset()
 	for _, area := range f.actions {
@@ -1229,20 +1268,16 @@ func (m AppModel) feedStatus() string {
 	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status
 	}
-	if f.loading && f.loadingMode != "refresh" {
+	// The 15-second checks for new commits run quietly, so the footer doesn't flicker with each one.
+	if f.loading && f.loadingMode != "refresh" && f.loadingMode != "count" && f.loadingMode != "new" {
 		if !f.loaded {
 			return "Reading from /dev/null..."
 		}
 		switch f.loadingMode {
 		case "more":
 			return "Loading older commits..."
-		case "count":
-			return "Checking for new commits..."
 		}
 		return "Updating log..."
-	}
-	if f.newCount > 0 {
-		return fmt.Sprintf("%d new commits available", f.newCount)
 	}
 	if len(f.commits) == 0 {
 		return "No commits in this log."

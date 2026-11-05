@@ -279,8 +279,18 @@ func (m AppModel) brand(p palette) string {
 	return text(p.lanes[0]).Bold(true).Render("//") + "  " + text(p.ink).Bold(true).Render("/dev/null")
 }
 
+// workspaceFooter is the open screen's status, with the log's refresh shortcut at the right while the log is read.
 func (m AppModel) workspaceFooter(width int) string {
-	return fit(" "+m.feedStatus(), width)
+	status := " " + m.feedStatus()
+	// These overlays take Ctrl+R before the log does.
+	covered := m.help || m.viewer.open || m.vote.commitID != "" || m.whatsNew.open || m.upgradeVisible() || m.composer.open
+	if !m.logOnTop() || covered {
+		return fit(status, width)
+	}
+	p := colors(m.account.dark)
+	hint := text(p.muted).Render("Refresh ") + keyChip("ctrl+r", p) + " "
+	status = fit(status, max(1, width-lipgloss.Width(hint)-1))
+	return status + strings.Repeat(" ", max(1, width-lipgloss.Width(status)-lipgloss.Width(hint))) + hint
 }
 
 func (m AppModel) feedTabs(width int, p palette) string {
@@ -334,7 +344,18 @@ func (m AppModel) feedColumn(width int, p palette) string {
 			placeholder := "\n\n" + text(p.ink).Bold(true).Render(title) + "\n\n" + text(p.muted).Render(detail)
 			content += lipgloss.NewStyle().Width(max(1, width-12)).MarginLeft(6).Render(placeholder)
 		} else {
-			content += m.feedViewport(p)
+			feed := m.feedViewport(p)
+			// The New commits notice floats over the first row, under the tabs, like the web's sticky button.
+			if pill, at := m.arrivalsPill(width, p); pill != "" {
+				rows := strings.Split(feed, "\n")
+				for i, row := range strings.Split(pill, "\n") {
+					if i < len(rows) {
+						rows[i] = ansi.Cut(rows[i], 0, at) + row + ansi.Cut(rows[i], at+lipgloss.Width(row), width)
+					}
+				}
+				feed = strings.Join(rows, "\n")
+			}
+			content += feed
 		}
 	}
 	return lipgloss.NewStyle().Width(width).Height(height).MaxWidth(width).MaxHeight(height).Render(content)

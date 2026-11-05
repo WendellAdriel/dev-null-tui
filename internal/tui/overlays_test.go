@@ -340,7 +340,7 @@ func TestRefreshReportsProgressAndOutcomeInToasts(t *testing.T) {
 				return api.Page{Data: []api.Commit{fixtureCommit("new")}}, nil
 			}
 			m, cmd := m.handleKey("ctrl+r")
-			if !m.toast.visible || m.toast.title != "Refreshing log" || strings.Contains(m.workspaceFooter(120), "Refreshing") {
+			if !m.toast.visible || m.toast.title != "Refreshing" || strings.Contains(m.workspaceFooter(120), "Refreshing") {
 				t.Fatal("refresh progress belongs in a toast")
 			}
 			next, _ := m.Update(logResponse(t, cmd))

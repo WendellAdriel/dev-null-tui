@@ -99,16 +99,18 @@ type remotesState struct {
 	thread         *remoteThreadState
 	focusThread    bool
 	tickGeneration int
-	ticking        bool
-	lastInbox      time.Time
-	dialog         string
-	dialogFocus    int
-	dialogTarget   api.Conversation
-	countCancel    context.CancelFunc
-	people         *peopleDialog
-	members        *membersDialog
-	pinWarning     *pinWarning
-	pinList        *pinList
+	// away marks a tick scheduled at the away pace, which focus restarts.
+	away         bool
+	ticking      bool
+	lastInbox    time.Time
+	dialog       string
+	dialogFocus  int
+	dialogTarget api.Conversation
+	countCancel  context.CancelFunc
+	people       *peopleDialog
+	members      *membersDialog
+	pinWarning   *pinWarning
+	pinList      *pinList
 	// candidates are the people the Open tab's search offers to start a conversation with, after its rows.
 	candidates []api.Candidate
 }
@@ -637,6 +639,7 @@ func (m *AppModel) scheduleRemotes() tea.Cmd {
 	if t := m.remotes.thread; t != nil && m.now.Sub(t.active) < time.Minute {
 		delay = remotesFastPoll
 	}
+	delay, m.remotes.away = m.pollDelay(delay), !m.focused
 	session, generation := m.session, m.remotes.tickGeneration
 	return tea.Tick(delay, func(time.Time) tea.Msg { return remotesTick{session, generation} })
 }
@@ -652,7 +655,7 @@ func (m *AppModel) acceptRemotesTick(msg remotesTick) tea.Cmd {
 		*m = next
 		return cmd
 	}
-	if !m.focused || m.accountOpen {
+	if m.accountOpen {
 		return m.scheduleRemotes()
 	}
 	return tea.Batch(m.pollRemotes(), m.scheduleRemotes())

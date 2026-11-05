@@ -219,7 +219,7 @@ func TestAStreamEndsOnTheMinuteTickOnAnOpenProfile(t *testing.T) {
 	if !strings.Contains(profileText(m), "LIVE on Twitch") {
 		t.Fatalf("live profile:\n%s", profileText(m))
 	}
-	next, _ := m.Update(pollLogs{session: m.session, at: m.now.Add(time.Minute)})
+	next, _ := m.Update(clockTick{session: m.session, at: m.now.Add(time.Minute)})
 	m = next.(AppModel)
 	if strings.Contains(profileText(m), "LIVE on") || strings.Contains(profileText(m), "Watch") {
 		t.Fatalf("an ended stream still shows:\n%s", profileText(m))

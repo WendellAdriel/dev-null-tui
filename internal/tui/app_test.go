@@ -164,10 +164,10 @@ func TestRankedIndicatorsAndRefreshFailureKeepContent(t *testing.T) {
 	}
 	m.active = 2
 	m.feeds[2].loading = true
-	updated, _ = m.Update(logResult{index: 2, generation: m.feeds[2].generation, mode: "count", page: api.Page{NewCount: 10}})
+	updated, cmd := m.Update(logResult{index: 2, generation: m.feeds[2].generation, mode: "count", page: api.Page{NewCount: 10}})
 	m = updated.(AppModel)
-	if m.feeds[2].newCount != 0 {
-		t.Fatal("ranked feed received chronological count")
+	if m.feeds[2].loading || len(runAll(cmd)) != 0 {
+		t.Fatal("a ranked feed acted on a chronological count")
 	}
 }
 

@@ -90,7 +90,7 @@ func TestReaderHasAuthorIdentityAndComposerEntry(t *testing.T) {
 	}
 }
 
-func TestWorkspaceActionsAndShortcutsHaveOneHome(t *testing.T) {
+func TestWorkspaceActionsLiveInTheAsideAndTheFooterOnlyHintsRefresh(t *testing.T) {
 	m := fixtureApp(t)
 	m.account.width, m.account.height = 160, 35
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a")}})
@@ -118,10 +118,13 @@ func TestWorkspaceActionsAndShortcutsHaveOneHome(t *testing.T) {
 		}
 	}
 	footer := ansi.Strip(strings.Split(m.View().Content, "\n")[m.mainHeight()])
-	for _, key := range []string{"f2", "? help", "ctrl+c", "ctrl+r", "compose", "tab"} {
+	for _, key := range []string{"f2", "? help", "ctrl+c", "compose", "tab"} {
 		if strings.Contains(footer, key) {
 			t.Fatalf("footer still has shortcut %q", key)
 		}
+	}
+	if !strings.Contains(footer, "Refresh  ctrl+r") {
+		t.Fatalf("the log footer is missing its refresh hint: %q", footer)
 	}
 	m.notice = "Synthetic request failed. Reading position kept."
 	if !strings.Contains(ansi.Strip(m.View().Content), m.notice) {
