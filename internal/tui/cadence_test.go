@@ -259,9 +259,6 @@ func TestCtrlRRefreshesTheLogAndBothBadges(t *testing.T) {
 	m, log := remotesApp(t, auth.RemotePreferences{UnreadCount: 7})
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 30})
 	m = next.(AppModel)
-	if footer := ansi.Strip(m.workspaceFooter(140)); !strings.Contains(footer, "Refresh  ctrl+r") {
-		t.Fatalf("the log footer hides Ctrl+R: %q", footer)
-	}
 	counts := 0
 	m.fetchNotificationCount = func(context.Context) (int, error) { counts++; return 3, nil }
 	m, cmd := m.handleKey("ctrl+r")
@@ -278,15 +275,5 @@ func TestCtrlRRefreshesTheLogAndBothBadges(t *testing.T) {
 	m = settleCmd(m, cmd)
 	if m.unreadNotifications != 3 || m.toast.detail != "Following is up to date." {
 		t.Fatalf("a failed badge: count %d, toast %q", m.unreadNotifications, m.toast.detail)
-	}
-	m.help = true
-	if strings.Contains(ansi.Strip(m.workspaceFooter(140)), "ctrl+r") {
-		t.Fatal("help consumes Ctrl+R, so the footer must not offer it")
-	}
-	m.help = false
-	m, _ = m.handleKey("g")
-	m = settle(t, m, "n")
-	if strings.Contains(ansi.Strip(m.workspaceFooter(140)), "ctrl+r") {
-		t.Fatal("only the log footer shows its refresh")
 	}
 }

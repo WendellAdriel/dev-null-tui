@@ -279,18 +279,9 @@ func (m AppModel) brand(p palette) string {
 	return text(p.lanes[0]).Bold(true).Render("//") + "  " + text(p.ink).Bold(true).Render("/dev/null")
 }
 
-// workspaceFooter is the open screen's status, with the log's refresh shortcut at the right while the log is read.
+// workspaceFooter is the open screen's status. Refresh lives in the aside's Actions, so the footer doesn't repeat it.
 func (m AppModel) workspaceFooter(width int) string {
-	status := " " + m.feedStatus()
-	// These overlays take Ctrl+R before the log does.
-	covered := m.help || m.viewer.open || m.vote.commitID != "" || m.whatsNew.open || m.upgradeVisible() || m.composer.open
-	if !m.logOnTop() || covered {
-		return fit(status, width)
-	}
-	p := colors(m.account.dark)
-	hint := text(p.muted).Render("Refresh ") + keyChip("ctrl+r", p) + " "
-	status = fit(status, max(1, width-lipgloss.Width(hint)-1))
-	return status + strings.Repeat(" ", max(1, width-lipgloss.Width(status)-lipgloss.Width(hint))) + hint
+	return fit(" "+m.feedStatus(), width)
 }
 
 func (m AppModel) feedTabs(width int, p palette) string {
