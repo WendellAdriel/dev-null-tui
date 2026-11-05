@@ -375,20 +375,20 @@ func (m AppModel) activityGraph(frame *profileFrame, activity *api.Activity, lan
 			frame.add(pad + row)
 		}
 	} else {
-		// Bars share the full width like the web. Without room for a gap column, a half block keeps them apart.
-		n := len(activity.Buckets)
-		gap := 1
-		if width < 2*n-1 {
-			gap = 0
+		// Every bar gets the same width, as on the web, using whichever of a gap column or a closing half block
+		// fills more of the row. The few columns left over center the chart.
+		n := max(1, len(activity.Buckets))
+		gap, column := 1, (width-(n-1))/n
+		if half := width / n; column < 1 || half*n > column*n+n-1 {
+			gap, column = 0, max(1, half)
 		}
-		room := max(n, width-(n-1)*gap)
-		bars, labels, at := "", "", 0
+		at := max(0, (width-(column*n+gap*(n-1)))/2)
+		bars, labels := strings.Repeat(" ", at), ""
 		for i, b := range activity.Buckets {
 			if i > 0 {
 				bars += strings.Repeat(" ", gap)
 				at += gap
 			}
-			column := (i+1)*room/n - i*room/n
 			bar := strings.Repeat("█", column)
 			if gap == 0 {
 				bar = strings.Repeat("█", column-1) + "▌"

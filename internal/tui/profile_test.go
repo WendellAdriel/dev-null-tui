@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -418,14 +419,23 @@ func TestMonthActivityDrawsSeparateBarsAcrossTheWidth(t *testing.T) {
 		}
 		return profile, nil
 	}
-	for _, width := range []int{40, 61, 92} {
+	for _, width := range []int{40, 61, 73, 92} {
 		var frame profileFrame
 		profile, _ := m.loadProfile(context.Background(), "ada")
 		m.activityGraph(&frame, profile.Activity, "#fcc419", width, colors(true))
-		bars := strings.TrimPrefix(ansi.Strip(frame.lines[2]), "  ")
-		separators := strings.Count(bars, " ") + strings.Count(bars, "▌")
-		if ansi.StringWidth(bars) != width || separators < 29 {
-			t.Fatalf("width %d: %d cells, %d separators: %q", width, ansi.StringWidth(bars), separators, bars)
+		line := strings.TrimPrefix(ansi.Strip(frame.lines[2]), "  ")
+		bars := strings.FieldsFunc(line, func(r rune) bool { return r == ' ' })
+		if len(bars) == 1 {
+			// Without room for a gap column, each bar ends in a half block.
+			bars = strings.SplitAfter(bars[0], "▌")[:30]
+		}
+		// The web gives every day the same width, so no bar may be wider than another.
+		if len(bars) != 30 || slices.ContainsFunc(bars, func(bar string) bool { return bar != bars[0] }) {
+			t.Fatalf("width %d: bars differ: %q", width, line)
+		}
+		used := ansi.StringWidth(strings.TrimSpace(line))
+		if left := len(line) - len(strings.TrimLeft(line, " ")); used > width || used < width-29 || left != (width-used)/2 {
+			t.Fatalf("width %d: %d cells from column %d: %q", width, used, left, line)
 		}
 	}
 }
