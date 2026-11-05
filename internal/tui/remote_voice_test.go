@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -627,5 +629,39 @@ func TestWritingHintKeepsVoiceVisibleWhenNarrow(t *testing.T) {
 	m = next.(AppModel)
 	if got := composerText(m); !strings.Contains(got, "ctrl+t voice") {
 		t.Fatalf("at 60 columns the writing hint must still show ctrl+t:\n%s", got)
+	}
+}
+
+// TestTheWaveformStandsOutOnEveryBubble keeps the unplayed bars readable on a blue own bubble and a grey one, in both
+// themes, while the played bars stay brighter.
+func TestTheWaveformStandsOutOnEveryBubble(t *testing.T) {
+	m, _ := voiceApp(t)
+	note := voiceNote(1, 10)
+	colour := regexp.MustCompile(`38;2;(\d+);(\d+);(\d+)`)
+	for _, dark := range []bool{true, false} {
+		p := colors(dark)
+		for _, bubble := range [][2]string{{p.shell, p.blue}, {p.ink, p.wash}} {
+			line, _, start, _ := m.voiceLine(note, 60, bubble[0], bubble[1], p)
+			wave := strings.Index(line, string([]rune(voiceLevels)[0]))
+			if wave < 0 || start == 0 {
+				t.Fatalf("no waveform in %q", line)
+			}
+			found := colour.FindAllStringSubmatch(line[max(0, wave-40):wave], -1)
+			if len(found) == 0 {
+				t.Fatalf("waveform has no colour: %q", line)
+			}
+			last := found[len(found)-1]
+			var rgb [3]int
+			for i := range rgb {
+				rgb[i], _ = strconv.Atoi(last[i+1])
+			}
+			unplayed := fmt.Sprintf("#%02x%02x%02x", rgb[0], rgb[1], rgb[2])
+			if got := contrast(unplayed, bubble[1]); got < 2.5 {
+				t.Errorf("dark=%v: unplayed bars %s on %s have contrast %.2f, want at least 2.5", dark, unplayed, bubble[1], got)
+			}
+			if contrast(bubble[0], bubble[1]) <= contrast(unplayed, bubble[1]) {
+				t.Errorf("dark=%v: played bars must stand out more than unplayed ones", dark)
+			}
+		}
 	}
 }

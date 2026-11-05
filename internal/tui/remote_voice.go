@@ -440,9 +440,11 @@ func (m AppModel) voiceLine(message api.Message, width int, foreground, backgrou
 	if duration > 0 {
 		played = int(float64(bars) * float64(at) / float64(duration))
 	}
+	// Unplayed bars are the bubble's text faded toward its fill, so they read on the blue own bubble too.
+	unplayed := mixColor(foreground, background, 0.65)
 	var wave strings.Builder
 	for column, level := range downsample(voice.Waveform, bars) {
-		colour := p.muted
+		colour := unplayed
 		if column < played {
 			colour = foreground
 		}
