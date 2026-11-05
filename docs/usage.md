@@ -24,7 +24,7 @@ Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move wi
 
 Older pages load near the end of the list, or when you press `n`. Switching logs preserves each log's selection and scroll position.
 
-`Ctrl+R` fetches the first page while keeping the current content visible, and also refreshes the notifications and Remotes badges. The log's footer shows the shortcut. Success selects the first commit and scrolls to the top. Failure keeps your position. Trending returns to its first ranked commit, which may not be the newest.
+`Ctrl+R` fetches the first page while keeping the current content visible, and also refreshes the notifications and Remotes badges. Success selects the first commit and scrolls to the top. Failure keeps your position. Trending returns to its first ranked commit, which may not be the newest.
 
 Following and Latest check for new commits every 15 seconds while the terminal is focused, and every 30 seconds while it isn't. New commits go above the ones you're reading, and your row stays where it was. If you're at the top of a focused terminal, they simply appear. Otherwise a **New commits** button with up to three author avatars appears at the top of the log. Click it or scroll up to read them. Your own commits never raise it. Trending has no chronological arrival check.
 
