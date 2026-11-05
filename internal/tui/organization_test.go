@@ -219,7 +219,7 @@ func TestAMissingOrganizationSaysSo(t *testing.T) {
 func TestTheFollowingListShowsOrganizationsAbovePeople(t *testing.T) {
 	m, log := organizationApp(t)
 	m, _ = m.selectCommit(1)
-	m = press(t, m, "u", "4")
+	m = press(t, m, "u", "O")
 	frame := profileText(m)
 	if !strings.Contains(log.String(), "followed ada cursor=") || !strings.Contains(frame, "Organizations") || !strings.Contains(frame, "More organizations  o") {
 		t.Fatalf("following list: %s\n%s", log, frame)
@@ -239,7 +239,7 @@ func TestTheFollowingListShowsOrganizationsAbovePeople(t *testing.T) {
 	if len(m.profiles) != 3 || !m.profiles[2].organization {
 		t.Fatalf("enter on an organization row did not open it: %s", log)
 	}
-	m = press(t, m, "esc", "3")
+	m = press(t, m, "esc", "F")
 	if strings.Contains(profileText(m), "Organizations") {
 		t.Fatal("the Followers list shows organizations")
 	}
@@ -256,7 +256,7 @@ func TestMuteAndBlockDoNothingOnAnOrganizationPage(t *testing.T) {
 func TestASelectedPersonKeepsItsRowAsOrganizationsLoad(t *testing.T) {
 	m, _ := organizationApp(t)
 	m, _ = m.selectCommit(1)
-	m = press(t, m, "u", "4", "j")
+	m = press(t, m, "u", "O", "j")
 	s := m.profiles[len(m.profiles)-1]
 	if l := s.lists[s.tab]; l.selected != len(l.organizations) {
 		t.Fatalf("expected the first person, got row %d", l.selected)

@@ -407,8 +407,8 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 		switch pressed {
 		case "1", "2":
 			return m, m.switchProfileTab(int(pressed[0] - '1')), true
-		case "3", "4":
-			return m, m.openConnections(int(pressed[0] - '3')), true
+		case "F", "O":
+			return m, m.openConnections(connectionKeys[pressed]), true
 		case "f":
 			return m, m.startFollow(s.handle, s.profile.IsFollowing), true
 		case "W":
@@ -446,10 +446,15 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 	return m, nil, true
 }
 
+// connectionKeys maps a profile's letter shortcuts to its Followers and Following lists, since a digit beside a count reads as part of it.
+var connectionKeys = map[string]int{"F": 0, "O": 1}
+
 func (m AppModel) connectionKey(s *profileState, pressed string) (AppModel, tea.Cmd, bool) {
 	switch pressed {
-	case "1", "2", "3", "4":
-		return m, m.switchProfileTab(int(pressed[0]-'1') % 2), true
+	case "1", "2":
+		return m, m.switchProfileTab(int(pressed[0] - '1')), true
+	case "F", "O":
+		return m, m.switchProfileTab(connectionKeys[pressed]), true
 	}
 	l := &s.lists[s.tab]
 	if pressed == "o" {

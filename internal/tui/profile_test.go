@@ -104,7 +104,7 @@ func TestProfileOpensFromLogLikeTheWebAndEscRestoresTheRow(t *testing.T) {
 		t.Fatalf("profile requests: %+v", calls)
 	}
 	frame := profileText(m)
-	for _, want := range []string{"Name ada", "@ada", "Follows you", "Lv. 5 · wheel", "Bio of ada", "Lisbon", "ada.dev", "3 commits", "2 following", "10 followers", "Follow  f", "Commit activity", "12 commits in the last 7 days", "longest streak 4 days", "current 2", "1,821 XP", "1 / 2 unlocked", "679 XP to root", "init", "Commits", "Replies", "Commit by ada"} {
+	for _, want := range []string{"Name ada", "@ada", "Follows you", "Lv. 5 · wheel", "Bio of ada", "Lisbon", "ada.dev", "3 commits", "2 following  O", "10 followers  F", "Follow  f", "Commit activity", "12 commits in the last 7 days", "longest streak 4 days", "current 2", "1,821 XP", "1 / 2 unlocked", "679 XP to root", "init", "Commits", "Replies", "Commit by ada"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("profile lacks %q:\n%s", want, frame)
 		}
@@ -261,7 +261,7 @@ func TestProfileTabsAndConnectionLists(t *testing.T) {
 	if !strings.Contains(profileText(m), "Reply by ada") || calls.commits[len(calls.commits)-1] != "ada replies=true cursor=" {
 		t.Fatalf("replies tab: %v", calls.commits)
 	}
-	m = press(t, m, "4")
+	m = press(t, m, "O")
 	if len(m.profiles) != 2 || !m.profiles[1].people || m.profiles[1].tab != 1 || calls.people[0] != "ada following cursor=" {
 		t.Fatalf("following list: %v", calls.people)
 	}
@@ -354,7 +354,7 @@ func TestProfileImageClickNearTheEndLoadsTheNextPage(t *testing.T) {
 
 func TestUnknownFollowOutcomeFromAConnectionRowReloadsTheList(t *testing.T) {
 	m, calls := profileApp(t)
-	m = press(t, m, "u", "3")
+	m = press(t, m, "u", "F")
 	before := len(calls.people)
 	m.setFollow = func(context.Context, string, bool) error { return context.DeadlineExceeded }
 	next, cmd := m.handleKey("f")

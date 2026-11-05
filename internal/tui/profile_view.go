@@ -305,12 +305,15 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	for _, count := range []struct {
 		value               *int
 		one, many, shortcut string
-	}{{u.Commits, "commit", "commits", ""}, {u.Following, "following", "following", "4"}, {u.Followers, "follower", "followers", "3"}} {
+	}{{u.Commits, "commit", "commits", ""}, {u.Following, "following", "following", "O"}, {u.Followers, "follower", "followers", "F"}} {
 		if count.value == nil {
 			continue
 		}
 		label := strings.SplitN(plural(*count.value, count.one, count.many), " ", 2)
 		item := text(p.ink).Bold(true).Render(label[0]) + text(p.muted).Render(" "+label[1])
+		if count.shortcut != "" {
+			item += " " + keyChip(count.shortcut, p)
+		}
 		if len(counts) > 0 {
 			x += 3
 		}
@@ -685,11 +688,11 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 	}
 	if s.people {
 		short := []key.Binding{bind("j/k", "move"), bind("enter", "open profile"), bind("f", "follow / unfollow"), bind("tab", "followers / following"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-		all := append(append([]key.Binding(nil), short...), bind("1 / 2", "followers / following"), bind("n", "more people"), bind("ctrl+r", "reload list"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, or follow"))
+		all := append(append([]key.Binding(nil), short...), bind("1 / 2 or F / O", "followers / following"), bind("n", "more people"), bind("ctrl+r", "reload list"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, or follow"))
 		return appKeys{short, all}
 	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("3 / 4", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
+	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
 	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
 	return appKeys{short, all}
