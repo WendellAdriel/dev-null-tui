@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -223,5 +224,26 @@ func TestAStreamEndsOnTheMinuteTickOnAnOpenProfile(t *testing.T) {
 	m = next.(AppModel)
 	if strings.Contains(profileText(m), "LIVE on") || strings.Contains(profileText(m), "Watch") {
 		t.Fatalf("an ended stream still shows:\n%s", profileText(m))
+	}
+}
+
+// TestGoLiveIsNotDrawnLikeADestructiveAction keeps red for deletes and blocks, so Go live and its dialogs use blue.
+func TestGoLiveIsNotDrawnLikeADestructiveAction(t *testing.T) {
+	m, _ := liveApp(t)
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 140, Height: 44})
+	m = compose(t, next.(AppModel), "L")
+	p := colors(m.account.dark)
+	var r, g, b int
+	if _, err := fmt.Sscanf(p.danger, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		t.Fatal(err)
+	}
+	red := fmt.Sprintf("38;2;%d;%d;%d", r, g, b)
+	dialog, _, _ := m.liveModal(p)
+	m.live.ending = true
+	ending, _, _ := m.liveModal(p)
+	for name, view := range map[string]string{"Go live": dialog, "End stream": ending, "profile button": m.liveAction(p)} {
+		if strings.Contains(view, red) {
+			t.Errorf("%s is drawn in the destructive red: %q", name, view)
+		}
 	}
 }

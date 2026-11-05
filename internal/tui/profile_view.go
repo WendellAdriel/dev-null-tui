@@ -209,7 +209,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		follow = text(p.ink).Bold(true).Render(followLabel(*profile.IsFollowing)) + " " + keyChip("f", p)
 	}
 	if own && m.liveCalls.goLive != nil {
-		follow, followKey = text(p.danger).Bold(true).Render(m.liveButton())+" "+keyChip("L", p), "L"
+		follow, followKey = m.liveAction(p), "L"
 	}
 	frame.add("")
 	var avatar []string

@@ -100,7 +100,7 @@ func (m AppModel) liveModal(p palette) (string, uiRect, []hitArea) {
 		areas[i].y += r.y + r.h - 1 - lipgloss.Height(footer)
 	}
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0})
-	return panel("/dev/null · LIVE", strings.Join(rows, "\n"), footer, r, p, p.danger), r, areas
+	return panel("/dev/null · LIVE", strings.Join(rows, "\n"), footer, r, p, p.blue), r, areas
 }
 
 func (m AppModel) endStreamModal(p palette) (string, uiRect, []hitArea) {
@@ -113,7 +113,7 @@ func (m AppModel) endStreamModal(p palette) (string, uiRect, []hitArea) {
 		areas[i].y += r.y + r.h - 1 - lipgloss.Height(footer)
 	}
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0})
-	return panel("/dev/null · LIVE", body, footer, r, p, p.danger), r, areas
+	return panel("/dev/null · LIVE", body, footer, r, p, p.blue), r, areas
 }
 
 // liveNowBlock is the web's Live now aside: up to three people you follow, each with its thumbnail and a click to watch.
@@ -146,6 +146,11 @@ func (m AppModel) liveNowBlock(width int, p palette) (string, []hitArea) {
 			left[1]+strings.Repeat(" ", max(0, gap-lipgloss.Width(left[1])))+text(p.muted).Render(fit(detail, inner)))
 	}
 	return strings.Join(rows, "\n"), areas
+}
+
+// liveAction is your profile's Go live or End stream action. It's blue, since red marks destructive actions.
+func (m AppModel) liveAction(p palette) string {
+	return text(p.blue).Bold(true).Render(m.liveButton()) + " " + keyChip("L", p)
 }
 
 // liveButton is your own Go live or End stream action, shown on your profile and in the aside.
