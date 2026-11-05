@@ -37,8 +37,13 @@ func TestSidebarIdentityAndVersion(t *testing.T) {
 		for _, width := range []int{36, 40} {
 			for _, height := range []int{24, 34} {
 				aside := strings.Split(ansi.Strip(m.aside(width, height, p)), "\n")
+				at := slices.IndexFunc(aside, func(line string) bool { return strings.Contains(line, "/dev/null TUI") })
+				// The version follows the shortcuts after a rule and one blank line, not the aside's bottom.
+				if at < 2 || !strings.Contains(aside[at-2], "─") || strings.TrimSpace(aside[at-1]) != "" || strings.Contains(aside[0], "─") {
+					t.Fatalf("version placement at %dx%d:\n%s", width, height, strings.Join(aside, "\n"))
+				}
 				for i, label := range []string{"/dev/null TUI", "v1.2.3"} {
-					line := aside[len(aside)-2+i]
+					line := aside[at+i]
 					left := strings.Index(line, label)
 					right := width - left - len(label)
 					if left < 0 || left-right < -1 || left-right > 1 {

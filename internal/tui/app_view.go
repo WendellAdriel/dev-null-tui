@@ -522,7 +522,11 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 			areas[i].y++
 		}
 	}
-	controls += line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
+	// A rule only separates Actions from the Live now block above it.
+	if controls != "" {
+		controls += line + "\n"
+	}
+	controls += text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
 	for i, action := range []struct{ label, key string }{{"Account", "a"}, {m.liveButton(), "L"}, {"Refresh", "ctrl+r"}} {
 		if i > 0 {
 			controls += "\n\n"
@@ -553,15 +557,11 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	if version == "" {
 		version = release.Version
 	}
-	bottom := centered.Foreground(lipgloss.Color(p.muted)).Render("/dev/null TUI\n" + fit(safeText(version), inner))
-	profileHeight := max(1, height-lipgloss.Height(controls)-lipgloss.Height(bottom)-2)
-	content = strings.TrimRight(lipgloss.NewStyle().MaxHeight(profileHeight).Render(content), "\n") + "\n\n"
+	controls += line + "\n\n" + centered.Foreground(lipgloss.Color(p.muted)).Render("/dev/null TUI\n"+fit(safeText(version), inner))
 	for i := range areas {
 		areas[i].y += strings.Count(content, "\n")
 	}
 	content += controls
-	gap := max(1, height-lipgloss.Height(content)-lipgloss.Height(bottom)+1)
-	content += strings.Repeat("\n", gap) + bottom
 	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content), areas
 }
 
