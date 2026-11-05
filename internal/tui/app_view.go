@@ -433,10 +433,43 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		}
 		identity := text(p.ink).Bold(true).Render(fit(name, inner-5)) + "\n" + text(p.muted).Render(fit("@"+safeText(user.Handle), inner-5))
 		bottom = lipgloss.NewStyle().PaddingLeft(1).Render(lipgloss.JoinHorizontal(lipgloss.Top, avatar, " ", identity))
+		// Your counts sit above your identity, one per line, dropping from the end when the column is short.
+		stats := m.accountStats(width, p)
+		for len(stats) > 0 && lipgloss.Height(top)+len(stats)+1+lipgloss.Height(bottom) >= height {
+			stats = stats[:len(stats)-1]
+		}
+		if len(stats) > 0 {
+			bottom = strings.Join(stats, "\n") + "\n\n" + bottom
+		}
 	}
 	gap := max(1, height-lipgloss.Height(top)-lipgloss.Height(bottom))
 	content := top + strings.Repeat("\n", gap) + bottom + "\n"
 	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).Render(content), areas
+}
+
+// accountStats are the sidebar's centered lines for your counts, pastéis, and live stream. A count the server
+// didn't return is left out rather than shown as zero.
+func (m AppModel) accountStats(width int, p palette) []string {
+	u := m.account.user
+	centered := lipgloss.NewStyle().Width(width).Align(lipgloss.Center)
+	var stats []string
+	for _, stat := range []struct {
+		value     *int
+		one, many string
+	}{{u.Commits, "commit", "commits"}, {u.Following, "following", "following"}, {u.Followers, "follower", "followers"}} {
+		if stat.value != nil {
+			label := strings.SplitN(plural(*stat.value, stat.one, stat.many), " ", 2)
+			stats = append(stats, centered.Render(text(p.ink).Bold(true).Render(label[0])+text(p.muted).Render(" "+label[1])))
+		}
+	}
+	if u.PasteisMode && u.PasteisRemaining != nil {
+		label := fmt.Sprintf("%d pastéis left today", *u.PasteisRemaining)
+		stats = append(stats, lipgloss.PlaceHorizontal(width, lipgloss.Center, pastelLabel(label, min(width, lipgloss.Width(pastelIcon(p, m.images))+1+len([]rune(label))), p, m.images)))
+	}
+	if u.Live.On(m.now) {
+		stats = append(stats, centered.Render(liveLabel(u.Live, p)), centered.Render(text(p.muted).Render(fit("until "+liveUntil(u.Live), width))))
+	}
+	return stats
 }
 
 func (m AppModel) manualLinkView(width int, p palette) (string, hitArea) {
@@ -453,58 +486,9 @@ func (m AppModel) aside(width, height int, p palette) string {
 
 func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) {
 	var areas []hitArea
-	u := m.account.user
 	inner := width - 3
-	lane := laneColor(u.Lane, p)
-	avatar := text(lane).Render("◉")
-	req := m.avatarRequest(u.AvatarURL, liveRing(u.Live, lane, p, m.now), 4, 2)
-	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
-		avatar = top + "\n" + bottom
-	}
 	centered := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
-	identity := centered.Render(avatar + "\n" + text(p.ink).Bold(true).Render(fit(safeText(u.Name), inner)) + "\n" + text(p.muted).Render(fit("@"+safeText(u.Handle), inner)))
-	content := "\n" + identity + "\n\n"
-	var stats []string
-	for _, stat := range []struct {
-		value *int
-		label string
-	}{{u.Commits, "commits"}, {u.Following, "following"}, {u.Followers, "followers"}} {
-		if stat.value != nil {
-			value := text(p.ink).Bold(true).Render(fmt.Sprint(*stat.value)) + text(p.muted).Render(" "+stat.label)
-			stats = append(stats, value)
-		}
-	}
-	if len(stats) > 0 {
-		row := ""
-		for _, stat := range stats {
-			if row != "" && lipgloss.Width(row)+2+lipgloss.Width(stat) > inner {
-				content += centered.Render(row) + "\n"
-				row = ""
-			}
-			if row != "" {
-				row += "  "
-			}
-			row += stat
-		}
-		content += centered.Render(row) + "\n\n"
-	}
-	if u.Bio != "" {
-		content += lipgloss.NewStyle().Width(inner).MaxHeight(3).Foreground(lipgloss.Color(p.muted)).Render(safeText(u.Bio)) + "\n\n"
-	}
-	for _, field := range []struct{ label, value string }{{"Company", u.Company}, {"Location", u.Location}} {
-		if field.value != "" {
-			content += text(p.muted).Render(fit(field.label+": "+safeText(field.value), inner)) + "\n"
-		}
-	}
-	if u.Company != "" || u.Location != "" {
-		content += "\n"
-	}
-	if u.PasteisMode && u.PasteisRemaining != nil {
-		content += pastelLabel(fmt.Sprintf("%d pastéis left today", *u.PasteisRemaining), inner, p, m.images) + "\n\n"
-	}
-	if u.Live.On(m.now) {
-		content += centered.Render(liveLabel(u.Live, p)) + "\n" + text(p.muted).Width(inner).Align(lipgloss.Center).Render(fit("until "+liveUntil(u.Live), inner)) + "\n\n"
-	}
+	content := "\n"
 	line := text(p.hairline).Render(strings.Repeat("─", inner))
 	controls := ""
 	if live, watch := m.liveNowBlock(inner, p); live != "" {

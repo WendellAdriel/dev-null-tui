@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -10,71 +11,49 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
 )
 
-func TestAccountAsideUsesOnlyReturnedProfileFields(t *testing.T) {
-	m := fixtureApp(t)
-	m.account.user.Bio = "Building small tools for developers.\x1b[2J"
-	m.account.user.Company = "Fixture Labs"
-	m.account.user.Location = "Porto"
-	m.account.user.Commits = new(31)
-	m.account.user.Following = new(48)
-	m.account.user.Followers = new(5)
-	plain := ansi.Strip(m.aside(34, 42, colors(true)))
-	for _, value := range []string{"Building small tools", "Fixture Labs", "Porto", "31", "48", "5", "commits", "following", "followers"} {
-		if !strings.Contains(plain, value) {
-			t.Fatalf("account aside lost returned field %q", value)
-		}
-	}
-	if strings.Contains(plain, "followingfollowers") {
-		t.Fatal("profile count labels run together")
-	}
-	if !strings.Contains(ansi.Strip(m.aside(36, 42, colors(true))), "5 followers") {
-		t.Fatal("profile count must wrap with its label")
-	}
-	if strings.Contains(plain, "\x1b[2J") {
-		t.Fatal("remote profile control sequence survived")
-	}
-	m.account.user.Commits, m.account.user.Following, m.account.user.Followers = nil, nil, nil
-	plain = ansi.Strip(m.aside(34, 42, colors(true)))
-	if strings.Contains(plain, "followers") || strings.Contains(plain, "commits") {
-		t.Fatal("missing account counts must not become fabricated zeroes")
-	}
-}
-
-func TestAsideCentersIdentityAndCountsButNotProfileDetails(t *testing.T) {
+func TestTheLeftSidebarCentersYourCountsAndTheAsideDropsYourProfile(t *testing.T) {
 	m := fixtureApp(t)
 	m.account.user.Name = "Ada Fixture"
 	m.account.user.Handle = "ada"
-	m.account.user.Commits = new(31)
-	m.account.user.Following = new(48)
-	m.account.user.Followers = new(5)
-	m.account.user.Bio = "Building small tools."
+	m.account.user.Bio = "Building small tools.\x1b[2J"
 	m.account.user.Company = "Fixture Labs"
 	m.account.user.Location = "Porto"
-	for _, width := range []int{36, 40} {
-		plain := ansi.Strip(m.aside(width, 45, colors(true)))
-		for _, value := range []string{"◉", "Ada Fixture", "@ada", "31 commits", "5 followers"} {
-			found := false
-			for _, line := range strings.Split(plain, "\n") {
-				if !strings.Contains(line, value) {
-					continue
-				}
-				found = true
-				body := ansi.Cut(line, 2, width-1)
-				left := len(body) - len(strings.TrimLeft(body, " "))
-				right := len(body) - len(strings.TrimRight(body, " "))
-				if left-right > 1 || right-left > 1 {
-					t.Fatalf("%q not centered at %d columns: %q", value, width, body)
-				}
+	m.account.user.Commits, m.account.user.Following, m.account.user.Followers = new(31), new(48), new(1)
+	m.account.user.PasteisMode, m.account.user.PasteisRemaining = true, new(7)
+	nav := strings.Split(ansi.Strip(m.navigation(25, 40, colors(true))), "\n")
+	var rows []string
+	for _, want := range []string{"31 commits", "48 following", "1 follower", "7 pastéis left today"} {
+		for i, line := range nav {
+			if !strings.Contains(line, want) {
+				continue
 			}
-			if !found {
-				t.Fatalf("profile missing %q", value)
+			left, right := len(line)-len(strings.TrimLeft(line, " ")), len(line)-len(strings.TrimRight(line, " "))
+			if left-right > 1 || right-left > 1 {
+				t.Fatalf("%q is not centered: %q", want, line)
 			}
+			rows = append(rows, fmt.Sprint(i))
 		}
-		for _, value := range []string{"Building small tools.", "Company: Fixture Labs", "Location: Porto"} {
-			if !strings.Contains(plain, "\n  "+value) {
-				t.Fatalf("profile detail missing or not left-aligned: %q", value)
-			}
+	}
+	if slices.Sort(rows); len(slices.Compact(rows)) != 4 {
+		t.Fatalf("each count goes on its own line, found on rows %v:\n%s", rows, strings.Join(nav, "\n"))
+	}
+	aside := ansi.Strip(m.aside(40, 40, colors(true)))
+	for _, gone := range []string{"Building small tools", "Fixture Labs", "Porto", "@ada", "commits", "pastéis"} {
+		if strings.Contains(aside, gone) {
+			t.Fatalf("the aside still shows %q", gone)
 		}
+	}
+	for _, gone := range []string{"Building small tools", "Fixture Labs", "Porto", "\x1b[2J"} {
+		if strings.Contains(strings.Join(nav, "\n"), gone) {
+			t.Fatalf("the sidebar shows %q", gone)
+		}
+	}
+	if short := m.navigation(25, 23, colors(true)); strings.Count(short, "\n") != 22 || !strings.Contains(ansi.Strip(short), "@ada") {
+		t.Fatalf("a short sidebar must drop counts, not its identity:\n%s", ansi.Strip(short))
+	}
+	m.account.user.Commits, m.account.user.Following, m.account.user.Followers = nil, nil, nil
+	if plain := ansi.Strip(m.navigation(25, 40, colors(true))); strings.Contains(plain, "commits") || strings.Contains(plain, "follower") {
+		t.Fatal("missing account counts must not become fabricated zeroes")
 	}
 }
 
