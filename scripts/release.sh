@@ -3,7 +3,7 @@ set -eu
 
 usage() {
     echo 'Usage: scripts/release.sh vMAJOR.MINOR.PATCH [--publish]'
-    echo 'Without --publish, only local binaries and checksums are built.'
+    echo 'Without --publish, only local binaries, archives, and checksums are built.'
 }
 if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then usage >&2; exit 1; fi
 version=$1
@@ -47,6 +47,12 @@ if [ "$publish" != --publish ]; then
     exit 0
 fi
 
+assets=$(awk '{ print "dist/release/" $2 }' dist/release/checksums.txt)
+if [ -z "$assets" ]; then echo 'dist/release/checksums.txt lists no release files.' >&2; exit 1; fi
+for asset in $assets; do
+    if [ ! -f "$asset" ]; then echo "Missing $asset." >&2; exit 1; fi
+done
+
 printf 'Publish %s to %s? Type the version to confirm: ' "$version" "$repo"
 read -r confirmation
 if [ "$confirmation" != "$version" ]; then echo 'Publication canceled.' >&2; exit 1; fi
@@ -56,9 +62,7 @@ if [ "$(git rev-parse HEAD)" != "$commit" ] || [ -n "$(git status --porcelain)" 
 fi
 git tag -a "$version" -m "Release $version" "$commit"
 git push origin "refs/tags/$version"
+# Unquoted on purpose: each release file name, which has no spaces, becomes its own argument.
 gh release create "$version" --repo "$repo" --verify-tag --draft --title "$version" --generate-notes \
-    dist/release/devnull_linux_amd64 dist/release/devnull_linux_arm64 \
-    dist/release/devnull_darwin_amd64 dist/release/devnull_darwin_arm64 \
-    dist/release/devnull_windows_amd64.exe dist/release/devnull_windows_arm64.exe \
-    dist/release/checksums.txt LICENSE
+    $assets dist/release/checksums.txt LICENSE
 gh release edit "$version" --repo "$repo" --draft=false --latest

@@ -17,7 +17,7 @@ func TestReleasePublicationRequiresExplicitApprovalAndCleanPushedMain(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined", "missing summary"} {
+	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined", "missing summary", "missing asset"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			scriptsDir, mockDir := filepath.Join(root, "scripts"), filepath.Join(root, "mocks")
@@ -45,7 +45,18 @@ func TestReleasePublicationRequiresExplicitApprovalAndCleanPushedMain(t *testing
 			mock := `#!/bin/sh
 name=${0##*/}
 printf '%s %s\n' "$name" "$*" >> "$TEST_ROOT/calls"
-if [ "$name" = go ]; then touch "$TEST_ROOT/built"; exit 0; fi
+if [ "$name" = go ]; then
+    touch "$TEST_ROOT/built"
+    case "$*" in 'run ./tools/build '*)
+        mkdir -p "$TEST_ROOT/dist/release"
+        if [ "$TEST_SCENARIO" = 'missing asset' ]; then : > "$TEST_ROOT/dist/release/checksums.txt"; exit 0; fi
+        for asset in devnull_linux_amd64 devnull_v0.1.0_windows_arm64.zip; do
+            touch "$TEST_ROOT/dist/release/$asset"
+            echo "abc  $asset" >> "$TEST_ROOT/dist/release/checksums.txt"
+        done;;
+    esac
+    exit 0
+fi
 if [ "$name" = gh ]; then
     case "$*" in 'release view '*)
         if [ "$TEST_SCENARIO" = 'existing release' ]; then exit 0; else exit 1; fi;;
@@ -100,6 +111,11 @@ esac
 			if scenario == "publish" {
 				if err != nil || !published || !strings.Contains(string(calls), "--draft=false --latest") {
 					t.Fatalf("mock publication failed: %v %s\n%s", err, output, calls)
+				}
+				for _, asset := range []string{"devnull_linux_amd64", "devnull_v0.1.0_windows_arm64.zip", "checksums.txt"} {
+					if !strings.Contains(string(calls), "dist/release/"+asset) {
+						t.Fatalf("publication did not upload %s:\n%s", asset, calls)
+					}
 				}
 			} else if published {
 				t.Fatalf("published without approval: %s", calls)

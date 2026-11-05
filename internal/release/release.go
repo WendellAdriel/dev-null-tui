@@ -41,3 +41,17 @@ func AssetName(goos, arch string) (string, error) {
 	}
 	return name, nil
 }
+
+func ArchiveName(version, goos, arch string) (string, error) {
+	if !ValidVersion(version) {
+		return "", fmt.Errorf("no release archive for version %q", version)
+	}
+	if _, err := AssetName(goos, arch); err != nil {
+		return "", err
+	}
+	extension := ".tar.gz"
+	if goos == "windows" {
+		extension = ".zip"
+	}
+	return "devnull_" + version + "_" + goos + "_" + arch + extension, nil
+}
