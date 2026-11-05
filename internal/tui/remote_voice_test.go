@@ -15,6 +15,7 @@ import (
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
 	"github.com/WendellAdriel/dev-null-cli/internal/audio"
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 // fakeSound records what the TUI asks the sound device to do, without playing anything.
@@ -200,8 +201,8 @@ func TestSeekSpeedAndVolumeKeys(t *testing.T) {
 		return settleCmd(next.(AppModel), cmd)
 	}
 	m = saveVolume(m, m.voice.volumeGeneration)
-	if got := m.account.store.TUISettings().VoiceVolume; math.Abs(got-0.8) > 1e-9 {
-		t.Fatalf("the settled volume is saved as %v, want 0.8", got)
+	if !savedSettings(m, func(s auth.TUISettings) bool { return math.Abs(s.VoiceVolume-0.8) <= 1e-9 }) {
+		t.Fatalf("the settled volume is saved as %v, want 0.8", m.account.store.TUISettings().VoiceVolume)
 	}
 	m = voiceKeys(t, m, "+", "+", "+", "+")
 	m = saveVolume(m, m.voice.volumeGeneration-1)
@@ -209,7 +210,7 @@ func TestSeekSpeedAndVolumeKeys(t *testing.T) {
 		t.Fatalf("a superseded save tick wrote %v", got)
 	}
 	m = saveVolume(m, m.voice.volumeGeneration)
-	if m.tuiSettings.VoiceVolume != 1 || m.account.store.TUISettings().VoiceVolume != 1 {
+	if m.tuiSettings.VoiceVolume != 1 || !savedSettings(m, func(s auth.TUISettings) bool { return s.VoiceVolume == 1 }) {
 		t.Fatalf("volume stops at 1 and is saved: %v, saved %v", m.tuiSettings.VoiceVolume, m.account.store.TUISettings().VoiceVolume)
 	}
 }

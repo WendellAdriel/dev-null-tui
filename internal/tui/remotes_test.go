@@ -146,6 +146,18 @@ func settleCmd(m AppModel, cmd tea.Cmd) AppModel {
 	return m
 }
 
+// savedSettings waits for a tui.json write that settleCmd stopped waiting for after 50 ms on a slow machine.
+func savedSettings(m AppModel, saved func(auth.TUISettings) bool) bool {
+	deadline := time.Now().Add(2 * time.Second)
+	for !saved(m.account.store.TUISettings()) {
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return true
+}
+
 func navigationText(m AppModel) string {
 	nav, _, _ := m.columns()
 	view, _ := m.navigationLayout(nav, m.mainHeight(), colors(true))

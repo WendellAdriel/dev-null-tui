@@ -107,7 +107,7 @@ func TestPinningWarnsUntilToldNotTo(t *testing.T) {
 	if !strings.HasSuffix(state.log.String(), "pin 9 true") || !strings.Contains(threadText(m), "1 pinned · Grace Hopper") {
 		t.Fatalf("pin: %s\n%s", state.log, threadText(m))
 	}
-	if !m.tuiSettings.PinWarningDismissed || !m.account.store.TUISettings().PinWarningDismissed {
+	if !m.tuiSettings.PinWarningDismissed || !savedSettings(m, func(s auth.TUISettings) bool { return s.PinWarningDismissed }) {
 		t.Fatal("Don't show this again was not saved")
 	}
 	m = settle(t, m, "k", "!")
