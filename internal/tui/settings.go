@@ -241,12 +241,7 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 		return nil
 	}
 	if r.user.ID != "" {
-		m.account.user = r.user
-		if r.user.UnreadNotifications != nil {
-			m.invalidateNotificationCount()
-			m.unreadNotifications = *r.user.UnreadNotifications
-		}
-		m.updateOwnIdentity(r.user)
+		m.applyAccount(r.user)
 		if r.user.TermsVersion != "" && !r.user.TermsAccepted {
 			m.account.state, m.accountOpen = "terms", true
 			s.open = false
@@ -294,6 +289,16 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 	return tea.Batch(list, notice, refresh)
 }
 
+// applyAccount takes a returned CurrentUserResource, from a settings save or a live stream change.
+func (m *AppModel) applyAccount(u auth.User) {
+	m.account.user = u
+	if u.UnreadNotifications != nil {
+		m.invalidateNotificationCount()
+		m.unreadNotifications = *u.UnreadNotifications
+	}
+	m.updateOwnIdentity(u)
+}
+
 func (m *AppModel) updateOwnIdentity(u auth.User) {
 	var update func(*api.Commit)
 	update = func(c *api.Commit) {
@@ -301,7 +306,7 @@ func (m *AppModel) updateOwnIdentity(u auth.User) {
 			return
 		}
 		if c.Author != nil && c.Author.ID == u.ID {
-			c.Author.Name, c.Author.Handle, c.Author.AvatarURL, c.Author.Lane = u.Name, u.Handle, u.AvatarURL, u.Lane
+			c.Author.Name, c.Author.Handle, c.Author.AvatarURL, c.Author.Lane, c.Author.Live = u.Name, u.Handle, u.AvatarURL, u.Lane, u.Live
 		}
 		update(c.Quote)
 		if c.ReplyPreview != nil {
@@ -817,7 +822,7 @@ func (m *AppModel) beginReport() tea.Cmd {
 
 func (m *AppModel) beginProfileSafety(kind string) tea.Cmd {
 	p := m.topProfile()
-	if p == nil || p.people || !p.loaded || p.profile.User.ID == m.account.user.ID {
+	if p == nil || p.people || p.organization || !p.loaded || p.profile.User.ID == m.account.user.ID {
 		return nil
 	}
 	if kind == "mute" && p.profile.IsMuting != nil && *p.profile.IsMuting {
@@ -934,7 +939,7 @@ func (m *AppModel) restrictSafetyContent(handle, kind string) {
 			}
 			count := len(list.commits)
 			if p.people {
-				count = len(list.people)
+				count = len(list.organizations) + len(list.people)
 			}
 			list.selected = max(0, min(list.selected, count-1))
 		}

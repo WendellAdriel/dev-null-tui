@@ -163,6 +163,10 @@ func TestSavedConnectionOpensApplicationAndReadsSignedLogs(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/me":
 			_, _ = io.WriteString(w, `{"data":{"id":"fixture","handle":"fixture","name":"Fixture"}}`)
+		case "/api/v1/me/live-following":
+			// The aside's Live now block loads beside the log, in no fixed order.
+			_, _ = io.WriteString(w, `{"data":[]}`)
+			return
 		default:
 			log := strings.TrimPrefix(r.URL.Path, "/api/v1/log/")
 			w.Header().Set("Content-Type", "application/json")

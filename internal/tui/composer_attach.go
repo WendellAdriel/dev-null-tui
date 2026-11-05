@@ -50,6 +50,9 @@ func (c composer) pollBlocked() string {
 func (m AppModel) composerDraft() api.NewCommit {
 	c := m.composer
 	draft := api.NewCommit{Body: c.input.Value(), Images: c.images}
+	if c.author != nil {
+		draft.Author = c.author.Handle
+	}
 	switch c.mode {
 	case "reply":
 		draft.ParentID = c.target.ID

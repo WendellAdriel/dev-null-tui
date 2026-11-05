@@ -136,7 +136,7 @@ func TestGitHubAvatarRequestsUseThumbnailSizes(t *testing.T) {
 	req := m.avatarRequest(author.AvatarURL, authorColor(author, colors(true)), 2, 1)
 	jobs, _ := m.images.Plan(t.Context(), []graphics.Request{req})
 	m.images.Accept(graphics.Result{Job: jobs[0], Raw: "ready"})
-	if !strings.Contains(smallAvatar(author, colors(true), m.images), string(kitty.Placeholder)) {
+	if !strings.Contains(smallAvatar(author, colors(true), m.images, m.now), string(kitty.Placeholder)) {
 		t.Fatal("small avatars do not use the same thumbnail URL as their downloads")
 	}
 }

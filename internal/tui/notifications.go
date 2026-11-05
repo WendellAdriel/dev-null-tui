@@ -513,10 +513,10 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 		if !hasProfile(n.Actor) {
 			return m, nil
 		}
-		return m, m.openProfile(n.Actor.Handle)
+		return m, m.openAuthor(n.Actor)
 	case "enter", "r", "q", "y", "v":
 		if pressed == "enter" && profileRow(entry) {
-			return m, m.openProfile(n.Actor.Handle)
+			return m, m.openAuthor(n.Actor)
 		}
 		if n.Commit == nil {
 			m.notice = "This notification has no commit to open."

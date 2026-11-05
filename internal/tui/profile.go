@@ -27,14 +27,22 @@ type profileList struct {
 	selected        int
 	generation      int
 	cursors         map[string]bool
+	// organizations are the ones a Following list shows above its people, a page at a time.
+	organizations           []api.Organization
+	organizationsNext       string
+	organizationsLoading    bool
+	organizationsGeneration int
 }
 
-// profileState is a profile, or with people set its Followers and Following lists, stacked above `below` threads.
+// profileState is a profile, or with people set its Followers and Following lists, or with organization set an
+// organization's page, stacked above `below` threads.
 type profileState struct {
 	handle       string
 	people       bool
+	organization bool
 	below, tab   int
 	profile      api.Profile
+	page         api.OrganizationPage
 	loaded       bool
 	status       string
 	lists        [2]profileList
@@ -50,6 +58,7 @@ type profileState struct {
 type profileResult struct {
 	session, generation int
 	profile             api.Profile
+	page                api.OrganizationPage
 	err                 error
 }
 
@@ -71,6 +80,7 @@ type followResult struct {
 	session, generation int
 	handle              string
 	follow              bool
+	organization        bool
 	err                 error
 }
 
@@ -107,13 +117,20 @@ func (s profileState) entriesOf(tab int) []api.Commit {
 
 func (s profileState) count() int {
 	if s.people {
-		return len(s.lists[s.tab].people)
+		return len(s.lists[s.tab].organizations) + len(s.lists[s.tab].people)
 	}
 	return len(s.entries())
 }
 
-// hasProfile excludes organizations, which have no users/{handle} profile. Phase 12 adds their screen.
-func hasProfile(a *api.Author) bool { return a != nil && a.Handle != "" && !a.Organization() }
+func hasProfile(a *api.Author) bool { return a != nil && a.Handle != "" }
+
+// openAuthor opens a user's profile or an organization's page, which its type tells apart without another request.
+func (m *AppModel) openAuthor(a *api.Author) tea.Cmd {
+	if a.Organization() {
+		return m.openOrganization(a.Handle)
+	}
+	return m.openProfile(a.Handle)
+}
 
 func (m *AppModel) openProfile(handle string) tea.Cmd {
 	if m.safetyHidden[strings.ToLower(handle)]&2 != 0 {
@@ -181,6 +198,15 @@ func (m *AppModel) profileFor(session, generation int) *profileState {
 
 func (m AppModel) fetchProfile(s *profileState) tea.Cmd {
 	session, generation, handle, load, base := m.session, s.generation, s.handle, m.loadProfile, s.ctx
+	if s.organization {
+		load := m.organizationCalls.load
+		return m.account.life.command(func() tea.Msg {
+			ctx, cancel := context.WithTimeout(base, 30*time.Second)
+			defer cancel()
+			page, err := load(ctx, handle)
+			return profileResult{session: session, generation: generation, page: page, err: err}
+		})
+	}
 	return m.account.life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(base, 30*time.Second)
 		defer cancel()
@@ -204,14 +230,21 @@ func (m *AppModel) fetchProfileList(s *profileState, more bool) tea.Cmd {
 	session, generation, tab, list, handle, base := m.session, s.generation, s.tab, l.generation, s.handle, s.ctx
 	if s.people {
 		load, connections := m.loadConnections, connectionLists[tab]
-		return m.account.life.command(func() tea.Msg {
+		people := m.account.life.command(func() tea.Msg {
 			ctx, cancel := context.WithTimeout(base, 30*time.Second)
 			defer cancel()
 			people, err := load(ctx, handle, connections, cursor)
 			return profileListResult{session: session, generation: generation, tab: tab, list: list, cursor: cursor, people: people, err: err}
 		})
+		if connections != api.FollowingList || more {
+			return people
+		}
+		return tea.Batch(people, m.fetchFollowedOrganizations(s, false))
 	}
 	load := m.loadUserCommits
+	if s.organization {
+		load = m.organizationCalls.commits
+	}
 	return m.account.life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(base, 30*time.Second)
 		defer cancel()
@@ -229,26 +262,30 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		s.status = profileError(msg.err)
+		s.status = profileError(msg.err, s.organization)
 		m.renderProfile(s)
 		return nil
 	}
-	s.profile, s.loaded, s.status = msg.profile, true, ""
+	s.profile, s.page, s.loaded, s.status = msg.profile, msg.page, true, ""
 	m.renderProfile(s)
 	return nil
 }
 
-func profileError(err error) string {
+func profileError(err error, organization bool) string {
+	noun := "profile"
+	if organization {
+		noun = "organization"
+	}
 	var failure *auth.APIError
 	if errors.As(err, &failure) {
 		switch failure.Status {
 		case http.StatusNotFound:
-			return "This profile doesn't exist."
+			return "This " + noun + " doesn't exist."
 		case http.StatusForbidden:
-			return "This profile isn't available."
+			return "This " + noun + " isn't available."
 		}
 	}
-	return "Couldn't load this profile: " + safeText(err.Error()) + ". Ctrl+R to retry."
+	return "Couldn't load this " + noun + ": " + safeText(err.Error()) + ". Ctrl+R to retry."
 }
 
 func (m *AppModel) acceptProfileList(msg profileListResult) tea.Cmd {
@@ -262,7 +299,7 @@ func (m *AppModel) acceptProfileList(msg profileListResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		l.status = profileError(msg.err)
+		l.status = profileError(msg.err, s.organization)
 		m.renderProfile(s)
 		return nil
 	}
@@ -362,13 +399,21 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 	if s.people {
 		return m.connectionKey(s, pressed)
 	}
-	switch pressed {
-	case "1", "2":
-		return m, m.switchProfileTab(int(pressed[0] - '1')), true
-	case "3", "4":
-		return m, m.openConnections(int(pressed[0] - '3')), true
-	case "f":
-		return m, m.startFollow(s.handle, s.profile.IsFollowing), true
+	if s.organization {
+		if next, cmd, handled := m.organizationKey(s, pressed); handled {
+			return next, cmd, true
+		}
+	} else {
+		switch pressed {
+		case "1", "2":
+			return m, m.switchProfileTab(int(pressed[0] - '1')), true
+		case "3", "4":
+			return m, m.openConnections(int(pressed[0] - '3')), true
+		case "f":
+			return m, m.startFollow(s.handle, s.profile.IsFollowing), true
+		case "W":
+			return m, m.watchLive(m.profileLive(s)), true
+		}
 	}
 	entries := s.entries()
 	if len(entries) == 0 {
@@ -380,7 +425,7 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 		return m, m.openThread(selected), true
 	case "u":
 		if hasProfile(selected.Author) {
-			return m, m.openProfile(selected.Author.Handle), true
+			return m, m.openAuthor(selected.Author), true
 		}
 	case "r", "q":
 		mode := map[string]string{"r": "reply", "q": "quote"}[pressed]
@@ -406,11 +451,28 @@ func (m AppModel) connectionKey(s *profileState, pressed string) (AppModel, tea.
 	case "1", "2", "3", "4":
 		return m, m.switchProfileTab(int(pressed[0]-'1') % 2), true
 	}
-	people := s.lists[s.tab].people
-	if len(people) == 0 {
+	l := &s.lists[s.tab]
+	if pressed == "o" {
+		return m, m.fetchFollowedOrganizations(s, true), true
+	}
+	if s.count() == 0 {
 		return m, nil, false
 	}
-	person := people[min(s.lists[s.tab].selected, len(people)-1)]
+	selected := min(l.selected, s.count()-1)
+	if selected < len(l.organizations) {
+		organization := l.organizations[selected]
+		switch pressed {
+		case "enter", "u":
+			return m, m.openOrganization(organization.Handle), true
+		case "f":
+			if organization.IsFollowed == nil {
+				return m, nil, true
+			}
+			return m, m.startOrganizationFollow(organization.Handle, *organization.IsFollowed), true
+		}
+		return m, nil, false
+	}
+	person := l.people[selected-len(l.organizations)]
 	switch pressed {
 	case "enter", "u":
 		return m, m.openProfile(person.Handle), true
@@ -442,6 +504,9 @@ func (m *AppModel) acceptFollow(msg followResult) tea.Cmd {
 	m.follow.cancel()
 	m.follow.handle, m.follow.cancel = "", nil
 	m.notice = ""
+	if msg.organization {
+		return m.acceptOrganizationFollow(msg)
+	}
 	verb := "Follow"
 	if !msg.follow {
 		verb = "Unfollow"

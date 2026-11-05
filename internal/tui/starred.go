@@ -208,7 +208,7 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.openThread(c)
 	case "u":
 		if hasProfile(c.Author) {
-			return m, m.openProfile(c.Author.Handle)
+			return m, m.openAuthor(c.Author)
 		}
 	case "r", "q":
 		return m, m.composeTo(map[string]string{"r": "reply", "q": "quote"}[pressed], c)

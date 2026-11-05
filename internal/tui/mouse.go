@@ -121,6 +121,15 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if menu := m.activeReactions(); menu != nil && menu.picking {
 		return m.reactionModalMouse(msg.X, msg.Y)
 	}
+	if m.connected && m.live != nil {
+		_, _, areas := m.liveModal(colors(m.account.dark))
+		for _, area := range areas {
+			if area.contains(msg.X, msg.Y) {
+				return m.mouseKey(area.action)
+			}
+		}
+		return m, nil
+	}
 	if m.connected && m.deleting.id != "" {
 		_, _, areas := m.deleteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -213,6 +222,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		_, areas := m.asideLayout(aside, m.mainHeight(), colors(m.account.dark))
 		for _, area := range areas {
 			if area.contains(msg.X-left-nav-center-2, msg.Y) {
+				if area.action == "watch" {
+					return m, m.watchLive(m.liveNow[area.index].Live)
+				}
 				return m.mouseKey(area.action)
 			}
 		}
@@ -271,8 +283,8 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		cmd := m.requestDraftAction("discard")
 		return m, cmd
 	}
-	// The browser and the attachment field own the keyboard until Enter or Esc, so clicks wait for them to close.
-	if !m.composerUsable() || m.composer.browser != nil || m.composer.editing != "" {
+	// The browser, the attachment field, and Post as own the keyboard until Enter or Esc, so clicks wait for them to close.
+	if !m.composerUsable() || m.composer.browser != nil || m.composer.editing != "" || m.composer.picker != nil {
 		return m, nil
 	}
 	for _, area := range m.composerControls() {
@@ -290,6 +302,10 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	}
 	if m.composer.sending || m.composer.owner != m.account.user.ID {
 		return m, nil
+	}
+	if m.composerIdentityArea().contains(msg.X, msg.Y) {
+		cmd := m.openAuthorPicker()
+		return m, cmd
 	}
 	editor := m.composerEditorBounds()
 	if len(m.composer.emojis) > 0 && (uiRect{editor.x, editor.y + editor.h, editor.w, m.composerStatusRows()}).contains(msg.X, msg.Y) {
@@ -321,7 +337,7 @@ func (m *AppModel) dragComposer(x, y int) {
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
-	if m.composer.confirm != "" || m.deleting.id != "" || m.vote.confirm || m.settings.dialog != "" {
+	if m.composer.confirm != "" || m.deleting.id != "" || m.live != nil || m.vote.confirm || m.settings.dialog != "" {
 		return m, nil
 	}
 	code := tea.KeyDown

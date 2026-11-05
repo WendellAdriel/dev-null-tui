@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/bubbles/v2/textarea"
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
@@ -37,6 +38,8 @@ type composer struct {
 	editing                                              string
 	field                                                textinput.Model
 	browser                                              *fileBrowser
+	author                                               *auth.Organization
+	picker                                               *authorPicker
 }
 
 type submissionResult struct {
@@ -59,6 +62,8 @@ func (m *AppModel) openComposer() tea.Cmd {
 		input.ShowLineNumbers = false
 		input.CharLimit = 0
 		input.MaxHeight, input.MaxWidth = 0, 0
+		// Ctrl+A opens Post as, so line start keeps only Home.
+		input.KeyMap.LineStart = key.NewBinding(key.WithKeys("home"), key.WithHelp("home", "line start"))
 		m.composer = composer{input: input, owner: m.account.user.ID, log: m.active, generation: m.composer.generation + 1}
 	}
 	m.composer.open = true
@@ -166,6 +171,9 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	if c.browser != nil {
 		return m.browserKey(msg)
 	}
+	if c.picker != nil {
+		return m.authorPickerKey(msg)
+	}
 	if c.editing != "" {
 		return m.fieldKey(msg)
 	}
@@ -198,6 +206,8 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.openBrowser()
 		case "ctrl+l":
 			return m.startPoll()
+		case "ctrl+a":
+			return m.openAuthorPicker()
 		}
 		if c.focus == composerStrip {
 			if cmd, ok := m.stripKey(pressed); ok {

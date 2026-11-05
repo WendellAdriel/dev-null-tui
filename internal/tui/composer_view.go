@@ -95,6 +95,12 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	if !m.composerUsable() {
 		body = "Resize to at least 48x18.\nYour draft is kept.\nEsc to close safely."
 	}
+	title := m.composerTitle(p) + m.composerIdentity(p)
+	footer, _ := m.composerFooter()
+	return panel(title, body, footer, r, p, p.blue), r
+}
+
+func (m AppModel) composerTitle(p palette) string {
 	title := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote commit"}[m.composer.mode]
 	if m.composer.previewing {
 		title = "Preview commit"
@@ -103,9 +109,14 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 	if m.composer.hasDraft() {
 		marker = "●"
 	}
-	title = text(laneColor(m.account.user.Lane, p)).Render(marker) + " " + text(p.ink).Bold(true).Render(title) + " " + text(p.muted).Render("@"+safeText(m.account.user.Handle))
-	footer, _ := m.composerFooter()
-	return panel(title, body, footer, r, p, p.blue), r
+	return text(laneColor(m.account.user.Lane, p)).Render(marker) + " " + text(p.ink).Bold(true).Render(title) + " "
+}
+
+// composerIdentityArea is where the title shows who the commit is posted as, which a click changes like Ctrl+A.
+func (m AppModel) composerIdentityArea() uiRect {
+	p := colors(m.account.dark)
+	r := m.composerBounds()
+	return uiRect{r.x + 2 + lipgloss.Width(m.composerTitle(p)), r.y + 1, lipgloss.Width(m.composerIdentity(p)), 1}
 }
 
 func (m *AppModel) sizeComposer() {
@@ -177,6 +188,8 @@ func (m AppModel) composerView(width int, p palette) string {
 	}
 	if c.browser != nil {
 		rows[len(rows)-1] = m.browserView(inner, c.input.Height()+m.composerStatusRows(), p)
+	} else if c.picker != nil {
+		rows[len(rows)-1] = m.authorPickerView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if height := m.composerStatusRows(); height > 0 {
 		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
 	}

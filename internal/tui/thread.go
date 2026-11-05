@@ -305,7 +305,7 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 		return m, m.openViewer(entry.commit, 0), true
 	case "u":
 		if entry.commit.DeletedAt == nil && hasProfile(entry.commit.Author) {
-			return m, m.openProfile(entry.commit.Author.Handle), true
+			return m, m.openAuthor(entry.commit.Author), true
 		}
 	case "y":
 		return m, m.copyCommitLink(entry.commit), true

@@ -180,7 +180,7 @@ func (m *AppModel) renderThread(t *threadState) {
 			continue
 		}
 		for row := range 2 {
-			avatar := m.images.Row(m.avatarRequest(c.Author.AvatarURL, lane(i), 5, 2), row)
+			avatar := m.images.Row(m.authorAvatar(c.Author, p, 5, 2), row)
 			if avatar == "" {
 				break
 			}

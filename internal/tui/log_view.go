@@ -147,6 +147,8 @@ type statsStyle struct {
 	// voting is the commit whose poll has keyboard focus, and voteOption its highlighted option.
 	voting     string
 	voteOption int
+	// now decides who is still live, for the avatar rings drawn without the model.
+	now time.Time
 	// unfolded holds the long commits opened with Show more.
 	unfolded map[string]bool
 	// mentions, when set, are the only lowercase handles linked, as the web's messages render with linksEveryMention off.
@@ -154,7 +156,7 @@ type statsStyle struct {
 }
 
 func (m AppModel) statsStyle() statsStyle {
-	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option, unfolded: m.unfolded}
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option, unfolded: m.unfolded, now: m.now}
 }
 
 func starIconRequest(filled bool, ink string) graphics.Request {
@@ -210,6 +212,9 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	}
 	stamp := relativeAge(commit.CreatedAt, now)
 	meta := text(p.ink).Bold(true).Render(name) + " " + text(p.muted).Render("@"+safeText(commit.Author.Handle))
+	if commit.Author.Live.On(now) {
+		meta += " " + text(p.danger).Bold(true).Render("LIVE")
+	}
 	if tag != "" {
 		meta += " " + text(p.blue).Render(tag)
 	}
@@ -239,7 +244,7 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 			if quotedName == "" {
 				quotedName = safeText(quote.Author.Handle)
 			}
-			header := smallAvatar(quote.Author, p, manager) + text(p.ink).Bold(true).Render(quotedName) + " " + text(p.muted).Render("@"+safeText(quote.Author.Handle))
+			header := smallAvatar(quote.Author, p, manager, now) + text(p.ink).Bold(true).Render(quotedName) + " " + text(p.muted).Render("@"+safeText(quote.Author.Handle))
 			quoteLines := []string{fit(header, quoteWidth)}
 			body := bodyLines(*quote, quoteWidth, p, style)
 			if len(body) > 5 {
@@ -324,7 +329,7 @@ func previewReplies(commit api.Commit) []api.Commit {
 
 // replyPreview renders a reply's author line and up to three body lines aligned under the name.
 func replyPreview(reply api.Commit, width int, p palette, manager *graphics.Manager, style statsStyle) []string {
-	lines := []string{fit(smallAvatar(reply.Author, p, manager)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Handle)), width)}
+	lines := []string{fit(smallAvatar(reply.Author, p, manager, style.now)+text(p.ink).Bold(true).Render(safeText(reply.Author.Name))+text(p.muted).Render(" @"+safeText(reply.Author.Handle)), width)}
 	body := bodyLines(reply, max(1, width-3), p, style)
 	if len(body) > 4 {
 		body = append(body[:3], "…")
@@ -382,7 +387,7 @@ func (m AppModel) feedRail(c api.Commit, rows []string, ring int, heads []int, g
 			cells[col] = text(p.muted).Render("○")
 		}
 		if m.images.Enabled && row < 2 && c.Author != nil && c.DeletedAt == nil {
-			if avatar := m.images.Row(m.avatarRequest(c.Author.AvatarURL, lane, 5, 2), row); avatar != "" {
+			if avatar := m.images.Row(m.authorAvatar(c.Author, p, 5, 2), row); avatar != "" {
 				cells[col-2], cells[col-1], cells[col], cells[col+1], cells[col+2] = avatar, "", "", "", ""
 			}
 		}
@@ -499,6 +504,9 @@ func (m AppModel) commitList(lines []string, commits []api.Commit, selected, wid
 	list := commitList{}
 	for i, c := range commits {
 		lane := authorColor(c.Author, p)
+		if c.Author != nil && c.Author.Live.On(m.now) {
+			lane = p.danger
+		}
 		if c.DeletedAt != nil {
 			lane = p.muted
 		}

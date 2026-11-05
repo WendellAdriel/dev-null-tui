@@ -257,7 +257,7 @@ func (m AppModel) viewerPanelLines(width int, p palette) []string {
 		}
 		node := text(p.muted).Render("○ ")
 		if reply.DeletedAt == nil && reply.Author != nil {
-			node = smallAvatar(reply.Author, p, m.images)
+			node = smallAvatar(reply.Author, p, m.images, m.now)
 		}
 		heads = append(heads, len(rows))
 		replyRows, _ := commitLayout(reply, tag, max(1, contentWidth-3), p, m.now, nil, m.statsStyle())

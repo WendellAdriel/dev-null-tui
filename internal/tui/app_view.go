@@ -73,7 +73,7 @@ func (m AppModel) bindings() appKeys {
 	}
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"))
+	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
@@ -130,6 +130,10 @@ func (m AppModel) View() tea.View {
 	}
 	if m.deleting.id != "" && m.connected && !m.accountOpen {
 		content, r, _ := m.deleteModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.live != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.liveModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
 	if m.remotes.dialog != "" && m.remotesOnTop() && m.connected && !m.accountOpen {
@@ -417,7 +421,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	user := m.account.user
 	lane := laneColor(user.Lane, p)
 	avatar := lipgloss.NewStyle().Width(4).Height(2).Render(text(lane).Render("●"))
-	req := m.avatarRequest(user.AvatarURL, lane, 4, 2)
+	req := m.avatarRequest(user.AvatarURL, liveRing(user.Live, lane, p, m.now), 4, 2)
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		avatar = top + "\n" + bottom
 	}
@@ -453,7 +457,7 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	inner := width - 3
 	lane := laneColor(u.Lane, p)
 	avatar := text(lane).Render("◉")
-	req := m.avatarRequest(u.AvatarURL, lane, 4, 2)
+	req := m.avatarRequest(u.AvatarURL, liveRing(u.Live, lane, p, m.now), 4, 2)
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		avatar = top + "\n" + bottom
 	}
@@ -498,9 +502,23 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	if u.PasteisMode && u.PasteisRemaining != nil {
 		content += pastelLabel(fmt.Sprintf("%d pastéis left today", *u.PasteisRemaining), inner, p, m.images) + "\n\n"
 	}
+	if u.Live.On(m.now) {
+		content += centered.Render(liveLabel(u.Live, p)) + "\n" + text(p.muted).Width(inner).Align(lipgloss.Center).Render(fit("until "+liveUntil(u.Live), inner)) + "\n\n"
+	}
 	line := text(p.hairline).Render(strings.Repeat("─", inner))
-	controls := line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
-	for i, action := range []struct{ label, key string }{{"Account", "a"}, {"Refresh", "ctrl+r"}} {
+	controls := ""
+	if live, watch := m.liveNowBlock(inner, p); live != "" {
+		for _, area := range watch {
+			area.x += 2
+			areas = append(areas, area)
+		}
+		controls = line + "\n" + live + "\n"
+		for i := range areas {
+			areas[i].y++
+		}
+	}
+	controls += line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
+	for i, action := range []struct{ label, key string }{{"Account", "a"}, {m.liveButton(), "L"}, {"Refresh", "ctrl+r"}} {
 		if i > 0 {
 			controls += "\n\n"
 		}

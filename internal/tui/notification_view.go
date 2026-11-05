@@ -160,7 +160,7 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 	if actorsCommit || member {
 		meta := identity + " " + text(p.muted).Render(handle)
 		if member && n.Actor != nil {
-			meta = smallAvatar(n.Actor, p, m.images) + meta
+			meta = smallAvatar(n.Actor, p, m.images, m.now) + meta
 		}
 		meta = fit(meta, max(1, width-ansi.StringWidth(stamp)-2))
 		rows = append(rows, meta+strings.Repeat(" ", max(1, width-ansi.StringWidth(meta)-ansi.StringWidth(stamp)))+stamp)
@@ -317,7 +317,7 @@ func (m *AppModel) renderNotifications() {
 				rail = " " + node + " "
 			}
 			if actorsCommit && row < 2 && n.Actor != nil {
-				if avatar := m.images.Row(m.avatarRequest(n.Actor.AvatarURL, lane, 5, 2), row); avatar != "" {
+				if avatar := m.images.Row(m.authorAvatar(n.Actor, p, 5, 2), row); avatar != "" {
 					rail = " " + avatar + " "
 				}
 			}
@@ -401,7 +401,7 @@ func (m *AppModel) openNotificationAt(i int) tea.Cmd {
 	entry := m.notificationEntries()[i]
 	n := entry.notification
 	if profileRow(entry) {
-		return m.openProfile(n.Actor.Handle)
+		return m.openAuthor(n.Actor)
 	}
 	if n.Commit == nil {
 		m.notice = "This notification has no commit to open."
@@ -431,7 +431,7 @@ func (m *AppModel) notificationMedia() []graphics.Request {
 			if entry.parent != "" && actorsCommit {
 				cols, rows = 2, 1
 			}
-			requests = append(requests, m.avatarRequest(n.Actor.AvatarURL, authorColor(n.Actor, p), cols, rows))
+			requests = append(requests, m.authorAvatar(n.Actor, p, cols, rows))
 			if entry.parent != "" && n.Type == "starred" {
 				requests = append(requests, starIconRequest(true, authorColor(n.Actor, p)))
 			}
@@ -440,7 +440,7 @@ func (m *AppModel) notificationMedia() []graphics.Request {
 			continue
 		}
 		for _, actor := range n.Actors[:min(3, len(n.Actors))] {
-			requests = append(requests, m.avatarRequest(actor.AvatarURL, authorColor(&actor, p), 4, 2))
+			requests = append(requests, m.authorAvatar(&actor, p, 4, 2))
 		}
 	}
 	return requests

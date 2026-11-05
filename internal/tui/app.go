@@ -122,10 +122,17 @@ type AppModel struct {
 	loadStarred                            func(context.Context, string) (api.CommitPage, error)
 	remotes                                remotesState
 	remoteCalls                            remoteCalls
+	organizationCalls                      organizationCalls
+	claiming                               string
+	openURL                                func(context.Context, string) error
+	liveCalls                              liveCalls
+	live                                   *liveDialog
+	liveEnding                             bool
+	liveNow                                []api.User
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
-	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
+	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, openURL: auth.OpenBrowser, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
 	m.tuiSettings = store.TUISettings()
 	m.images = graphics.New(origin)
 	images := m.images
@@ -344,6 +351,18 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptProfileList(msg)
 	case followResult:
 		return m, m.acceptFollow(msg)
+	case claimResult:
+		return m, m.acceptClaim(msg)
+	case authorCheckResult:
+		return m, m.acceptAuthorCheck(msg)
+	case liveResult:
+		return m, m.acceptLive(msg)
+	case liveNowResult:
+		return m, m.acceptLiveNow(msg)
+	case followedOrganizationsResult:
+		return m, m.acceptFollowedOrganizations(msg)
+	case pageOpened:
+		return m, m.acceptLink(msg)
 	case uv.KittyGraphicsEvent:
 		if msg.Options.ID == m.images.ProbeID && string(msg.Payload) == "OK" {
 			m.graphicsSupported = true
@@ -435,7 +454,17 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd = m.load("count")
 		}
 		m.renderRemoteThread()
-		return m, tea.Batch(cmd, m.poll())
+		if m.threadOnTop() {
+			m.renderThread(&m.threads[len(m.threads)-1])
+		}
+		if s := m.topProfile(); s != nil {
+			m.renderProfile(s)
+		}
+		var live tea.Cmd
+		if _, _, aside := m.columns(); m.focused && !m.accountOpen && aside > 0 {
+			live = m.fetchLiveNow()
+		}
+		return m, tea.Batch(cmd, m.poll(), live)
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -554,6 +583,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
+		if m.connected && m.live != nil && msg.String() != "ctrl+c" {
+			cmd := m.liveKey(msg)
+			return m, cmd
+		}
 		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
 			cmd := m.deleteKey(msg.String())
 			return m, cmd
@@ -601,6 +634,19 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.connected && m.live != nil {
+		// Pastes and cursor blinks reach the link field, which is how most people enter a stream link.
+		if m.live.ending || m.live.sending || m.live.focus != 0 {
+			return m, nil
+		}
+		before := m.live.field.Value()
+		var cmd tea.Cmd
+		m.live.field, cmd = m.live.field.Update(msg)
+		if m.live.field.Value() != before {
+			m.live.status = ""
+		}
+		return m, cmd
+	}
 	if mc := m.activeMessageComposer(); mc != nil {
 		if paste, ok := msg.(tea.PasteMsg); ok {
 			return m, m.messagePaste(paste)
@@ -608,6 +654,18 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if mc.browser == nil && !mc.editing && !mc.stripFocus {
 			return m, m.updateMessageInput(msg)
 		}
+	}
+	if picker := m.composer.picker; m.connected && m.composer.open && picker != nil {
+		if !picker.typed || picker.checking {
+			return m, nil
+		}
+		before := picker.field.Value()
+		var cmd tea.Cmd
+		picker.field, cmd = picker.field.Update(msg)
+		if picker.field.Value() != before {
+			picker.status = ""
+		}
+		return m, cmd
 	}
 	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.confirm == "" {
 		if paste, ok := msg.(tea.PasteMsg); ok {
@@ -652,6 +710,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loadProfile == nil {
 			m.loadProfile, m.loadUserCommits, m.loadConnections, m.setFollow = client.Profile, client.UserCommits, client.Connections, client.SetFollow
 		}
+		if m.organizationCalls.load == nil {
+			m.organizationCalls = newOrganizationCalls(client)
+		}
+		if m.liveCalls.goLive == nil {
+			m.liveCalls = newLiveCalls(client)
+		}
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
@@ -664,7 +728,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.poll(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck())
+		return m, tea.Batch(cmd, load, m.poll(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow())
 	}
 	return m, cmd
 }
@@ -713,6 +777,10 @@ func (m *AppModel) leaveApplication() {
 		m.follow.cancel()
 	}
 	m.follow = followState{generation: m.follow.generation + 1}
+	m.claiming = ""
+	m.live, m.liveEnding, m.liveNow = nil, false, nil
+	// Cleared so a later connection builds them on its own signing key.
+	m.organizationCalls, m.liveCalls = organizationCalls{}, liveCalls{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
@@ -856,6 +924,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		cmd := m.beginProfileSafety(kind)
 		return m, cmd
 	}
+	if pressed == "L" && !m.pendingG {
+		return m, m.toggleLive()
+	}
 	if m.threadOnTop() && !m.pendingG && pressed != "g" {
 		next, cmd, handled := m.threadKey(pressed)
 		if handled || (pressed != "c" && pressed != "a") {
@@ -939,7 +1010,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			if selected.DeletedAt != nil || !hasProfile(selected.Author) {
 				return m, nil
 			}
-			return m, m.openProfile(selected.Author.Handle)
+			return m, m.openAuthor(selected.Author)
 		}
 		return m, m.openThread(selected)
 	case "g":

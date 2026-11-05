@@ -133,17 +133,21 @@ func (m *AppModel) renderProfile(s *profileState) {
 	p := colors(m.account.dark)
 	width := max(1, s.viewport.Width())
 	frame := &profileFrame{}
-	if !s.people {
-		m.profileHeader(frame, s, width, p)
-	}
 	tabs := profileTabNames
-	if s.people {
+	switch {
+	case s.people:
 		tabs = connectionTabs
+	case s.organization:
+		m.organizationHeader(frame, s, width, p)
+		tabs = organizationTabNames
+	default:
+		m.profileHeader(frame, s, width, p)
 	}
 	m.profileTabs(frame, tabs, s.tab, width, p)
 	l := s.lists[s.tab]
 	s.starts, s.ends, s.pictures = nil, nil, nil
 	if s.people {
+		m.organizationRows(frame, s, width, p)
 		m.peopleRows(frame, s, width, p)
 	} else {
 		pinned := s.tab == 0 && s.profile.Pinned != nil
@@ -162,7 +166,10 @@ func (m *AppModel) renderProfile(s *profileState) {
 	case !l.loaded:
 		frame.add("", "     "+text(p.muted).Render("Reading from /dev/null..."))
 	case s.count() == 0:
-		frame.add("", "     "+text(p.muted).Render(profileEmpty(s)))
+		frame.add("")
+		for _, line := range strings.Split(ansi.Wrap(profileEmpty(s), max(1, width-6), ""), "\n") {
+			frame.add("     " + text(p.muted).Render(line))
+		}
 	case l.next != "":
 		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("More ")+keyChip("n", p)), "")
 	default:
@@ -173,6 +180,9 @@ func (m *AppModel) renderProfile(s *profileState) {
 }
 
 func profileEmpty(s *profileState) string {
+	if s.organization {
+		return organizationEmpty(s)
+	}
 	if s.people {
 		return [2]string{"No followers yet.", "Not following anyone yet."}[s.tab]
 	}
@@ -192,13 +202,18 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	}
 	u, profile := s.profile.User, s.profile
 	lane := laneColor(u.Lane, p)
-	follow := ""
-	if profile.IsFollowing != nil && !strings.EqualFold(u.Handle, m.account.user.Handle) {
+	own := strings.EqualFold(u.Handle, m.account.user.Handle)
+	u.Live = m.profileLive(s)
+	follow, followKey := "", "f"
+	if profile.IsFollowing != nil && !own {
 		follow = text(p.ink).Bold(true).Render(followLabel(*profile.IsFollowing)) + " " + keyChip("f", p)
+	}
+	if own && m.liveCalls.goLive != nil {
+		follow, followKey = text(p.danger).Bold(true).Render(m.liveButton())+" "+keyChip("L", p), "L"
 	}
 	frame.add("")
 	var avatar []string
-	req := m.avatarRequest(u.AvatarURL, lane, 8, 4)
+	req := m.profileAvatar(u, lane, p)
 	for row := range 4 {
 		line := m.images.Row(req, row)
 		if line == "" {
@@ -214,7 +229,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	if len(avatar) > 0 {
 		for row, line := range avatar {
 			if row == 0 && follow != "" {
-				frame.target(2+inner-lipgloss.Width(follow), lipgloss.Width(follow), "f")
+				frame.target(2+inner-lipgloss.Width(follow), lipgloss.Width(follow), followKey)
 				line = split(line, follow, inner)
 			}
 			frame.add(pad + line)
@@ -222,7 +237,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		frame.add("", pad+fit(name, inner))
 	} else {
 		if follow != "" {
-			frame.target(2+inner-lipgloss.Width(follow), lipgloss.Width(follow), "f")
+			frame.target(2+inner-lipgloss.Width(follow), lipgloss.Width(follow), followKey)
 			name = split(name, follow, inner)
 		}
 		frame.add(pad + fit(name, inner))
@@ -240,7 +255,14 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	for _, row := range spread(badges, inner, "  ") {
 		frame.add(pad + row)
 	}
-	if !strings.EqualFold(u.Handle, m.account.user.Handle) {
+	if u.Live.On(m.now) {
+		watch := text(p.ink).Bold(true).Render("Watch") + " " + keyChip("W", p)
+		stream := liveLabel(u.Live, p) + text(p.muted).Render(" · until "+liveUntil(u.Live))
+		frame.add("")
+		frame.target(2+inner-lipgloss.Width(watch), lipgloss.Width(watch), "W")
+		frame.add(pad + split(fit(stream, inner-lipgloss.Width(watch)-1), watch, inner))
+	}
+	if !own {
 		label := "Mute"
 		if profile.IsMuting != nil && *profile.IsMuting {
 			label = "Unmute"
@@ -492,7 +514,8 @@ func (m AppModel) peopleRows(frame *profileFrame, s *profileState, width int, p 
 		gutter = 7
 	}
 	inner := max(1, width-gutter-2)
-	for i, person := range l.people {
+	for n, person := range l.people {
+		i := len(l.organizations) + n
 		lane := laneColor(person.Lane, p)
 		s.starts = append(s.starts, len(frame.lines))
 		name := text(p.ink).Bold(true).Render(safeText(person.Name))
@@ -548,12 +571,25 @@ func (m AppModel) profileAvatars(s *profileState, p palette) []graphics.Request 
 		if !s.loaded || s.viewport.YOffset() > 6 {
 			return nil
 		}
-		return []graphics.Request{m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 8, 4)}
+		if s.organization {
+			return []graphics.Request{m.organizationAvatar(s.page.Organization, p, 8, 4)}
+		}
+		u.Live = m.profileLive(s)
+		return []graphics.Request{m.profileAvatar(u, laneColor(u.Lane, p), p)}
 	}
 	var requests []graphics.Request
 	view := s.viewport
-	for i, person := range s.lists[s.tab].people {
-		if i < len(s.starts) && s.ends[i] > view.YOffset() && s.starts[i] < view.YOffset()+view.Height() {
+	visible := func(i int) bool {
+		return i < len(s.starts) && s.ends[i] > view.YOffset() && s.starts[i] < view.YOffset()+view.Height()
+	}
+	l := s.lists[s.tab]
+	for i, o := range l.organizations {
+		if visible(i) {
+			requests = append(requests, m.organizationAvatar(o, p, 4, 2))
+		}
+	}
+	for n, person := range l.people {
+		if i := len(l.organizations) + n; visible(i) {
 			requests = append(requests, m.avatarRequest(person.AvatarURL, laneColor(person.Lane, p), 4, 2))
 		}
 	}
@@ -589,11 +625,16 @@ func (m AppModel) profileColumn(width int, p palette) string {
 	s := m.profiles[len(m.profiles)-1]
 	back := keyChip("esc", p) + text(p.muted).Render(" Back")
 	name := s.profile.User.Name
+	if s.organization {
+		name = s.page.Organization.Name
+	}
 	if name == "" {
 		name = s.handle
 	}
 	title := "  " + text(p.ink).Bold(true).Render(safeText(name))
 	switch {
+	case s.organization:
+		title += text(p.muted).Render(" organization")
 	case s.people:
 		title += text(p.muted).Render(" @" + safeText(s.handle))
 	case s.profile.User.Commits != nil:
@@ -621,8 +662,11 @@ func (m AppModel) profileStatus() string {
 		return "Reading from /dev/null..."
 	}
 	noun := [2]string{"commits", "replies"}[s.tab]
-	if s.people {
+	switch {
+	case s.people:
 		noun = "people"
+	case s.organization:
+		noun = [2]string{"commits", "mentions"}[s.tab]
 	}
 	if s.count() == 0 {
 		return profileEmpty(&s)
@@ -636,6 +680,9 @@ func (m AppModel) profileStatus() string {
 
 func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys {
 	s := m.profiles[len(m.profiles)-1]
+	if s.organization {
+		return m.organizationBindings(bind)
+	}
 	if s.people {
 		short := []key.Binding{bind("j/k", "move"), bind("enter", "open profile"), bind("f", "follow / unfollow"), bind("tab", "followers / following"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 		all := append(append([]key.Binding(nil), short...), bind("1 / 2", "followers / following"), bind("n", "more people"), bind("ctrl+r", "reload list"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, or follow"))
@@ -644,7 +691,7 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("3 / 4", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
-	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("g ,", "settings"))
+	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
 	return appKeys{short, all}
 }
 

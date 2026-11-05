@@ -2,6 +2,7 @@ package tui
 
 import (
 	"strings"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -12,6 +13,19 @@ import (
 
 func (m AppModel) avatarRequest(url, lane string, cols, rows int) graphics.Request {
 	return graphics.Request{URL: graphics.AvatarURL(url), Ring: lane, Cols: cols, Rows: rows}
+}
+
+func (m AppModel) authorAvatar(author *api.Author, p palette, cols, rows int) graphics.Request {
+	return authorRequest(author, p, m.now, cols, rows)
+}
+
+// authorRequest rings a commit author's avatar in their lane, or red while they are live, and squares an organization's.
+func authorRequest(author *api.Author, p palette, now time.Time, cols, rows int) graphics.Request {
+	req := graphics.Request{URL: graphics.AvatarURL(author.AvatarURL), Ring: authorColor(author, p), Cols: cols, Rows: rows, Square: author.Organization()}
+	if author.Live.On(now) {
+		req.Ring = p.danger
+	}
+	return req
 }
 
 func imageRequests(images []api.Image, width int) []graphics.Request {
@@ -46,11 +60,11 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if m.viewer.open {
 		requests = []graphics.Request{m.viewerRequest()}
 		if c := m.viewer.commit; c.Author != nil && c.DeletedAt == nil {
-			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 5, 2))
+			avatars = append(avatars, m.authorAvatar(c.Author, p, 5, 2))
 		}
 		for _, reply := range m.viewer.replies {
 			if reply.Author != nil && reply.DeletedAt == nil {
-				avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
+				avatars = append(avatars, m.authorAvatar(reply.Author, p, 2, 1))
 			}
 		}
 	} else if m.notificationsOpen && len(m.threads) == 0 && len(m.profiles) == 0 {
@@ -90,13 +104,13 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			if i < len(widths) {
 				width = widths[i]
 			}
-			avatars = append(avatars, m.avatarRequest(c.Author.AvatarURL, authorColor(c.Author, p), 5, 2))
+			avatars = append(avatars, m.authorAvatar(c.Author, p, 5, 2))
 			requests = append(requests, imageRequests(c.Images, width)...)
 			if req, ok := linkCardRequest(c.LinkPreview); ok {
 				requests = append(requests, req)
 			}
 			if c.Quote != nil && c.Quote.DeletedAt == nil && c.Quote.Author != nil {
-				avatars = append(avatars, m.avatarRequest(c.Quote.Author.AvatarURL, authorColor(c.Quote.Author, p), 2, 1))
+				avatars = append(avatars, m.authorAvatar(c.Quote.Author, p, 2, 1))
 				if req, ok := linkCardRequest(c.Quote.LinkPreview); ok {
 					requests = append(requests, req)
 				}
@@ -104,7 +118,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			if c.ReplyPreview != nil {
 				for _, reply := range c.ReplyPreview.Data {
 					if reply.DeletedAt == nil && reply.Author != nil {
-						avatars = append(avatars, m.avatarRequest(reply.Author.AvatarURL, authorColor(reply.Author, p), 2, 1))
+						avatars = append(avatars, m.authorAvatar(reply.Author, p, 2, 1))
 					}
 				}
 			}
@@ -118,7 +132,10 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if nav, _, _ := m.columns(); nav >= 12 {
 		stars = append(stars, logoRequest(m.account.dark))
 	}
-	avatars = append(avatars, m.avatarRequest(u.AvatarURL, laneColor(u.Lane, p), 4, 2))
+	avatars = append(avatars, m.avatarRequest(u.AvatarURL, liveRing(u.Live, laneColor(u.Lane, p), p, m.now), 4, 2))
+	if _, _, aside := m.columns(); aside > 0 {
+		requests = append(requests, m.liveNowRequests()...)
+	}
 	requests = append(m.composerThumbnails(), requests...)
 	if c := m.composer; c.open && c.previewing {
 		_, preview := previewRequests(c.images, max(1, m.composerBounds().w-4))
@@ -139,9 +156,9 @@ func (m *AppModel) syncImages() tea.Cmd {
 	return tea.Batch(commands...)
 }
 
-func smallAvatar(author *api.Author, p palette, manager *graphics.Manager) string {
+func smallAvatar(author *api.Author, p palette, manager *graphics.Manager, now time.Time) string {
 	if manager != nil {
-		row := manager.Row(graphics.Request{URL: graphics.AvatarURL(author.AvatarURL), Ring: authorColor(author, p), Cols: 2, Rows: 1}, 0)
+		row := manager.Row(authorRequest(author, p, now, 2, 1), 0)
 		if row != "" {
 			return row + " "
 		}
@@ -151,7 +168,7 @@ func smallAvatar(author *api.Author, p palette, manager *graphics.Manager) strin
 
 // largeAvatar returns both rows of a 4x2 avatar, or a lane dot when it is not ready.
 func (m AppModel) largeAvatar(author *api.Author, p palette) (string, string) {
-	req := m.avatarRequest(author.AvatarURL, authorColor(author, p), 4, 2)
+	req := m.authorAvatar(author, p, 4, 2)
 	if top := m.images.Row(req, 0); top != "" {
 		return top + " ", m.images.Row(req, 1) + " "
 	}
