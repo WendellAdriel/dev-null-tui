@@ -24,9 +24,9 @@ Use `Tab` or `1`, `2`, and `3` to choose Following, Latest, or Trending. Move wi
 
 Older pages load near the end of the list, or when you press `n`. Switching logs preserves each log's selection and scroll position.
 
-`Ctrl+R` fetches the first page while keeping the current content visible. Success selects the first commit and scrolls to the top. Failure keeps your position. Trending returns to its first ranked commit, which may not be the newest.
+`Ctrl+R` fetches the first page while keeping the current content visible, and also refreshes the notifications and Remotes badges. The log's footer shows the shortcut. Success selects the first commit and scrolls to the top. Failure keeps your position. Trending returns to its first ranked commit, which may not be the newest.
 
-Following and Latest check for new commits once a minute while the workspace is focused. New commits are not inserted until you refresh. Trending has no chronological arrival check.
+Following and Latest check for new commits every 15 seconds while the terminal is focused, and every 30 seconds while it isn't. New commits go above the ones you're reading, and your row stays where it was. If you're at the top of a focused terminal, they simply appear. Otherwise a **New commits** button with up to three author avatars appears at the top of the log. Click it or scroll up to read them. Your own commits never raise it. Trending has no chronological arrival check.
 
 Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon.
 
@@ -55,17 +55,21 @@ Open the inbox with `g n` or the sidebar. Press `1` through `6` to toggle Replie
 
 `Space` expands or collapses a group. `n` loads older members of the selected expanded group, or older notifications otherwise. `Enter` opens the referenced commit. On a single follow, or an expanded follow member, it opens the follower's profile. `u` opens the actor's profile, using the newest actor for a group.
 
-`Ctrl+R` refreshes and selects the first notification after success. A failed refresh keeps your position. `Esc` returns to the log. The unread badge uses a separate count check every 15 seconds while the terminal is focused, which does not mark the inbox read.
+`Ctrl+R` refreshes and selects the first notification after success. A failed refresh keeps your position. `Esc` returns to the log. The unread badge uses a separate count check every 15 seconds while the terminal is focused and every 30 seconds while it isn't. The check does not mark the inbox read.
 
 ## Profiles
 
-Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own. Organization profiles are not available yet, so commits and notifications from organizations have no **Profile** action and `u` does nothing on them.
+Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own. On an organization's commit, `u` or **Profile** opens the organization's page instead. It shows the organization's identity, links, followers, and admins, with **Commits** and **Mentions** tabs on `1` and `2`. Press `f` to follow it. A Following list shows the organizations you follow above the people.
 
-Profiles show available identity details, counts, activity, streaks, and achievements. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `3` or `4`, or click a count, to open Followers or Following.
+Profiles show available identity details, counts, activity, streaks, and achievements. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `F` or `O`, or click a count, to open Followers or Following. The counts show those keys beside them.
 
 Press `f` to follow or unfollow. Counts change after confirmation. A refused request leaves the profile unchanged, while an unknown outcome reloads it. In a relationship list, `f` acts on the selected person and `Enter` opens their profile.
 
 Threads and profiles stack above the originating screen. `Esc` returns one screen at a time without losing selection.
+
+## Go live
+
+Press `L` anywhere outside text fields and Remotes to go live. Paste a link to your stream on YouTube or Twitch, then choose how many hours to show it, from 1 to 12, with `Left` and `Right`. `Enter` starts the stream. While you're live, your avatar gets a red ring, your commits and profile show **LIVE**, and `L` asks whether to end the stream. The aside's **Live now** lists up to three people you follow who are streaming. Click one to watch.
 
 ## Starred
 
@@ -79,7 +83,7 @@ Unstarring with `s` removes the entry after confirmation. Selection moves to the
 
 ## Remotes
 
-Remotes are direct messages and orgs. **Remotes** appears between Notifications and Profile in the sidebar, with the unread count, only when Remotes is turned on in [Settings](settings.md). Press `g r` or click it to open the inbox. The badge refreshes every 15 seconds while Remotes is closed and the terminal is focused.
+Remotes are direct messages and orgs. **Remotes** appears between Notifications and Profile in the sidebar, with the unread count, only when Remotes is turned on in [Settings](settings.md). Press `g r` or click it to open the inbox. The badge refreshes every 15 seconds while Remotes is closed and the terminal is focused, and every 30 seconds while it isn't.
 
 The inbox has the web's tabs. **Open** holds your conversations, **Fetched** holds message requests and appears only when you accept requests, with the number waiting, and **Stashed** holds the conversations you put away. Switch tabs with `Tab`, `[`, and `]`, or click them. Press `/` to search by name or @handle, `Enter` to search, and `Esc` to clear the search. On the Open tab, a search also lists up to five people under **Start a conversation**. Select one and press `Enter`, or click them, to open a conversation with them.
 
@@ -89,7 +93,7 @@ At 120 columns or wider, the inbox and the open conversation sit side by side. N
 
 Conversations show day markers, org events such as **\* @grace created the org**, your messages on the right, and everyone else's on the left under their name. Images, link cards, replies, reactions in outlined chips below the message, and the typing line follow the web. Older messages load at the top of the conversation or with `n`.
 
-Reading a conversation moves your read receipt to its newest message, pings included, and clears its unread count. Like the web, the receipt only moves while the conversation is on screen and scrolled to the newest message. Scrolled-up conversations and conversations covered by a profile or Settings don't mark anything read until you scroll back down. Message mentions link to profiles only when the server marks them as mentions. The open conversation checks for new messages every 1.5 seconds for a minute after activity, then every 4 seconds. The inbox refreshes every 15 seconds, or every 6 while a conversation is open. Polling pauses while the terminal is unfocused and checks at once when it gets focus back. Turning Remotes off in Settings closes the screen.
+Reading a conversation moves your read receipt to its newest message, pings included, and clears its unread count. Like the web, the receipt only moves while the conversation is on screen and scrolled to the newest message. Scrolled-up conversations and conversations covered by a profile or Settings don't mark anything read until you scroll back down. Message mentions link to profiles only when the server marks them as mentions. The open conversation checks for new messages every 1.5 seconds for a minute after activity, then every 4 seconds. The inbox refreshes every 15 seconds, or every 6 while a conversation is open. While the terminal is unfocused, polling slows to every 30 seconds and never moves read receipts. It returns to its focused pace when the terminal gets focus back. Turning Remotes off in Settings closes the screen.
 
 ### Writing messages
 
@@ -198,6 +202,10 @@ The server preview renders only the text. The composer draws the poll or images 
 
 Emoji suggestions appear after at least two shortcode characters, such as `:ro`. Use `Up` and `Down` to choose, `Enter` or `Tab` to insert, and `Esc` to dismiss. Known completed shortcodes are replaced outside code. Suggestions work offline.
 
+### Post as an organization
+
+Press `Ctrl+A` in the composer to choose who the commit is from. The list shows you and the organizations you're a member of. Pick one with `j`, `k`, and `Enter`, or click it. On a server that doesn't list your organizations, type the organization's handle instead. The TUI checks its page, and only members can post as it. The composer title shows the chosen organization.
+
 ### Drafts and failures
 
 `Esc` or **Cancel** protects a draft with text, images, or a poll. **Keep draft** (`Ctrl+K`) closes the composer and retains the draft in memory for `c` to reopen. **Discard draft** (`Ctrl+D`) removes it, and **Back** (`Esc`) resumes editing. Drafts are not saved to disk and are lost when the process ends.
@@ -234,7 +242,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Organization profiles, posting as an organization, and search are not implemented. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Search is not implemented. Organization followers lists are web only. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 

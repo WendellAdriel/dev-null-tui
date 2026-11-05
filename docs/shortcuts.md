@@ -27,6 +27,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g e` | Open Trending |
 | `g n` | Open Notifications and mark all categories read |
 | `g p` | Open your profile |
+| `L` | Go live, or end your stream while you're live |
 | `g r` | Open Remotes, when Remotes is on |
 | `g s` | Open Starred, fetching its first page again |
 | `g ,` | Open Settings |
@@ -36,12 +37,12 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | Mouse wheel | Select the next or previous commit, or scroll help while it is open |
 | Left click | Open a commit's thread, or select a log tab, sidebar action, or sidebar shortcut. Click an image to view it |
 | `n` | Load older commits when another page exists |
-| `Ctrl+R` | Refresh the first page, then select the first commit and scroll to the top after success |
+| `Ctrl+R` | Refresh the first page and the notifications and Remotes badges, then select the first commit and scroll to the top after success |
 | `y` | Copy the selected commit's link, with a manual fallback if clipboard access fails |
 | `a` | Open account connection controls |
 | `c` | Open the composer modal |
 | `Enter` | Open the selected commit's thread |
-| `u` | Open the selected commit author's profile. Organizations have no profile action yet |
+| `u` | Open the selected commit author's profile, or an organization's page |
 | `r` | Reply to the selected commit |
 | `q` | Quote the selected commit |
 | `v` | View the selected commit's images |
@@ -58,9 +59,9 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 
 `q` quotes. It never quits.
 
-The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **Vote** (`o`) appears on other people's open polls, and **Profile** is hidden for organizations. **Show more** (`m`) appears on long commits whose text is cut short. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
+The selected log entry shows clickable **Thread** (`Enter`), **Reply** (`r`), **Quote** (`q`), and **Profile** (`u`) actions beneath its stats. **Vote** (`o`) appears on other people's open polls. On an organization's commit, **Profile** opens the organization's page. **Show more** (`m`) appears on long commits whose text is cut short. **View** (`v`) appears only when it has images, and **Delete** (`D`) appears only on your own commits. **Star** (`s`) appears on other people's commits, and **Unstar** on any commit you starred. **Pastél** (`p`) appears on other people's commits while pastéis mode is on and you have pastéis left. Counts change only after the server confirms. These controls use the same styling as thread actions and follow the selection as you navigate.
 
-The left sidebar has a **Commit** button. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status only. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
+The left sidebar has a **Commit** button. Above your identity it centers your commits, following, and followers counts, your pastéis, and the **LIVE** label while you stream, one per line. The right sidebar groups **Account** and **Refresh** under **Actions**, with their keys beside the buttons. Its **Shortcuts** section holds navigation, copy, theme, help, and exit keys without repeating those actions. The workspace footer shows status, plus **Refresh** `Ctrl+R` while the log is on screen. When the terminal is too narrow for the right sidebar, keyboard controls and `?` help remain available.
 
 Neither `r` nor `R` refreshes the workspace. Lowercase `r` replies. Refresh progress and success or failure appear as toasts, not footer messages. During refresh, existing content stays visible. Failure keeps your current position. Trending returns to its first ranked commit rather than its most recently published commit.
 
@@ -68,7 +69,7 @@ The `g` sequence expires after one second. Changing screens, opening help, or ch
 
 ## Notifications
 
-Opening Notifications marks all categories read, including categories excluded by the current filter. The unread badge uses a separate, non-mutating count request every 15 seconds while focused.
+Opening Notifications marks all categories read, including categories excluded by the current filter. The unread badge uses a separate, non-mutating count request every 15 seconds while focused and every 30 seconds while unfocused.
 
 | Keys | Action |
 | --- | --- |
@@ -222,7 +223,7 @@ A profile replaces the center column, like a thread. `Esc` returns to the screen
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | `g g`, `Home`, `G`, `End` | Select the first or last loaded commit |
 | `Tab`, `Shift+Tab`, `1`, `2` | Switch between Commits and Replies |
-| `3`, `4` | Open the Followers or Following list |
+| `F`, `O` | Open the Followers or Following list |
 | `f` | Follow or unfollow this person |
 | `M` | Mute or unmute this person, with confirmation |
 | `B` | Block this person, with confirmation |
@@ -243,7 +244,7 @@ Your own profile has no follow action. Follow changes wait for the server. Only 
 | Keys | Action |
 | --- | --- |
 | `j`, `k`, `Down`, `Up` | Select the next or previous person |
-| `Tab`, `Shift+Tab`, `1`, `2`, `3`, `4` | Switch between Followers and Following |
+| `Tab`, `Shift+Tab`, `1`, `2`, `F`, `O` | Switch between Followers and Following |
 | `Enter`, `u` | Open the selected person's profile |
 | `f` | Follow or unfollow the selected person |
 | `n` | Load more people |
@@ -313,6 +314,7 @@ The modal keeps the log visible without changing its reading position. It needs 
 | `Tab`, `Shift+Tab` | Move between the text field, the attachment strip, Preview, Submit, and Cancel |
 | `Ctrl+O` | Open the image browser |
 | `Ctrl+L` | Add a poll, or focus the one you have |
+| `Ctrl+A` | Post as yourself or an organization you're a member of |
 | `Enter` | Insert a new line in the text field, or activate the focused control |
 | `Esc` | Leave preview, or request cancellation without implicit submission |
 | `Up`, `Down`, `PageUp`, `PageDown` | Scroll while previewing |
