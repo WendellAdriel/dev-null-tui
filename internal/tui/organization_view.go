@@ -102,11 +102,22 @@ func (m AppModel) organizationHeader(frame *profileFrame, s *profileState, width
 	}
 	if len(o.Admins) > 0 {
 		admins := []string{text(p.muted).Render("Admins")}
-		for _, admin := range o.Admins {
-			admins = append(admins, text(p.ink).Render("@"+safeText(admin.Handle)))
+		faces := []graphics.Request{{}}
+		for i := range o.Admins {
+			req, face := m.userAvatar(&o.Admins[i], 2, 1, p)
+			admins, faces = append(admins, face[0]+" "+text(p.ink).Render("@"+safeText(o.Admins[i].Handle))), append(faces, req)
 		}
 		frame.add("")
-		for _, row := range spread(admins, inner, " ") {
+		// faces lines up with admins, the label's empty request standing in for the Admins label.
+		rows, counts := spreadCounts(admins, inner, " ")
+		shown := 0
+		for i, row := range rows {
+			for _, req := range faces[shown : shown+counts[i]] {
+				if req.URL != "" {
+					frame.show(req)
+				}
+			}
+			shown += counts[i]
 			frame.add(pad + row)
 		}
 	}

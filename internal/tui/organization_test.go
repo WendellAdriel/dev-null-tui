@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,7 +45,7 @@ func (l *organizationLog) String() string { return strings.Join(l.calls, "|") }
 func fixtureOrganization(handle string) api.OrganizationPage {
 	followers := 12
 	return api.OrganizationPage{
-		Organization: api.Organization{Handle: handle, Name: "Acme Inc", Bio: "We build rockets", Location: "Porto", Website: "https://acme.dev", GitHubURL: "https://github.com/" + handle, Followers: &followers, Admins: []api.User{{ID: "id-taylor", Handle: "taylor"}}},
+		Organization: api.Organization{Handle: handle, Name: "Acme Inc", Bio: "We build rockets", Location: "Porto", Website: "https://acme.dev", GitHubURL: "https://github.com/" + handle, Followers: &followers, Admins: []api.User{{ID: "id-taylor", Handle: "taylor", AvatarURL: "https://example.test/taylor.png"}}},
 	}
 }
 
@@ -104,10 +105,17 @@ func TestOrganizationAuthorsOpenTheOrganizationPage(t *testing.T) {
 		t.Fatalf("opening the organization: %s", log)
 	}
 	frame := profileText(m)
-	for _, want := range []string{"Acme Inc", "@acme", "Organization", "We build rockets", "Porto", "acme.dev", "github.com/acme", "12 followers", "Admins @taylor", "Follow  f", "Commits", "Mentions", "Commit by acme"} {
+	for _, want := range []string{"Acme Inc", "@acme", "Organization", "We build rockets", "Porto", "acme.dev", "github.com/acme", "12 followers", "Admins ●  @taylor", "Follow  f", "Commits", "Mentions", "Commit by acme"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("organization page lacks %q:\n%s", want, frame)
 		}
+	}
+	admin := m.avatarRequest("https://example.test/taylor.png", laneColor(nil, colors(m.account.dark)), 2, 1)
+	m.images.Enabled = true
+	media := m.visibleMedia()
+	m.images.Enabled = false
+	if !slices.Contains(media, admin) {
+		t.Fatalf("the admin's avatar is not requested: %+v", media)
 	}
 	for _, unwanted := range []string{"Claim", "Settings", "Mute", "Commit activity"} {
 		if strings.Contains(frame, unwanted) {
@@ -196,7 +204,7 @@ func TestClaimingAnUnclaimedOrganization(t *testing.T) {
 		t.Fatalf("claim: %s %q", log, m.toast.title)
 	}
 	frame := profileText(m)
-	if strings.Contains(frame, "Nobody has claimed") || !strings.Contains(frame, "Settings  S") || !strings.Contains(frame, "Admins @fixture") {
+	if strings.Contains(frame, "Nobody has claimed") || !strings.Contains(frame, "Settings  S") || !strings.Contains(frame, "Admins ●  @fixture") {
 		t.Fatalf("claimed page:\n%s", frame)
 	}
 	m = settle(t, m, "S")

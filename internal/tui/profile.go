@@ -51,6 +51,7 @@ type profileState struct {
 	starts, ends []int
 	pictures     []pictureArea
 	actions      []hitArea
+	media        []lineMedia
 	ctx          context.Context
 	cancel       context.CancelFunc
 }

@@ -84,21 +84,28 @@ func displayURL(raw string) string {
 
 // spread places items on rows of width, wrapping before an item that does not fit.
 func spread(items []string, width int, gap string) []string {
+	rows, _ := spreadCounts(items, width, gap)
+	return rows
+}
+
+// spreadCounts is spread that also reports how many items each row holds.
+func spreadCounts(items []string, width int, gap string) ([]string, []int) {
 	var rows []string
-	row := ""
+	var counts []int
+	row, count := "", 0
 	for _, item := range items {
 		if row != "" && lipgloss.Width(row)+lipgloss.Width(gap)+lipgloss.Width(item) > width {
-			rows, row = append(rows, row), ""
+			rows, counts, row, count = append(rows, row), append(counts, count), "", 0
 		}
 		if row != "" {
 			row += gap
 		}
-		row += item
+		row, count = row+item, count+1
 	}
 	if row != "" {
-		rows = append(rows, row)
+		rows, counts = append(rows, row), append(counts, count)
 	}
-	return rows
+	return rows, counts
 }
 
 // split puts left and right on one row of width, truncating left first.
@@ -121,9 +128,23 @@ func followLabel(following bool) string {
 type profileFrame struct {
 	lines   []string
 	actions []hitArea
+	media   []lineMedia
+}
+
+// lineMedia is an image drawn on one line of a scrolling page, requested only while that line shows.
+type lineMedia struct {
+	line int
+	req  graphics.Request
 }
 
 func (f *profileFrame) add(lines ...string) { f.lines = append(f.lines, lines...) }
+
+// show requests images for the next line added.
+func (f *profileFrame) show(requests ...graphics.Request) {
+	for _, req := range requests {
+		f.media = append(f.media, lineMedia{len(f.lines), req})
+	}
+}
 
 func (f *profileFrame) target(x, width int, action string) {
 	f.actions = append(f.actions, hitArea{uiRect{x, len(f.lines), width, 1}, action, 0})
@@ -175,7 +196,7 @@ func (m *AppModel) renderProfile(s *profileState) {
 	default:
 		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("EOF")), "")
 	}
-	s.actions = frame.actions
+	s.actions, s.media = frame.actions, frame.media
 	s.viewport.SetContent(strings.Join(frame.lines, "\n"))
 }
 
@@ -570,15 +591,25 @@ func (m AppModel) peopleRows(frame *profileFrame, s *profileState, width int, p 
 
 func (m AppModel) profileAvatars(s *profileState, p palette) []graphics.Request {
 	if !s.people {
-		u := s.profile.User
-		if !s.loaded || s.viewport.YOffset() > 6 {
+		if !s.loaded {
 			return nil
 		}
-		if s.organization {
-			return []graphics.Request{m.organizationAvatar(s.page.Organization, p, 8, 4)}
+		var requests []graphics.Request
+		if s.viewport.YOffset() <= 6 {
+			u := s.profile.User
+			u.Live = m.profileLive(s)
+			if s.organization {
+				requests = append(requests, m.organizationAvatar(s.page.Organization, p, 8, 4))
+			} else {
+				requests = append(requests, m.profileAvatar(u, laneColor(u.Lane, p), p))
+			}
 		}
-		u.Live = m.profileLive(s)
-		return []graphics.Request{m.profileAvatar(u, laneColor(u.Lane, p), p)}
+		for _, media := range s.media {
+			if media.line >= s.viewport.YOffset() && media.line < s.viewport.YOffset()+s.viewport.Height() {
+				requests = append(requests, media.req)
+			}
+		}
+		return requests
 	}
 	var requests []graphics.Request
 	view := s.viewport
