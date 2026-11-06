@@ -556,14 +556,26 @@ func (m *AppModel) renderRemoteThread() {
 		footer := text(p.muted).Render(clock)
 		switch {
 		case i == status && mine:
-			state := "✓ pushed"
-			if pulled := pulledByText(orgPulls(t.data.Members, message, m.account.user.ID)); pulled != "" {
-				state = "✓✓ pulled by " + pulled
+			state := text(p.muted).Render("✓ pushed")
+			pulled, total := orgPulls(t.data.Members, message, m.account.user.ID)
+			if len(pulled) > 0 {
+				faces, requests := m.pulledByFaces(pulled, total, bubble-len(clock)-2-lipgloss.Width("✓✓ pulled by "), p)
+				state = text(p.muted).Render("✓✓ pulled")
+				if faces != "" {
+					state += text(p.muted).Render(" by ") + faces
+				}
+				for _, req := range requests {
+					t.media = append(t.media, remoteMedia{len(lines), len(lines) + 1, req})
+				}
 			}
-			footer = text(p.muted).Render(fit(state, max(1, bubble-len(clock)-2))) + "  " + footer
+			footer = fit(state, max(1, bubble-len(clock)-2)) + "  " + footer
 		case i == status:
-			if pulled := pulledByText(orgPulls(t.data.Members, message, m.account.user.ID)); pulled != "" {
-				footer = text(p.muted).Render(fit(clock+" · pulled by "+pulled, bubble))
+			pulled, total := orgPulls(t.data.Members, message, m.account.user.ID)
+			if faces, requests := m.pulledByFaces(pulled, total, bubble-len(clock)-lipgloss.Width(" · pulled by "), p); faces != "" {
+				footer += text(p.muted).Render(" · pulled by ") + faces
+				for _, req := range requests {
+					t.media = append(t.media, remoteMedia{len(lines), len(lines) + 1, req})
+				}
 			}
 		case mine && i == len(t.messages)-1 && t.conversation.Kind != "org" && len(m.messaging.pending[t.conversation.ID]) == 0:
 			state := "✓ pushed"
