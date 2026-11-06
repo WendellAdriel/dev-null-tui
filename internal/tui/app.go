@@ -426,7 +426,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.dragComposer(msg.X, msg.Y)
 			m.composer.input.EndSelection()
 			m.composer.dragging = false
-			return m, m.refreshEmoji()
+			return m, m.refreshSuggestions()
 		}
 		return m, nil
 	case gExpired:

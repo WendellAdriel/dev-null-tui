@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	MaxSearchTerm     = 100
-	MinCommitSearch   = 3
-	MaxCommitSearches = 100
+	MaxSearchTerm        = 100
+	MinCommitSearch      = 3
+	MaxCommitSearchLimit = 100
 )
 
 var issueNumber = regexp.MustCompile(`^[1-9][0-9]{0,9}$`)
@@ -83,7 +83,7 @@ func (c *Client) SearchCommits(ctx context.Context, term string, limit int) ([]C
 		return nil, err
 	case utf8.RuneCountInString(term) < MinCommitSearch:
 		return nil, fmt.Errorf("commit searches need at least %d characters", MinCommitSearch)
-	case limit < 1 || limit > MaxCommitSearches:
+	case limit < 1 || limit > MaxCommitSearchLimit:
 		return nil, errors.New("invalid commit search limit")
 	}
 	query := url.Values{"q": {term}, "limit": {strconv.Itoa(limit)}}

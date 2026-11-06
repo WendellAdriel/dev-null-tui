@@ -330,7 +330,7 @@ func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 		}
 		m.invalidatePreview()
 	}
-	return tea.Batch(cmd, m.refreshEmoji())
+	return tea.Batch(cmd, m.refreshSuggestions())
 }
 
 func (m *AppModel) invalidatePreview() {

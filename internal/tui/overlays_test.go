@@ -244,7 +244,7 @@ func TestMouseWheelAndEmojiStayInsideComposer(t *testing.T) {
 		t.Fatal("editor wheel did not reveal earlier lines")
 	}
 	m.composer.input.SetValue(":smi")
-	m.refreshEmoji()
+	m.refreshSuggestions()
 	if len(m.composer.suggest.emojis) < 2 {
 		t.Fatal("missing emoji fixture")
 	}
@@ -299,7 +299,7 @@ func TestComposerFooterActionsStayClickableWithEmojiSuggestions(t *testing.T) {
 	m := fixtureApp(t)
 	m = pressApp(m, "c")
 	m.composer.input.SetValue(":smi")
-	m.refreshEmoji()
+	m.refreshSuggestions()
 	m, _ = clickText(t, m, "Cancel")
 	if m.composer.confirm != "discard" || m.composer.input.Value() != ":smi" {
 		t.Fatal("emoji suggestions interfered with footer cancel")

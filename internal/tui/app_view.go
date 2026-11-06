@@ -527,7 +527,8 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	search := searchRow(inner, p)
 	areas = append(areas, hitArea{uiRect{2, 0, inner, lipgloss.Height(search)}, "ctrl+k", 0})
 	controls := search + "\n"
-	if live, watch := m.liveNowBlock(inner, p); live != "" {
+	live, watch := m.liveNowBlock(inner, p)
+	if live != "" {
 		for _, area := range watch {
 			area.x += 2
 			areas = append(areas, area)
@@ -538,7 +539,7 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		}
 	}
 	// A rule separates Actions from the Live now block above it, and a blank line from the search box.
-	if len(areas) > 1 {
+	if live != "" {
 		controls += line + "\n"
 	} else {
 		controls += "\n"

@@ -104,8 +104,8 @@ func replaceShortcode(input *textarea.Model, name, value string, closed bool) {
 	input.InsertString(value)
 }
 
-// refreshEmoji updates the composer's suggestions: emoji, and the mentions and issues it looks up.
-func (m *AppModel) refreshEmoji() tea.Cmd {
+// refreshSuggestions updates the composer's suggestions: emoji, and the mentions and issues it looks up.
+func (m *AppModel) refreshSuggestions() tea.Cmd {
 	c := &m.composer
 	if c.focus != 0 || c.owner != m.account.user.ID || c.sending || c.previewing || c.loadingPreview {
 		c.suggest.close()
@@ -118,5 +118,5 @@ func (m *AppModel) acceptSuggestion() tea.Cmd {
 	c := &m.composer
 	acceptCompletion(&c.suggest, &c.input)
 	m.invalidatePreview()
-	return m.refreshEmoji()
+	return m.refreshSuggestions()
 }

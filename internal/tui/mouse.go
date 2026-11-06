@@ -334,7 +334,7 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		m.composer.focus = 0
 		m.composer.input.BeginSelection(msg.X-editor.x, msg.Y-editor.y)
 		m.composer.dragging = true
-		return m, tea.Batch(m.refreshEmoji(), m.focusComposer())
+		return m, tea.Batch(m.refreshSuggestions(), m.focusComposer())
 	}
 	return m, nil
 }

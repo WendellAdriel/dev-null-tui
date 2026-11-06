@@ -319,7 +319,7 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 			return nil
 		case "tab", "enter":
 			acceptCompletion(&mc.suggest, &mc.input)
-			lookup := m.refreshMessageEmoji()
+			lookup := m.refreshMessageSuggestions()
 			m.resizeThread()
 			return tea.Batch(lookup, m.scheduleDraftSave())
 		}
@@ -343,7 +343,7 @@ func (m *AppModel) updateMessageInput(msg tea.Msg) tea.Cmd {
 			replaceShortcode(&mc.input, name, value, true)
 		}
 	}
-	lookup := m.refreshMessageEmoji()
+	lookup := m.refreshMessageSuggestions()
 	m.resizeThread()
 	if !changed {
 		return tea.Batch(cmd, lookup)
@@ -352,8 +352,8 @@ func (m *AppModel) updateMessageInput(msg tea.Msg) tea.Cmd {
 	return tea.Batch(cmd, lookup, m.sendTyping(), m.scheduleDraftSave())
 }
 
-// refreshMessageEmoji updates the message composer's emoji, mention, and issue suggestions.
-func (m *AppModel) refreshMessageEmoji() tea.Cmd {
+// refreshMessageSuggestions updates the message composer's emoji, mention, and issue suggestions.
+func (m *AppModel) refreshMessageSuggestions() tea.Cmd {
 	mc := &m.remotes.thread.composer
 	if !mc.focused {
 		mc.suggest.close()
