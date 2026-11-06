@@ -183,9 +183,12 @@ type TUISettings struct {
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.
+// TUISettingsLimit is the largest tui.json that loads. A bigger file falls back to the defaults.
+const TUISettingsLimit = 16384
+
 func (s Store) TUISettings() TUISettings {
 	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1}
-	data, ok := s.readState(tuiSettingsFile, 16384)
+	data, ok := s.readState(tuiSettingsFile, TUISettingsLimit)
 	if !ok {
 		return defaults
 	}

@@ -359,6 +359,10 @@ func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
 	} else if msg.Button != tea.MouseWheelDown {
 		return m, nil
 	}
+	if m.search != nil && m.connected && !m.accountOpen && !m.composer.open {
+		cmd := m.searchKey(tea.KeyPressMsg{Code: code})
+		return m, cmd
+	}
 	if m.composer.open && m.connected && !m.accountOpen {
 		if !m.composerUsable() || m.composer.sending || !m.composerBounds().contains(msg.X, msg.Y) {
 			return m, nil

@@ -140,6 +140,7 @@ type AppModel struct {
 	search                     *searchDialog
 	completionCalls            completionCalls
 	completionGeneration       int
+	searchGeneration           int
 	searchCalls                searchCalls
 	// commitSearch is set while the Starred list screen shows that search's matching commits instead.
 	commitSearch string

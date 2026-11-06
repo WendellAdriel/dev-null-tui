@@ -2,6 +2,7 @@ package tui
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"regexp"
@@ -206,7 +207,9 @@ func (m *AppModel) searchChanged() tea.Cmd {
 			l.cancel()
 			l.cancel = nil
 		}
-		l.generation++
+		// The counter outlives the dialog, so a tick from a closed one never matches a reopened one.
+		m.searchGeneration++
+		l.generation = m.searchGeneration
 		l.pending, l.loading = term, term != ""
 		if term == "" {
 			continue
@@ -226,6 +229,9 @@ func (m *AppModel) acceptSearchTick(msg searchTick) tea.Cmd {
 		return nil
 	}
 	l := &m.search.lanes[msg.lane]
+	if l.cancel != nil {
+		l.cancel()
+	}
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	l.cancel = cancel
 	result := searchResult{session: m.session, lane: msg.lane, generation: msg.generation, term: l.pending}
@@ -322,6 +328,15 @@ func (m *AppModel) setRecentSearches(id string, recent []string) {
 		searches[id] = recent
 	}
 	m.tuiSettings.RecentSearches = searches
+	// Other accounts' recents give way before tui.json grows past what loads.
+	for account := range searches {
+		if data, _ := json.Marshal(m.tuiSettings); len(data) < auth.TUISettingsLimit {
+			break
+		}
+		if account != id {
+			delete(searches, account)
+		}
+	}
 }
 
 func (m *AppModel) clearRecentSearches() tea.Cmd {

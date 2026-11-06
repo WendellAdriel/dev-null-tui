@@ -311,3 +311,42 @@ func TestClickingAHashtagSearchesIt(t *testing.T) {
 	}
 	t.Fatalf("no hashtag on screen:\n%s", frameText(m))
 }
+
+func TestTheWheelMovesSearchNotTheLogBehindIt(t *testing.T) {
+	m, _ := searchApp(t)
+	m = searchKey(m, "ctrl+k")
+	m = typeSearch(m, "@ada")
+	selected := m.feeds[m.active].selected
+	next, _ := m.update(tea.MouseWheelMsg{Button: tea.MouseWheelDown, X: 70, Y: 20})
+	m = next.(AppModel)
+	if m.feeds[m.active].selected != selected || m.search == nil || m.search.index != 1 {
+		t.Fatalf("wheel: log %d→%d, search index %v", selected, m.feeds[m.active].selected, m.search)
+	}
+}
+
+func TestAReopenedSearchIgnoresTheClosedOnesTicks(t *testing.T) {
+	m, log := searchApp(t)
+	m = searchKey(m, "ctrl+k")
+	next, stale := m.update(tea.KeyPressMsg{Code: 'x', Text: "x"})
+	m = searchKey(next.(AppModel), "esc")
+	m = searchKey(m, "ctrl+k")
+	m = typeSearch(m, "y")
+	settleSearch(m, stale)
+	if fmt.Sprint(log.profiles) != "[y]" {
+		t.Fatalf("profile searches: %q", log.profiles)
+	}
+}
+
+func TestRecentSearchesNeverOutgrowWhatTUISettingsLoads(t *testing.T) {
+	m, _ := searchApp(t)
+	m.tuiSettings.RecentSearches = map[string][]string{}
+	for i := range 60 {
+		m.tuiSettings.RecentSearches[fmt.Sprint("account-", i)] = []string{strings.Repeat("<", 100), strings.Repeat("&", 100), strings.Repeat(">", 100)}
+	}
+	m = searchKey(m, "ctrl+k")
+	m = typeSearch(m, "@ada")
+	m = searchKey(m, "esc")
+	if !savedSettings(m, func(s auth.TUISettings) bool { return fmt.Sprint(s.RecentSearches[m.account.user.ID]) == "[@ada]" }) {
+		t.Fatal("tui.json didn't load back with this account's recent search")
+	}
+}
