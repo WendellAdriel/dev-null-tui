@@ -21,7 +21,24 @@ type appKeys struct{ short, all []key.Binding }
 func (k appKeys) ShortHelp() []key.Binding  { return k.short }
 func (k appKeys) FullHelp() [][]key.Binding { return [][]key.Binding{k.all} }
 
+// bindings adds search to every screen it opens from. Remotes keeps / for its own inbox search.
 func (m AppModel) bindings() appKeys {
+	keys := m.screenBindings()
+	// Help lists what works once it closes.
+	closed := m
+	closed.help = false
+	if closed.searchBlocked() {
+		return keys
+	}
+	shortcut := "ctrl+k / /"
+	if m.remotesOnTop() {
+		shortcut = "ctrl+k"
+	}
+	keys.all = append(keys.all, key.NewBinding(key.WithKeys("ctrl+k"), key.WithHelp(shortcut, "search")))
+	return keys
+}
+
+func (m AppModel) screenBindings() appKeys {
 	if m.settings.open || m.settings.dialog != "" {
 		return m.settingsHelp()
 	}
@@ -73,7 +90,7 @@ func (m AppModel) bindings() appKeys {
 	}
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("ctrl+k / /", "search"), bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
+	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))

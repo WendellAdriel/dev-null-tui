@@ -105,7 +105,17 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 		short = append(short, bind("u", "author profile"))
 	}
 	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
-	all := append(append([]key.Binding(nil), short...), bind("ctrl+k / /", "search"), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older starred commits"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("g s", "reopen Starred"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
+	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"))
+	if m.commitSearch == "" {
+		all = append(all, bind("n", "older starred commits"))
+	}
+	all = append(all, bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"))
+	if m.commitSearch == "" {
+		all = append(all, bind("g s", "reopen Starred"))
+	} else {
+		all = append(all, bind("g s", "Starred"))
+	}
+	all = append(all, bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
 	all = append(all, m.engagementBindings()...)
 	return appKeys{short, all}
 }

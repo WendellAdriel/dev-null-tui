@@ -350,3 +350,23 @@ func TestRecentSearchesNeverOutgrowWhatTUISettingsLoads(t *testing.T) {
 		t.Fatal("tui.json didn't load back with this account's recent search")
 	}
 }
+
+func TestHelpListsSearchOnEveryScreen(t *testing.T) {
+	m, _ := searchApp(t)
+	helpText := func(m AppModel) string {
+		var keys []string
+		for _, b := range m.bindings().all {
+			keys = append(keys, b.Help().Key+" "+b.Help().Desc)
+		}
+		return strings.Join(keys, "\n")
+	}
+	m = searchKey(m, "enter")
+	if !strings.Contains(helpText(m), "ctrl+k / / search") {
+		t.Fatalf("thread help:\n%s", helpText(m))
+	}
+	m = searchKey(m, "esc")
+	m, _ = m.openCommitSearch("caching tips")
+	if help := helpText(m); strings.Contains(help, "older starred commits") || strings.Contains(help, "reopen Starred") {
+		t.Fatalf("search results list Starred-only keys:\n%s", help)
+	}
+}
