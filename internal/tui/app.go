@@ -489,11 +489,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s := m.topProfile(); s != nil {
 			m.renderProfile(s)
 		}
-		var live tea.Cmd
-		if _, _, aside := m.columns(); m.focused && !m.accountOpen && aside > 0 {
-			live = m.refreshAside()
-		}
-		return m, tea.Batch(m.tickClock(), live)
+		return m, tea.Batch(m.tickClock(), m.refreshAside())
 	case meResult:
 		m.acceptAccountRefresh(msg)
 		return m, nil
@@ -553,7 +549,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		if msg.mode == "new" {
-			m.acceptNewest(msg.index, msg.page)
+			if m.acceptNewest(msg.index, msg.page) == 0 {
+				return m, nil
+			}
 			return m, m.refreshAside()
 		}
 		for i, submitted := range f.submitted {

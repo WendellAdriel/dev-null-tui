@@ -119,3 +119,14 @@ func TestAnAccountRefreshKeepsTheBadgeAnInboxReadCleared(t *testing.T) {
 		t.Fatalf("a refresh from before the inbox read brought back %d unread", m.unreadNotifications)
 	}
 }
+
+func TestAnEmptyPollDoesNotRefreshTheAccount(t *testing.T) {
+	m, _ := liveApp(t)
+	calls := 0
+	m.meCall = func(context.Context) (auth.User, error) { calls++; return m.account.user, nil }
+	next, cmd := m.update(logResult{index: 0, generation: m.feeds[0].generation, mode: "new", page: api.Page{Data: m.feeds[0].commits}})
+	deliver(next.(AppModel), runSkippingTicks(cmd))
+	if calls != 0 {
+		t.Fatalf("a poll with no new commits refreshed the account %d times", calls)
+	}
+}

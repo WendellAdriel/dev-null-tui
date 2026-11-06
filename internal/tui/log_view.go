@@ -396,11 +396,14 @@ func (m AppModel) feedRail(c api.Commit, rows []string, ring int, heads []int, g
 	return out
 }
 
+// sidebarWidth is the left column once it has room for your name, counts and live state.
+const sidebarWidth = 25
+
 func (m AppModel) columns() (nav, center, aside int) {
 	w := m.account.width
 	nav = 5
 	if w >= 100 {
-		nav = 25
+		nav = sidebarWidth
 	}
 	if w >= 134 {
 		aside = 40

@@ -101,14 +101,15 @@ func newestThrough(ctx context.Context, fetch func(context.Context, api.Log, str
 
 // acceptNewest places the commits above the ones shown, keeping the reader's row as the web does. A reader at the top
 // of a focused terminal sees them there. Anyone else gets the New commits notice, which leaves out their own commits.
-func (m *AppModel) acceptNewest(index int, page api.Page) {
+// It returns how many commits it added.
+func (m *AppModel) acceptNewest(index int, page api.Page) int {
 	f := &m.feeds[index]
 	data := m.safeCommits(page.Data)
 	if len(f.commits) == 0 {
 		f.commits, f.next, f.selected = uniqueCommits(data), page.Next, 0
 		m.renderFeed(index)
 		f.viewport.GotoTop()
-		return
+		return len(f.commits)
 	}
 	overlap := slices.IndexFunc(data, func(c api.Commit) bool { return containsID(f.commits, c.ID) })
 	if overlap < 0 {
@@ -118,7 +119,7 @@ func (m *AppModel) acceptNewest(index int, page api.Page) {
 	}
 	arrivals := uniqueCommits(data[:overlap])
 	if len(arrivals) == 0 {
-		return
+		return 0
 	}
 	atTop := m.focused && f.selected == 0 && f.viewport.YOffset() == 0
 	anchor, offset := f.commits[f.selected].ID, 0
@@ -137,11 +138,13 @@ func (m *AppModel) acceptNewest(index int, page api.Page) {
 	case f.selected < len(f.starts):
 		f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))
 	}
+	added := len(arrivals)
 	if atTop {
-		return
+		return added
 	}
 	news := slices.DeleteFunc(arrivals, m.ownCommit)
 	f.arrivals = uniqueCommits(append(news, f.arrivals...))
+	return added
 }
 
 func containsID(commits []api.Commit, id string) bool {

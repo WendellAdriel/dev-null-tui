@@ -53,7 +53,19 @@ func (m *AppModel) acceptAccountRefresh(msg meResult) {
 	m.applyAccount(msg.user)
 }
 
-// refreshAside reloads the account and Live now together, as both show in the aside.
+// refreshAside reloads what the side columns show while you can see it: your counts and live state in the left
+// sidebar, and Live now in the right aside.
 func (m *AppModel) refreshAside() tea.Cmd {
-	return tea.Batch(m.refreshAccount(), m.fetchLiveNow())
+	if !m.focused || m.accountOpen {
+		return nil
+	}
+	nav, _, aside := m.columns()
+	var account, live tea.Cmd
+	if nav >= sidebarWidth {
+		account = m.refreshAccount()
+	}
+	if aside > 0 {
+		live = m.fetchLiveNow()
+	}
+	return tea.Batch(account, live)
 }
