@@ -104,30 +104,19 @@ func replaceShortcode(input *textarea.Model, name, value string, closed bool) {
 	input.InsertString(value)
 }
 
-func (m *AppModel) refreshEmoji() {
+// refreshEmoji updates the composer's suggestions: emoji, and the mentions and issues it looks up.
+func (m *AppModel) refreshEmoji() tea.Cmd {
 	c := &m.composer
-	if c.focus != 0 || c.owner != m.account.user.ID || c.sending || c.previewing || c.loadingPreview || c.input.HasSelection() {
-		c.emojis = nil
-		return
+	if c.focus != 0 || c.owner != m.account.user.ID || c.sending || c.previewing || c.loadingPreview {
+		c.suggest.close()
+		return nil
 	}
-	prefix := textBeforeCaret(c.input)
-	query, closed := emojiAtCaret(prefix)
-	if closed || query == "" || prefix == c.emojiDismissed {
-		c.emojis = nil
-		return
-	}
-	if prefix != c.emojiPrefix {
-		c.emojiIndex = 0
-	}
-	c.emojiQuery, c.emojiPrefix = query, prefix
-	c.emojis = searchEmoji(query)
+	return m.refreshCompletion(&c.suggest, c.input, "commit", m.composerMentionScope())
 }
 
-func (m *AppModel) acceptEmoji() {
+func (m *AppModel) acceptSuggestion() tea.Cmd {
 	c := &m.composer
-	choice := c.emojis[c.emojiIndex]
-	replaceShortcode(&c.input, c.emojiQuery, choice.value, false)
-	c.emojis = nil
+	acceptCompletion(&c.suggest, &c.input)
 	m.invalidatePreview()
-	m.refreshEmoji()
+	return m.refreshEmoji()
 }

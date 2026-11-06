@@ -137,6 +137,12 @@ type AppModel struct {
 	live                       *liveDialog
 	liveEnding                 bool
 	liveNow                    []api.User
+	search                     *searchDialog
+	completionCalls            completionCalls
+	completionGeneration       int
+	searchCalls                searchCalls
+	// commitSearch is set while the Starred list screen shows that search's matching commits instead.
+	commitSearch string
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
@@ -368,6 +374,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptAuthorCheck(msg)
 	case liveResult:
 		return m, m.acceptLive(msg)
+	case completionTick:
+		return m, m.acceptCompletionTick(msg)
+	case completionResult:
+		return m, m.acceptCompletionResult(msg)
+	case searchTick:
+		return m, m.acceptSearchTick(msg)
+	case searchResult:
+		return m, m.acceptSearchResult(msg)
 	case liveNowResult:
 		return m, m.acceptLiveNow(msg)
 	case followedOrganizationsResult:
@@ -411,7 +425,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.dragComposer(msg.X, msg.Y)
 			m.composer.input.EndSelection()
 			m.composer.dragging = false
-			m.refreshEmoji()
+			return m, m.refreshEmoji()
 		}
 		return m, nil
 	case gExpired:
@@ -601,6 +615,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, cmd
 		}
+		if m.connected && m.search != nil && msg.String() != "ctrl+c" {
+			cmd := m.searchKey(msg)
+			return m, cmd
+		}
+		if msg.String() == "ctrl+k" && !m.searchBlocked() {
+			cmd := m.openSearch("")
+			return m, cmd
+		}
 		if m.connected && m.live != nil && msg.String() != "ctrl+c" {
 			cmd := m.liveKey(msg)
 			return m, cmd
@@ -643,6 +665,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.resetSequence()
 			return m, nil
 		}
+	}
+	if m.connected && m.search != nil {
+		// Pastes and cursor blinks reach the search box.
+		return m, m.updateSearchField(msg)
 	}
 	if m.connected && !m.accountOpen && m.settings.dialog != "" {
 		if !m.settings.busy {
@@ -734,6 +760,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.liveCalls.goLive == nil {
 			m.liveCalls = newLiveCalls(client)
 		}
+		if m.searchCalls.profiles == nil {
+			m.searchCalls = newSearchCalls(client)
+		}
+		if m.completionCalls.mentions == nil {
+			m.completionCalls = newCompletionCalls(client)
+		}
 		m.connected, m.accountOpen = true, false
 		m.account.workspace = true
 		m.session++
@@ -797,8 +829,9 @@ func (m *AppModel) leaveApplication() {
 	m.follow = followState{generation: m.follow.generation + 1}
 	m.claiming = ""
 	m.live, m.liveEnding, m.liveNow = nil, false, nil
+	m.closeSearch()
 	// Cleared so a later connection builds them on its own signing key.
-	m.organizationCalls, m.liveCalls = organizationCalls{}, liveCalls{}
+	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
@@ -913,6 +946,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		m.helpScroll = 0
 		m.resetSequence()
 		return m, nil
+	}
+	// Remotes keeps / for its inbox search, as the web does, and Ctrl+K still opens this one there.
+	if pressed == "/" && !m.remotesOnTop() && !m.searchBlocked() {
+		return m, m.openSearch("")
 	}
 	if m.help {
 		switch pressed {

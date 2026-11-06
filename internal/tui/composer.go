@@ -29,9 +29,7 @@ type composer struct {
 	dragging                                             bool
 	preview                                              api.Preview
 	cancel                                               context.CancelFunc
-	emojis                                               []emojiSuggestion
-	emojiIndex                                           int
-	emojiQuery, emojiPrefix, emojiDismissed              string
+	suggest                                              completion
 	images                                               []api.ImageFile
 	poll                                                 *pollDraft
 	strip                                                int
@@ -178,9 +176,8 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 		return m.fieldKey(msg)
 	}
 	if pressed == "esc" {
-		if len(c.emojis) > 0 {
-			c.emojiDismissed = c.emojiPrefix
-			c.emojis = nil
+		if c.suggest.count() > 0 {
+			c.suggest.dismiss()
 			return nil
 		}
 		if c.previewing {
@@ -215,17 +212,16 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 			}
 		}
 	}
-	if len(c.emojis) > 0 && c.focus == 0 {
+	if c.suggest.count() > 0 && c.focus == 0 {
 		switch pressed {
 		case "down":
-			c.emojiIndex = (c.emojiIndex + 1) % len(c.emojis)
+			c.suggest.move(1)
 			return nil
 		case "up":
-			c.emojiIndex = (c.emojiIndex + len(c.emojis) - 1) % len(c.emojis)
+			c.suggest.move(-1)
 			return nil
 		case "tab", "enter":
-			m.acceptEmoji()
-			return nil
+			return m.acceptSuggestion()
 		}
 	}
 	if c.previewing {
@@ -259,7 +255,7 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 			delta = len(order) - 1
 		}
 		c.focus = order[(max(0, slices.Index(order, c.focus))+delta)%len(order)]
-		c.emojis = nil
+		c.suggest.close()
 		c.input.Blur()
 		if c.focus == 0 && !c.previewing {
 			return m.focusComposer()
@@ -294,7 +290,7 @@ func (m *AppModel) keepDraft() tea.Cmd {
 	}
 	c.open, c.dragging = false, false
 	c.confirm, c.confirmFocus = "", 0
-	c.emojis = nil
+	c.suggest.close()
 	c.input.EndSelection()
 	c.input.Blur()
 	m.reflow()
@@ -329,13 +325,12 @@ func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 			name, closed := emojiAtCaret(textBeforeCaret(c.input))
 			if value, ok := emojiCatalog[name]; closed && ok {
 				replaceShortcode(&c.input, name, value, true)
-				c.emojis = nil
+				c.suggest.close()
 			}
 		}
 		m.invalidatePreview()
 	}
-	m.refreshEmoji()
-	return cmd
+	return tea.Batch(cmd, m.refreshEmoji())
 }
 
 func (m *AppModel) invalidatePreview() {
@@ -373,7 +368,7 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	}
 	c.generation++
 	c.sending, c.loadingPreview = true, false
-	c.emojis = nil
+	c.suggest.close()
 	c.status = "Signing and submitting..."
 	c.input.Blur()
 	timeout := 30 * time.Second
@@ -416,7 +411,7 @@ func (m *AppModel) startPreview() tea.Cmd {
 	}
 	c.generation++
 	c.loadingPreview = true
-	c.emojis = nil
+	c.suggest.close()
 	c.status = "Preparing server preview..."
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	c.cancel = cancel

@@ -2,13 +2,16 @@ package tui
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 type starredResult struct {
@@ -29,10 +32,16 @@ func (m *AppModel) closeStarred() {
 	m.starred = feed{generation: m.starred.generation + 1}
 	m.starredOpen = false
 	m.starredRemoved = nil
+	m.commitSearch = ""
 }
 
-func (m AppModel) openStarred() (AppModel, tea.Cmd) {
-	if m.loadStarred == nil {
+func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("") }
+
+// openCommitSearch shows a search's matching commits, the web's See all matching commits, in the Starred list screen.
+func (m AppModel) openCommitSearch(term string) (AppModel, tea.Cmd) { return m.openList(term) }
+
+func (m AppModel) openList(term string) (AppModel, tea.Cmd) {
+	if m.loadStarred == nil || (term != "" && m.searchCalls.commits == nil) {
 		return m, nil
 	}
 	m.closeAllProfiles()
@@ -48,7 +57,7 @@ func (m AppModel) openStarred() (AppModel, tea.Cmd) {
 		f.cancel, f.loading = nil, false
 		f.generation++
 	}
-	m.starredOpen = true
+	m.starredOpen, m.commitSearch = true, term
 	m.starred.viewport = viewport.New()
 	m.starred.cursors = make(map[string]bool)
 	m.starredRemoved = make(map[string]bool)
@@ -78,10 +87,14 @@ func (m *AppModel) fetchStarred(mode string) tea.Cmd {
 	f.loading, f.loadingMode, f.status = true, mode, ""
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	f.cancel = cancel
-	session, generation, load := m.session, f.generation, m.loadStarred
+	session, generation, load, term, search := m.session, f.generation, m.loadStarred, m.commitSearch, m.searchCalls.commits
 	m.renderStarred()
 	return m.account.life.command(func() tea.Msg {
 		defer cancel()
+		if term != "" {
+			commits, err := search(ctx, term, commitResultsLimit)
+			return starredResult{session: session, generation: generation, mode: mode, page: api.CommitPage{Data: commits}, err: err}
+		}
 		page, err := load(ctx, cursor)
 		return starredResult{session: session, generation: generation, mode: mode, page: page, err: err}
 	})
@@ -101,9 +114,15 @@ func (m *AppModel) acceptStarred(msg starredResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		f.status = "Couldn't load Starred: " + safeText(msg.err.Error()) + ". Ctrl+R to retry."
+		var failure *auth.APIError
+		if m.commitSearch != "" && errors.As(msg.err, &failure) && failure.Status == http.StatusTooManyRequests {
+			f.status = "error: too many searches, give it a few seconds. Ctrl+R to retry."
+			m.renderStarred()
+			return nil
+		}
+		f.status = "Couldn't load " + m.listName() + ": " + safeText(msg.err.Error()) + ". Ctrl+R to retry."
 		m.renderStarred()
-		return m.notify("error", "Starred failed", f.status)
+		return m.notify("error", m.listName()+" failed", f.status)
 	}
 	if msg.mode != "more" {
 		f.commits, f.selected = nil, 0
@@ -126,6 +145,14 @@ func (m *AppModel) acceptStarred(msg starredResult) tea.Cmd {
 		return m.fetchStarred("more")
 	}
 	return nil
+}
+
+// listName names the list screen in its messages.
+func (m AppModel) listName() string {
+	if m.commitSearch != "" {
+		return "search results"
+	}
+	return "Starred"
 }
 
 func (m *AppModel) removeStarred(id string) tea.Cmd {
@@ -232,7 +259,13 @@ func (m AppModel) starredStatus() string {
 		return f.status
 	}
 	if f.loading {
-		return "Reading Starred from /dev/null..."
+		return "Reading " + m.listName() + " from /dev/null..."
+	}
+	if m.commitSearch != "" {
+		if len(f.commits) == 0 {
+			return "fatal: nothing close to '" + safeText(m.commitSearch) + "'"
+		}
+		return fmt.Sprintf("%d / %d matching commits", f.selected+1, len(f.commits))
 	}
 	if len(f.commits) == 0 {
 		return "No starred commits yet."

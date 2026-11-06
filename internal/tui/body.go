@@ -36,6 +36,8 @@ func (pc piece) draw(s string) string {
 type bodyRenderer struct {
 	p     palette
 	style statsStyle
+	// source is the text being linkified, for boundary checks that look before a slice of it.
+	source string
 }
 
 // folded reports a body too long to show whole in a list, which shows the server's excerpt until Show more.
@@ -52,7 +54,7 @@ func bodyLines(commit api.Commit, width int, p palette, style statsStyle) []stri
 	if len(segments) == 0 && commit.Body != "" {
 		segments = []api.Segment{{Type: "text", Text: commit.Body}}
 	}
-	r := bodyRenderer{p, style}
+	r := bodyRenderer{p: p, style: style}
 	inner := 0
 	if width > 0 {
 		inner = max(1, width-2)
@@ -319,6 +321,7 @@ func isWordRune(r rune) bool {
 }
 
 func (r bodyRenderer) linkified(s string) []piece {
+	r.source = s
 	colors := findColors(s)
 	var pieces []piece
 	position := 0
@@ -838,11 +841,69 @@ func (r bodyRenderer) colored(s string, offset int, colors []hexColor) []piece {
 		if start < position || end > len(s) {
 			continue
 		}
-		pieces = append(pieces, r.wordmarks(s[position:start])...)
+		pieces = append(pieces, r.hashtags(s[position:start], offset+position)...)
 		pieces = append(pieces, piece{atom: r.swatch(swatchColor(color.value)) + " "}, piece{text: s[start:end]})
 		position = end
 	}
+	return append(pieces, r.hashtags(s[position:], offset+position)...)
+}
+
+// Hashtags open the search dialog when clicked. APC marks, escaped to ASCII and stripped before the terminal, name them.
+const (
+	hashtagStart = "\x1b_devnull-tag;"
+	hashtagEnd   = "\x1b_devnull-tag\x1b\\"
+)
+
+var (
+	hashtagMarks  = regexp.MustCompile(`\x1b_devnull-tag;([^\x1b]*)\x1b\\`)
+	hashtagMarker = regexp.MustCompile(`\x1b_devnull-tag[^\x1b]*\x1b\\`)
+)
+
+// hashtags draws #tags like links. The web's lookbehind allows no word rune or any of "&/#>-" before the "#".
+func (r bodyRenderer) hashtags(s string, offset int) []piece {
+	var pieces []piece
+	position := 0
+	for i := 0; i < len(s); i++ {
+		if s[i] != '#' || !unicode.IsLetter(firstRune(s[i+1:])) {
+			continue
+		}
+		if before := lastRune(r.source[:offset+i]); offset+i > 0 && (isWordRune(before) || strings.ContainsRune("&/#>-", before)) {
+			continue
+		}
+		end := i + 1
+		for end < len(s) && isWordRune(firstRune(s[end:])) {
+			_, size := utf8.DecodeRuneInString(s[end:])
+			end += size
+		}
+		mark, blue := hashtagStart+url.PathEscape(s[i:end])+"\x1b\\", text(r.p.blue).Render
+		pieces = append(pieces, r.wordmarks(s[position:i])...)
+		pieces = append(pieces, piece{text: s[i:end], paint: func(s ...string) string { return mark + blue(s...) + hashtagEnd }})
+		position, i = end, end-1
+	}
 	return append(pieces, r.wordmarks(s[position:])...)
+}
+
+// hashtagAt is the hashtag drawn at column x of a rendered line.
+func hashtagAt(line string, x int) string {
+	tag, column := "", 0
+	var state byte
+	for line != "" {
+		sequence, width, n, next := ansi.DecodeSequence(line, state, nil)
+		state = next
+		switch {
+		case strings.HasPrefix(sequence, hashtagStart):
+			tag, _ = url.PathUnescape(strings.TrimSuffix(strings.TrimPrefix(sequence, hashtagStart), "\x1b\\"))
+		case sequence == hashtagEnd:
+			tag = ""
+		case width > 0:
+			if x >= column && x < column+width {
+				return tag
+			}
+			column += width
+		}
+		line = line[n:]
+	}
+	return ""
 }
 
 const wordmark = "/dev/null"

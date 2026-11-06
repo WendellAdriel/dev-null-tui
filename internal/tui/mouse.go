@@ -1,6 +1,10 @@
 package tui
 
-import tea "charm.land/bubbletea/v2"
+import (
+	"strings"
+
+	tea "charm.land/bubbletea/v2"
+)
 
 func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 	key := tea.KeyPressMsg{}
@@ -97,6 +101,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.composer.open && m.connected && !m.accountOpen {
 		return m.composerMouse(msg)
 	}
+	if m.connected && !m.accountOpen && m.search != nil {
+		return m.searchMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.vote.confirm {
 		_, _, areas := m.voteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -178,6 +185,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	}
 	if m.account.width < 30 || m.account.height < 10 {
 		return m, nil
+	}
+	if lines := strings.Split(m.workspaceView().Content, "\n"); msg.Y < len(lines) && !m.searchBlocked() {
+		if tag := hashtagAt(lines[msg.Y], msg.X); tag != "" {
+			cmd := m.openSearch(tag)
+			return m, cmd
+		}
 	}
 	nav, center, aside := m.columns()
 	left := (m.account.width - nav - center - aside - 2) / 2
@@ -294,7 +307,7 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 			}
 			m.composer.input.EndSelection()
 			m.composer.dragging = false
-			m.composer.emojis = nil
+			m.composer.suggest.close()
 			m.composer.focus = area.index
 			m.composer.input.Blur()
 			return m.mouseKey("enter")
@@ -308,11 +321,12 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, cmd
 	}
 	editor := m.composerEditorBounds()
-	if len(m.composer.emojis) > 0 && (uiRect{editor.x, editor.y + editor.h, editor.w, m.composerStatusRows()}).contains(msg.X, msg.Y) {
-		index := max(0, min(m.composer.emojiIndex-1, len(m.composer.emojis)-3)) + msg.Y - editor.y - editor.h
-		if index < len(m.composer.emojis) {
-			m.composer.emojiIndex = index
-			m.acceptEmoji()
+	if s := &m.composer.suggest; s.count() > 0 && (uiRect{editor.x, editor.y + editor.h, editor.w, m.composerStatusRows()}).contains(msg.X, msg.Y) {
+		index := max(0, min(s.index-1, s.count()-3)) + msg.Y - editor.y - editor.h
+		if index < s.count() {
+			s.index = index
+			cmd := m.acceptSuggestion()
+			return m, cmd
 		}
 		return m, nil
 	}
@@ -320,8 +334,7 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		m.composer.focus = 0
 		m.composer.input.BeginSelection(msg.X-editor.x, msg.Y-editor.y)
 		m.composer.dragging = true
-		m.refreshEmoji()
-		return m, m.focusComposer()
+		return m, tea.Batch(m.refreshEmoji(), m.focusComposer())
 	}
 	return m, nil
 }
@@ -333,7 +346,7 @@ func (m *AppModel) dragComposer(x, y int) {
 	}
 	r := m.composerEditorBounds()
 	c.input.ExtendSelection(x-r.x, y-r.y)
-	c.emojis = nil
+	c.suggest.close()
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
@@ -350,10 +363,10 @@ func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
 		if !m.composerUsable() || m.composer.sending || !m.composerBounds().contains(msg.X, msg.Y) {
 			return m, nil
 		}
-		if !m.composer.previewing && !m.composerEditorBounds().contains(msg.X, msg.Y) && len(m.composer.emojis) == 0 {
+		if !m.composer.previewing && !m.composerEditorBounds().contains(msg.X, msg.Y) && m.composer.suggest.count() == 0 {
 			return m, nil
 		}
-		if !m.composer.previewing && len(m.composer.emojis) == 0 {
+		if !m.composer.previewing && m.composer.suggest.count() == 0 {
 			m.composer.focus = 0
 			m.composer.input.EndSelection()
 			if code == tea.KeyUp {

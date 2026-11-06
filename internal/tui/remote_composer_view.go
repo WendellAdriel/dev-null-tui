@@ -243,12 +243,12 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 			lines = append(lines, " "+marker+text(p.ink).Render(fit(fmt.Sprintf("%s · %d×%d · %s", name, image.Width, image.Height, description), inner-2)))
 		}
 	}
-	if len(mc.emojis) > 0 {
+	if labels := mc.suggest.labels(); len(labels) > 0 {
 		var choices []string
-		start := max(0, min(mc.emojiIndex-2, len(mc.emojis)-5))
-		for i := start; i < min(len(mc.emojis), start+5); i++ {
-			choice := mc.emojis[i].value + " :" + mc.emojis[i].name + ":"
-			if i == mc.emojiIndex {
+		start := max(0, min(mc.suggest.index-2, len(labels)-5))
+		for i := start; i < min(len(labels), start+5); i++ {
+			choice := labels[i]
+			if i == mc.suggest.index {
 				choice = withBackground(text(p.ink).Bold(true).Render(choice), p.soft)
 			} else {
 				choice = text(p.muted).Render(choice)
@@ -330,7 +330,7 @@ func (m AppModel) messageThumbnails() bool {
 	if mc.reply != nil || mc.replyID != 0 {
 		room--
 	}
-	if len(mc.emojis) > 0 {
+	if mc.suggest.count() > 0 {
 		room--
 	}
 	return room >= stripThumbRows+2 && m.threadPaneWidth()-2 >= len(mc.images)*(stripThumbCols+2)-1

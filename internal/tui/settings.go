@@ -226,6 +226,11 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 		return m.notify("error", "Settings action failed", s.status)
 	}
 	if r.signedOut {
+		var forget tea.Cmd
+		if r.op.kind == "delete-account" && len(m.tuiSettings.RecentSearches[m.account.user.ID]) > 0 {
+			m.setRecentSearches(m.account.user.ID, nil)
+			forget = m.saveTUISettings(true)
+		}
 		m.leaveApplication()
 		m.composer = composer{generation: m.composer.generation + 1}
 		m.account.key = nil
@@ -238,7 +243,7 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 			m.account.state, m.account.status = "failed", done+", but the local key could not be removed. Disconnect locally before reconnecting."
 			m.account.approvalRequired = true
 		}
-		return nil
+		return forget
 	}
 	if r.user.ID != "" {
 		m.applyAccount(r.user)

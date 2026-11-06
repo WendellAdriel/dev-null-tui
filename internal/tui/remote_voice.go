@@ -547,7 +547,8 @@ func (m *AppModel) startRecording(replaceDraft bool) tea.Cmd {
 	var save tea.Cmd
 	if replaceDraft {
 		mc.input.Reset()
-		mc.images, mc.stripFocus, mc.emojis = nil, false, nil
+		mc.images, mc.stripFocus = nil, false
+		mc.suggest.close()
 		save = m.scheduleDraftSave()
 	}
 	m.resizeThread()

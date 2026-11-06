@@ -86,7 +86,7 @@ func TestEmojiSuggestionsAcceptAtCaretWithoutChangingSurroundingText(t *testing.
 	m.composer.input.SetCursorColumn(6)
 	m = pressApp(m, "x")
 	m, _ = chord(m, tea.KeyBackspace, 0)
-	if len(m.composer.emojis) < 2 || m.composer.emojis[0].name != "rock" {
+	if len(m.composer.suggest.emojis) < 2 || m.composer.suggest.emojis[0].name != "rock" {
 		t.Fatal("emoji suggestions missing or incorrectly ranked")
 	}
 	m, _ = chord(m, tea.KeyDown, 0)
@@ -108,7 +108,7 @@ func TestEmojiCompletionRespectsCodeAndDismissal(t *testing.T) {
 		m = pressApp(m, "c")
 		next, _ := m.Update(tea.PasteMsg{Content: body})
 		m = next.(AppModel)
-		if len(m.composer.emojis) > 0 {
+		if len(m.composer.suggest.emojis) > 0 {
 			t.Fatalf("suggestions in non-prose context %q", body)
 		}
 	}
@@ -117,7 +117,7 @@ func TestEmojiCompletionRespectsCodeAndDismissal(t *testing.T) {
 	next, _ := m.Update(tea.PasteMsg{Content: ":roc"})
 	m = next.(AppModel)
 	m = pressApp(m, "esc")
-	if !m.composer.open || m.composer.confirm != "" || len(m.composer.emojis) != 0 {
+	if !m.composer.open || m.composer.confirm != "" || len(m.composer.suggest.emojis) != 0 {
 		t.Fatal("Escape must dismiss emoji suggestions before canceling")
 	}
 	m = pressApp(m, "k")

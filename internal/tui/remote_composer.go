@@ -36,22 +36,20 @@ type pendingMessage struct {
 }
 
 type messageComposer struct {
-	input                                   textarea.Model
-	focused                                 bool
-	reply                                   *api.Message
-	replyID                                 int64
-	images                                  []api.ImageFile
-	stripFocus, editing                     bool
-	strip                                   int
-	field                                   textinput.Model
-	browser                                 *fileBrowser
-	emojis                                  []emojiSuggestion
-	emojiIndex                              int
-	emojiQuery, emojiPrefix, emojiDismissed string
-	status                                  string
-	typedAt                                 time.Time
-	recording                               *voiceRecording
-	voiceConfirm                            bool
+	input               textarea.Model
+	focused             bool
+	reply               *api.Message
+	replyID             int64
+	images              []api.ImageFile
+	stripFocus, editing bool
+	strip               int
+	field               textinput.Model
+	browser             *fileBrowser
+	suggest             completion
+	status              string
+	typedAt             time.Time
+	recording           *voiceRecording
+	voiceConfirm        bool
 }
 
 // messagingState outlives the Remotes screen, so a push still in flight or a draft survives closing it.
@@ -258,7 +256,8 @@ func (m *AppModel) focusMessageComposer() tea.Cmd {
 
 func (m *AppModel) blurMessageComposer() tea.Cmd {
 	t := m.remotes.thread
-	t.composer.focused, t.composer.emojis, t.composer.stripFocus = false, nil, false
+	t.composer.focused, t.composer.stripFocus = false, false
+	t.composer.suggest.close()
 	t.composer.input.Blur()
 	m.resizeThread()
 	m.flushMessageDrafts()
@@ -281,8 +280,8 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 	switch pressed {
 	case "esc":
 		switch {
-		case len(mc.emojis) > 0:
-			mc.emojiDismissed, mc.emojis = mc.emojiPrefix, nil
+		case mc.suggest.count() > 0:
+			mc.suggest.dismiss()
 		case mc.stripFocus:
 			mc.stripFocus = false
 		case mc.reply != nil || mc.replyID != 0:
@@ -297,9 +296,10 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "ctrl+o":
 		return m.openMessageBrowser()
 	case "tab", "shift+tab":
-		if pressed != "tab" || len(mc.emojis) == 0 {
+		if pressed != "tab" || mc.suggest.count() == 0 {
 			if len(mc.images) > 0 {
-				mc.stripFocus, mc.emojis = !mc.stripFocus, nil
+				mc.stripFocus = !mc.stripFocus
+				mc.suggest.close()
 				mc.strip = max(0, min(mc.strip, len(mc.images)-1))
 			}
 			m.resizeThread()
@@ -309,20 +309,19 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 	if mc.stripFocus {
 		return m.messageStripKey(pressed)
 	}
-	if len(mc.emojis) > 0 {
+	if mc.suggest.count() > 0 {
 		switch pressed {
-		case "down":
-			mc.emojiIndex = (mc.emojiIndex + 1) % len(mc.emojis)
+		case "down", "right":
+			mc.suggest.move(1)
 			return nil
-		case "up":
-			mc.emojiIndex = (mc.emojiIndex + len(mc.emojis) - 1) % len(mc.emojis)
+		case "up", "left":
+			mc.suggest.move(-1)
 			return nil
 		case "tab", "enter":
-			replaceShortcode(&mc.input, mc.emojiQuery, mc.emojis[mc.emojiIndex].value, false)
-			mc.emojis = nil
-			m.refreshMessageEmoji()
+			acceptCompletion(&mc.suggest, &mc.input)
+			lookup := m.refreshMessageEmoji()
 			m.resizeThread()
-			return m.scheduleDraftSave()
+			return tea.Batch(lookup, m.scheduleDraftSave())
 		}
 	}
 	if pressed == "enter" || pressed == "ctrl+s" {
@@ -344,32 +343,23 @@ func (m *AppModel) updateMessageInput(msg tea.Msg) tea.Cmd {
 			replaceShortcode(&mc.input, name, value, true)
 		}
 	}
-	m.refreshMessageEmoji()
+	lookup := m.refreshMessageEmoji()
 	m.resizeThread()
 	if !changed {
-		return cmd
+		return tea.Batch(cmd, lookup)
 	}
 	mc.status = ""
-	return tea.Batch(cmd, m.sendTyping(), m.scheduleDraftSave())
+	return tea.Batch(cmd, lookup, m.sendTyping(), m.scheduleDraftSave())
 }
 
-func (m *AppModel) refreshMessageEmoji() {
+// refreshMessageEmoji updates the message composer's emoji, mention, and issue suggestions.
+func (m *AppModel) refreshMessageEmoji() tea.Cmd {
 	mc := &m.remotes.thread.composer
-	if !mc.focused || mc.input.HasSelection() {
-		mc.emojis = nil
-		return
+	if !mc.focused {
+		mc.suggest.close()
+		return nil
 	}
-	prefix := textBeforeCaret(mc.input)
-	query, closed := emojiAtCaret(prefix)
-	if closed || query == "" || prefix == mc.emojiDismissed {
-		mc.emojis = nil
-		return
-	}
-	if prefix != mc.emojiPrefix {
-		mc.emojiIndex = 0
-	}
-	mc.emojiQuery, mc.emojiPrefix = query, prefix
-	mc.emojis = searchEmoji(query)
+	return m.refreshCompletion(&mc.suggest, mc.input, "message", m.messageMentionScope())
 }
 
 // messagePaste attaches dropped image files, and refuses a paste that would go past the limit, as the web does.
@@ -434,7 +424,8 @@ func (m *AppModel) openMessageBrowser() tea.Cmd {
 		mc.status = "That folder cannot be read."
 		return nil
 	}
-	mc.browser, mc.emojis = b, nil
+	mc.browser = b
+	mc.suggest.close()
 	mc.input.Blur()
 	return nil
 }

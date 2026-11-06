@@ -96,7 +96,7 @@ func (m AppModel) upgradeVisible() bool {
 	if t := m.remotes.thread; t != nil && (t.composer.focused || t.react != nil || t.composer.recording != nil || t.composer.voiceConfirm) {
 		return false
 	}
-	return m.upgrade.open && !m.whatsNew.open && m.connected && !m.accountOpen && !m.composer.open && m.settings.dialog == "" && !m.vote.confirm
+	return m.upgrade.open && !m.whatsNew.open && m.connected && !m.accountOpen && !m.composer.open && m.settings.dialog == "" && !m.vote.confirm && m.search == nil
 }
 
 func (m *AppModel) upgradeKey(pressed string) tea.Cmd {

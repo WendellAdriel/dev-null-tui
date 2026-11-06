@@ -173,16 +173,15 @@ func (m AppModel) composerView(width int, p palette) string {
 		status = "Previous outcome unknown. Check the web before submitting again."
 	}
 	statusView := ansi.Wrap(safeText(status), inner, "")
-	if len(c.emojis) > 0 {
+	if labels := c.suggest.labels(); len(labels) > 0 {
 		var suggestions []string
-		start := max(0, min(c.emojiIndex-1, len(c.emojis)-3))
-		for i := start; i < min(len(c.emojis), start+3); i++ {
-			choice := c.emojis[i]
-			row := "  " + choice.value + " :" + choice.name + ":"
-			if i == c.emojiIndex {
-				row = text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render("> " + choice.value + " :" + choice.name + ":")
+		start := max(0, min(c.suggest.index-1, len(labels)-3))
+		for i := start; i < min(len(labels), start+3); i++ {
+			row := fit("  "+labels[i], inner)
+			if i == c.suggest.index {
+				row = text(p.ink).Bold(true).Background(lipgloss.Color(p.soft)).Render(fit("> "+labels[i], inner))
 			}
-			suggestions = append(suggestions, fit(row, inner))
+			suggestions = append(suggestions, row)
 		}
 		statusView = strings.Join(suggestions, "\n")
 	}

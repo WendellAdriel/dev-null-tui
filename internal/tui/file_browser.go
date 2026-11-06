@@ -106,7 +106,8 @@ func (m *AppModel) openBrowser() tea.Cmd {
 		c.status = "That folder cannot be read."
 		return nil
 	}
-	c.browser, c.emojis = b, nil
+	c.browser = b
+	c.suggest.close()
 	c.input.Blur()
 	return nil
 }

@@ -21,7 +21,8 @@ func (m *AppModel) renderStarred() {
 	day := ""
 	list := m.commitList(nil, f.commits, f.selected, width, func(_ int, c api.Commit) []string {
 		date := dayLabel(c.CreatedAt, m.now)
-		if date == day {
+		// Search results are ranked by meaning, so day labels would interrupt them out of order.
+		if date == day || m.commitSearch != "" {
 			return nil
 		}
 		day = date
@@ -34,7 +35,12 @@ func (m *AppModel) renderStarred() {
 	case f.status != "":
 		add(f.status)
 	case f.loading:
-		add("Reading Starred from /dev/null...")
+		add("Reading " + m.listName() + " from /dev/null...")
+	case f.loaded && len(f.commits) == 0 && m.commitSearch != "":
+		add("fatal: nothing close to '" + safeText(m.commitSearch) + "'")
+		add("Try describing the idea in other words.")
+	case f.loaded && m.commitSearch != "":
+		add("Those are the closest commits.")
 	case f.loaded && len(f.commits) == 0:
 		add("fatal: no starred commits yet")
 		add("Star a commit to find it here.")
@@ -80,7 +86,16 @@ func (m *AppModel) revealStarredSelection() {
 func (m AppModel) starredColumn(width int, p palette) string {
 	line := text(p.hairline).Render(strings.Repeat("─", width))
 	header := split(text(p.ink).Bold(true).Render("Starred"), text(p.muted).Render(m.icons.lock+" Only you"), width-4)
-	content := "\n  " + header + "\n" + line + "\n  " + text(p.muted).Render(fit("Commits you starred, newest first.", width-4)) + "\n\n" + line + "\n" + m.starred.viewport.View()
+	about := "Commits you starred, newest first."
+	if m.commitSearch != "" {
+		count := ""
+		if m.starred.loaded && !m.starred.loading {
+			count = plural(len(m.starred.commits), "match", "matches")
+		}
+		header = split(text(p.ink).Bold(true).Render("Most relevant commits"), text(p.muted).Render(count), width-4)
+		about = "Search: " + safeText(m.commitSearch)
+	}
+	content := "\n  " + header + "\n" + line + "\n  " + text(p.muted).Render(fit(about, width-4)) + "\n\n" + line + "\n" + m.starred.viewport.View()
 	return lipgloss.NewStyle().Width(width).Height(m.mainHeight()).MaxWidth(width).MaxHeight(m.mainHeight()).Render(content)
 }
 
@@ -90,7 +105,7 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 		short = append(short, bind("u", "author profile"))
 	}
 	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
-	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older starred commits"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("g s", "reopen Starred"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
+	all := append(append([]key.Binding(nil), short...), bind("ctrl+k / /", "search"), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older starred commits"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("g s", "reopen Starred"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
 	all = append(all, m.engagementBindings()...)
 	return appKeys{short, all}
 }

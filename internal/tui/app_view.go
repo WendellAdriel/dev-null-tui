@@ -73,7 +73,7 @@ func (m AppModel) bindings() appKeys {
 	}
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
+	all = append(all, bind("ctrl+k / /", "search"), bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
@@ -169,6 +169,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.voteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.search != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.searchModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.composer.open && m.connected && !m.accountOpen {
 		content, r := m.composerModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
@@ -189,6 +193,7 @@ func (m AppModel) View() tea.View {
 		// Overlays and the viewer bypass canvas, so repaint whatever they reset.
 		v.Content = withBackground(v.Content, p.shell)
 	}
+	v.Content = hashtagMarker.ReplaceAllString(v.Content, "")
 	v.MouseMode = tea.MouseModeCellMotion
 	return v
 }
@@ -414,7 +419,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	if m.remotesEnabled() {
 		entries = append(entries, navEntry{m.icons.remotes, "Remotes", countBadge(m.remotes.unread), "g r", "remotes", idle && m.remotes.open})
 	}
-	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
+	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.commitSearch == ""}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
 	top := "\n" + logo
 	var areas []hitArea
 	for i, entry := range entries {
@@ -502,20 +507,24 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	centered := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
 	content := "\n"
 	line := text(p.hairline).Render(strings.Repeat("─", inner))
-	controls := ""
+	search := searchRow(inner, p)
+	areas = append(areas, hitArea{uiRect{2, 0, inner, lipgloss.Height(search)}, "ctrl+k", 0})
+	controls := search + "\n"
 	if live, watch := m.liveNowBlock(inner, p); live != "" {
 		for _, area := range watch {
 			area.x += 2
 			areas = append(areas, area)
 		}
-		controls = line + "\n" + live + "\n"
-		for i := range areas {
-			areas[i].y++
+		controls += line + "\n" + live + "\n"
+		for i := range areas[1:] {
+			areas[i+1].y += 1 + lipgloss.Height(search)
 		}
 	}
-	// A rule only separates Actions from the Live now block above it.
-	if controls != "" {
+	// A rule separates Actions from the Live now block above it, and a blank line from the search box.
+	if len(areas) > 1 {
 		controls += line + "\n"
+	} else {
+		controls += "\n"
 	}
 	controls += text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
 	for i, action := range []struct{ label, key string }{{"Account", "a"}, {m.liveButton(), "L"}, {"Refresh", "ctrl+r"}} {

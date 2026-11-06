@@ -127,7 +127,8 @@ func (m *AppModel) editAttachment() tea.Cmd {
 		field.SetValue(c.images[c.strip].Description)
 	}
 	field.SetWidth(max(1, m.composerBounds().w-14))
-	c.field, c.emojis = field, nil
+	c.field = field
+	c.suggest.close()
 	c.input.Blur()
 	return c.field.Focus()
 }

@@ -245,11 +245,11 @@ func TestMouseWheelAndEmojiStayInsideComposer(t *testing.T) {
 	}
 	m.composer.input.SetValue(":smi")
 	m.refreshEmoji()
-	if len(m.composer.emojis) < 2 {
+	if len(m.composer.suggest.emojis) < 2 {
 		t.Fatal("missing emoji fixture")
 	}
-	want := m.composer.emojis[1].value
-	m, _ = clickText(t, m, ":"+m.composer.emojis[1].name+":")
+	want := m.composer.suggest.emojis[1].value
+	m, _ = clickText(t, m, ":"+m.composer.suggest.emojis[1].name+":")
 	if m.composer.input.Value() != want {
 		t.Fatalf("emoji click inserted %q, want %q", m.composer.input.Value(), want)
 	}
