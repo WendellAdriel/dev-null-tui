@@ -83,12 +83,14 @@ func (c *completion) count() int {
 	return 0
 }
 
+// close hides the suggestions and drops any lookup still waiting on its debounce.
 func (c *completion) close() {
 	if c.cancel != nil {
 		c.cancel()
 		c.cancel = nil
 	}
 	c.kind, c.emojis, c.key = "", nil, ""
+	c.generation = 0
 }
 
 // dismiss hides the suggestions until the text before the caret changes, like Esc on the web.
@@ -186,12 +188,12 @@ func (m *AppModel) refreshCompletion(c *completion, input textarea.Model, owner 
 	c.kind, c.query, c.prefix = kind, query, prefix
 	switch kind {
 	case "emoji":
-		c.emojis = searchEmoji(query)
+		c.emojis, c.generation = searchEmoji(query), 0
 		return nil
 	case "mention":
 		key := mentionKey(scope, query)
 		if cached, ok := c.cache[key]; ok {
-			c.key, c.found, c.people = key, key, cached
+			c.key, c.found, c.people, c.generation = key, key, cached, 0
 			return nil
 		}
 		delay := suggestionDebounce
@@ -234,7 +236,7 @@ func (m *AppModel) completionOf(owner string) (*completion, api.MentionQuery) {
 
 func (m *AppModel) acceptCompletionTick(msg completionTick) tea.Cmd {
 	c, scope := m.completionOf(msg.owner)
-	if c == nil || msg.session != m.session || msg.generation != c.generation {
+	if c == nil || msg.session != m.session || msg.generation != c.generation || (c.kind != "mention" && c.kind != "issue") {
 		return nil
 	}
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
@@ -302,12 +304,12 @@ func acceptCompletion(c *completion, input *textarea.Model) {
 	} else {
 		insert = c.issue.URL
 	}
-	before := textBeforeCaret(*input)
+	after := input.Value()[len(textBeforeCaret(*input)):]
 	for range utf8.RuneCountInString(c.query) + 1 {
 		*input, _ = input.Update(tea.KeyPressMsg{Code: tea.KeyBackspace})
 	}
 	input.InsertString(insert)
-	if next, _ := utf8.DecodeRuneInString(input.Value()[len(before):]); !unicode.IsSpace(next) {
+	if next, _ := utf8.DecodeRuneInString(after); !unicode.IsSpace(next) {
 		input.InsertString(" ")
 	}
 	c.close()

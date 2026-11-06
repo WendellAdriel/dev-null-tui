@@ -148,3 +148,38 @@ func TestOrgMessagesSuggestOnlyItsMembers(t *testing.T) {
 		t.Fatalf("message: %q", got)
 	}
 }
+
+func TestMentionsInsertCleanlyWhenTheHandleIsShorterOrTextFollows(t *testing.T) {
+	m, _ := withCompletion(fixtureApp(t))
+	m = pressApp(m, "c")
+	m = typeComposer(m, "hi @adaxxxxxxxxxx")
+	m = composerKey(m, "enter")
+	if got := m.composer.input.Value(); got != "hi @ada " {
+		t.Fatalf("a name match shorter than the query: %q", got)
+	}
+	m, _ = withCompletion(fixtureApp(t))
+	m = pressApp(m, "c")
+	m = typeComposer(m, "hi  there")
+	m.composer.input.SetCursorColumn(3)
+	m = typeComposer(m, "@ad")
+	m = composerKey(m, "enter")
+	if got := m.composer.input.Value(); got != "hi @ada there" {
+		t.Fatalf("insertion before text: %q", got)
+	}
+}
+
+func TestClosedSuggestionsSendNoPendingLookup(t *testing.T) {
+	m, log := withCompletion(fixtureApp(t))
+	m = pressApp(m, "c")
+	var cmds []tea.Cmd
+	for _, r := range "see #4 " {
+		next, cmd := m.update(tea.KeyPressMsg{Code: r, Text: string(r)})
+		m, cmds = next.(AppModel), append(cmds, cmd)
+	}
+	for _, cmd := range cmds {
+		m = settleCompletion(m, cmd)
+	}
+	if len(log.issues) != 0 || len(log.mentions) != 0 {
+		t.Fatalf("closed suggestions still looked up: %+v", log)
+	}
+}
