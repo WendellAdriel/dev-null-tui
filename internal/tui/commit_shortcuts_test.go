@@ -91,10 +91,13 @@ func TestEveryCardShowsCopyLink(t *testing.T) {
 	if !strings.Contains(ansi.Strip(m.View().Content), "Copy link") {
 		t.Fatal("the thread card lacks Copy link")
 	}
-	_, cmd = m.handleKey("y")
-	runAll(cmd)
+	next, cmd := m.handleKey("y")
+	m = deliver(next, runAll(cmd))
 	if len(*copied) != 1 || (*copied)[0] != "https://example.test/commit/a" {
 		t.Fatalf("y copied %v", *copied)
+	}
+	if !m.toast.visible || m.toast.title != "Commit link copied" || m.toast.detail != "https://example.test/commit/a" {
+		t.Fatalf("toast = %+v", m.toast)
 	}
 }
 
@@ -113,6 +116,7 @@ func TestTCopiesTheTextOfOwnAndOrganizationCommits(t *testing.T) {
 
 	for i, want := range []string{"My own words", "Words from acme"} {
 		m, _ = m.selectCommit(i)
+		m.toast.visible = false
 		if !strings.Contains(ansi.Strip(m.View().Content), "Copy text") {
 			t.Fatalf("commit %d lacks Copy text", i)
 		}
@@ -121,8 +125,8 @@ func TestTCopiesTheTextOfOwnAndOrganizationCommits(t *testing.T) {
 		if got := (*copied)[len(*copied)-1]; got != want {
 			t.Fatalf("T copied %q, want %q", got, want)
 		}
-		if m.notice != "Commit text copied" {
-			t.Fatalf("notice = %q", m.notice)
+		if !m.toast.visible || m.toast.title != "Commit text copied" || m.toast.detail != "" {
+			t.Fatalf("toast = %+v", m.toast)
 		}
 	}
 	m, _ = m.selectCommit(2)

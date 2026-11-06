@@ -262,18 +262,18 @@ func TestCtrlRRefreshesTheLogAndBothBadges(t *testing.T) {
 	counts := 0
 	m.fetchNotificationCount = func(context.Context) (int, error) { counts++; return 3, nil }
 	m, cmd := m.handleKey("ctrl+r")
-	if m.toast.title != "Refreshing" || m.toast.detail != "Checking Following, your notifications, and Remotes." {
+	if m.toast.title != "Refreshing" || m.toast.detail != "Checking for updates." {
 		t.Fatalf("toast %q: %q", m.toast.title, m.toast.detail)
 	}
 	m = settleCmd(m, cmd)
-	if counts != 1 || m.unreadNotifications != 3 || !strings.Contains(log.String(), "inbox open") || m.toast.title != "Refreshed" || m.toast.detail != "Following is up to date." {
+	if counts != 1 || m.unreadNotifications != 3 || !strings.Contains(log.String(), "inbox open") || m.toast.title != "Refreshed" || m.toast.detail != "Everything is up to date." {
 		t.Fatalf("badges: %d counts, %s, toast %q: %q", counts, log, m.toast.title, m.toast.detail)
 	}
 	// A failed badge keeps its count quietly, as a poll does, so success names only the log it confirmed.
 	m.fetchNotificationCount = func(context.Context) (int, error) { return 0, errors.New("offline") }
 	m, cmd = m.handleKey("ctrl+r")
 	m = settleCmd(m, cmd)
-	if m.unreadNotifications != 3 || m.toast.detail != "Following is up to date." {
+	if m.unreadNotifications != 3 || m.toast.detail != "Everything is up to date." {
 		t.Fatalf("a failed badge: count %d, toast %q", m.unreadNotifications, m.toast.detail)
 	}
 }

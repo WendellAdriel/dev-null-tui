@@ -507,11 +507,11 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.notice = "Clipboard unavailable. Select and copy the " + m.manualNoun() + " below."
 			return m, nil
 		}
-		m.notice = msg.what + " copied"
-		if m.viewer.open {
-			return m, m.notify("success", msg.what+" copied", safeText(msg.url))
+		detail := safeText(msg.url)
+		if msg.text {
+			detail = ""
 		}
-		return m, nil
+		return m, m.notify("success", msg.what+" copied", detail)
 	case logResult:
 		msg.page.Data = m.safeCommits(msg.page.Data)
 		msg.page.Suggestions = m.safeCommits(msg.page.Suggestions)
@@ -601,7 +601,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))
 		}
 		if msg.mode == "refresh" {
-			return m, m.notify("success", "Refreshed", logNames[msg.index]+" is up to date.")
+			return m, m.notify("success", "Refreshed", "Everything is up to date.")
 		}
 		return m, nil
 	case tea.KeyPressMsg:
@@ -1125,7 +1125,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			f.generation++
 		}
 		cmd := m.load("refresh")
-		expiry := m.notify("info", "Refreshing", "Checking "+m.refreshScope()+".")
+		expiry := m.notify("info", "Refreshing", "Checking for updates.")
 		return m, tea.Batch(cmd, m.loadNotificationCount(), m.refreshRemotesCount(), m.refreshAside(), expiry)
 	case "j", "down", "k", "up":
 		delta := 1

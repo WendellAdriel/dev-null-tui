@@ -169,14 +169,6 @@ func (m *AppModel) settleArrivals() {
 	}
 }
 
-// refreshScope names what Ctrl+R refreshes: the open log and the badges beside it.
-func (m AppModel) refreshScope() string {
-	if m.remotesEnabled() {
-		return logNames[m.active] + ", your notifications, and Remotes"
-	}
-	return logNames[m.active] + " and your notifications"
-}
-
 // logOnTop reports the log as the screen being read, with nothing drawn over its column.
 func (m AppModel) logOnTop() bool {
 	return m.connected && !m.accountOpen && !m.settings.open && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && !m.profileOnTop() && !m.threadOnTop() && m.manualLink == ""
