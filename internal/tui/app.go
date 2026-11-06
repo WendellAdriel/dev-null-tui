@@ -55,10 +55,13 @@ type clockTick struct {
 	at      time.Time
 }
 
+// clipboardResult reports a copy. text marks a commit's text rather than a link, with link the commit's own page for
+// when the text is too long to show for copying by hand.
 type clipboardResult struct {
-	session   int
-	url, what string
-	err       error
+	session         int
+	url, what, link string
+	text            bool
+	err             error
 }
 
 type AppModel struct {
@@ -70,7 +73,8 @@ type AppModel struct {
 	feeds                                  [3]feed
 	fetch                                  func(context.Context, api.Log, string, string) (api.Page, error)
 	copyLink                               func(context.Context, string) error
-	manualLink, manualWhat, notice         string
+	manualLink, manualPage, notice         string
+	manualText                             bool
 	focused                                bool
 	now                                    time.Time
 	images                                 *graphics.Manager
@@ -499,8 +503,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.closeViewer()
-			m.manualLink, m.manualWhat = msg.url, msg.what
-			m.notice = "Clipboard unavailable. Select and copy the " + manualNoun(msg.what) + " below."
+			m.manualLink, m.manualText, m.manualPage = msg.url, msg.text, msg.link
+			m.notice = "Clipboard unavailable. Select and copy the " + m.manualNoun() + " below."
 			return m, nil
 		}
 		m.notice = msg.what + " copied"

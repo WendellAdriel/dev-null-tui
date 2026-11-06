@@ -20,7 +20,7 @@ func (m *AppModel) commitShortcut(c api.Commit, pressed string) (tea.Cmd, bool) 
 		if !m.canCopyText(c) {
 			return nil, true
 		}
-		return m.copyText(c.Body, "Commit text"), true
+		return m.copyCommitText(c), true
 	}
 	return nil, false
 }

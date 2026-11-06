@@ -507,8 +507,17 @@ func (m AppModel) accountStats(width int, p palette) []string {
 }
 
 func (m AppModel) manualLinkView(width int, p palette) (string, hitArea) {
-	noun := manualNoun(m.manualWhat)
-	content := "  " + text(p.ink).Bold(true).Render("Copy commit "+noun) + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  Clipboard unavailable. Copy this " + noun + ":\n\n" + lipgloss.NewStyle().Width(width-4).MarginLeft(2).Render(safeLines(m.manualLink))
+	noun := m.manualNoun()
+	head := "  " + text(p.ink).Bold(true).Render("Copy commit "+noun) + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  "
+	block := lipgloss.NewStyle().Width(width - 4).MarginLeft(2)
+	content := head + "Clipboard unavailable. Copy this " + noun + ":\n\n" + block.Render(safeLines(m.manualLink))
+	// The column doesn't scroll, so text taller than it points to the commit's page instead, with Back still shown.
+	if m.manualText && lipgloss.Height(content)+2 > m.mainHeight() {
+		content = head + block.Render("Clipboard unavailable, and this commit is too long to show here. Copy it from its page:")
+		if m.manualPage != "" {
+			content += "\n\n" + block.Render(m.manualPage)
+		}
+	}
 	back := "  " + keyChip("esc", p) + " Back to log"
 	area := hitArea{uiRect{2, lipgloss.Height(content) + 1, min(width-2, lipgloss.Width(back)-2), 1}, "esc", 0}
 	return content + "\n\n" + back, area

@@ -34,11 +34,25 @@ func (m *AppModel) copyCommitLink(commit api.Commit) tea.Cmd {
 }
 
 func (m *AppModel) copyText(raw, what string) tea.Cmd {
-	session, copyLink, life := m.session, m.copyLink, m.account.life
+	return m.copyToClipboard(clipboardResult{url: raw, what: what})
+}
+
+func (m *AppModel) copyCommitText(commit api.Commit) tea.Cmd {
+	result := clipboardResult{url: commit.Body, what: "Commit text", text: true}
+	if m.validCommitURL(commit.URL) {
+		result.link = commit.URL
+	}
+	return m.copyToClipboard(result)
+}
+
+func (m *AppModel) copyToClipboard(result clipboardResult) tea.Cmd {
+	copyLink, life := m.copyLink, m.account.life
+	result.session = m.session
 	return life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(life.ctx, 3*time.Second)
 		defer cancel()
-		return clipboardResult{session: session, url: raw, what: what, err: copyLink(ctx, raw)}
+		result.err = copyLink(ctx, result.url)
+		return result
 	})
 }
 
@@ -72,8 +86,8 @@ func writeClipboard(ctx context.Context, value string) error {
 }
 
 // manualNoun names what the clipboard fallback shows, since commit text is not a link.
-func manualNoun(what string) string {
-	if what == "Commit text" {
+func (m AppModel) manualNoun() string {
+	if m.manualText {
 		return "text"
 	}
 	return "link"

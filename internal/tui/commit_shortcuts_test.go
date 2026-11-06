@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -145,6 +146,26 @@ func TestCopyTextFallbackShowsTheTextWithItsLines(t *testing.T) {
 	m = deliver(next, runAll(cmd))
 	frame := ansi.Strip(m.View().Content)
 	for _, want := range []string{"Copy commit text", "Copy this text:", "First line", "Second line"} {
+		if !strings.Contains(frame, want) {
+			t.Fatalf("fallback lacks %q:\n%s", want, frame)
+		}
+	}
+}
+
+func TestCopyTextFallbackPointsToThePageWhenTheTextIsTooLong(t *testing.T) {
+	m := threadApp(t)
+	m.copyLink = func(context.Context, string) error { return errors.New("no clipboard") }
+	own := fixtureCommit("long")
+	lines := make([]string, 40)
+	for i := range lines {
+		lines[i] = fmt.Sprintf("line %02d", i+1)
+	}
+	own.Body, own.Author.ID = strings.Join(lines, "\n"), "fixture"
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{own}})
+	next, cmd := m.handleKey("T")
+	m = deliver(next, runAll(cmd))
+	frame := ansi.Strip(m.View().Content)
+	for _, want := range []string{"too long to show here", "https://example.test/commit/long", "Back to log"} {
 		if !strings.Contains(frame, want) {
 			t.Fatalf("fallback lacks %q:\n%s", want, frame)
 		}
