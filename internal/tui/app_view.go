@@ -64,7 +64,7 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("ctrl+r", "reload thread"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
+		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("ctrl+r", "reload thread"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
 		all = append(all, m.engagementBindings()...)
 		return appKeys{short, all}
 	}
@@ -75,7 +75,7 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind("v", "view commit images"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
+		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind("v", "view commit images"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
 		return appKeys{short, all}
 	}
 	if m.starredOnTop() {
@@ -91,7 +91,7 @@ func (m AppModel) screenBindings() appKeys {
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
 	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
-	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
+	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
 	}
@@ -507,7 +507,8 @@ func (m AppModel) accountStats(width int, p palette) []string {
 }
 
 func (m AppModel) manualLinkView(width int, p palette) (string, hitArea) {
-	content := "  " + text(p.ink).Bold(true).Render("Copy commit link") + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  Clipboard unavailable. Copy this link:\n\n" + lipgloss.NewStyle().Width(width-4).MarginLeft(2).Render(m.manualLink)
+	noun := manualNoun(m.manualWhat)
+	content := "  " + text(p.ink).Bold(true).Render("Copy commit "+noun) + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n\n  Clipboard unavailable. Copy this " + noun + ":\n\n" + lipgloss.NewStyle().Width(width-4).MarginLeft(2).Render(safeLines(m.manualLink))
 	back := "  " + keyChip("esc", p) + " Back to log"
 	area := hitArea{uiRect{2, lipgloss.Height(content) + 1, min(width-2, lipgloss.Width(back)-2), 1}, "esc", 0}
 	return content + "\n\n" + back, area

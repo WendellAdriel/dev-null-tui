@@ -105,7 +105,7 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 		short = append(short, bind("u", "author profile"))
 	}
 	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
-	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"))
+	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"))
 	if m.commitSearch == "" {
 		all = append(all, bind("n", "older starred commits"))
 	}

@@ -54,6 +54,7 @@ type clockTick struct {
 	session int
 	at      time.Time
 }
+
 type clipboardResult struct {
 	session   int
 	url, what string
@@ -69,7 +70,7 @@ type AppModel struct {
 	feeds                                  [3]feed
 	fetch                                  func(context.Context, api.Log, string, string) (api.Page, error)
 	copyLink                               func(context.Context, string) error
-	manualLink, notice                     string
+	manualLink, manualWhat, notice         string
 	focused                                bool
 	now                                    time.Time
 	images                                 *graphics.Manager
@@ -497,8 +498,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.err != nil {
 			m.closeViewer()
-			m.manualLink = msg.url
-			m.notice = "Clipboard unavailable. Select and copy the link below."
+			m.manualLink, m.manualWhat = msg.url, msg.what
+			m.notice = "Clipboard unavailable. Select and copy the " + manualNoun(msg.what) + " below."
 			return m, nil
 		}
 		m.notice = msg.what + " copied"
@@ -1060,12 +1061,15 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	case "c":
 		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
-	case "enter", "r", "q", "v", "D", "s", "p", "u":
+	case "enter", "r", "q", "v", "D", "s", "p", "u", "y", "Q", "T":
 		f := &m.feeds[m.active]
 		if len(f.commits) == 0 {
 			return m, nil
 		}
 		selected := f.commits[f.selected]
+		if cmd, ok := m.commitShortcut(selected, pressed); ok {
+			return m, cmd
+		}
 		switch pressed {
 		case "s":
 			return m, m.startEngagement(selected, "star")
@@ -1131,12 +1135,6 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	case "n":
 		cmd := m.load("more")
 		return m, cmd
-	case "y":
-		f := &m.feeds[m.active]
-		if len(f.commits) == 0 {
-			return m, nil
-		}
-		return m, m.copyCommitLink(f.commits[f.selected])
 	case "esc":
 		m.resetSequence()
 		m.notice = ""

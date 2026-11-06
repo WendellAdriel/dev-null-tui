@@ -440,6 +440,9 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 		return m, nil, false
 	}
 	selected := entries[min(l.selected, len(entries)-1)]
+	if cmd, ok := m.commitShortcut(selected, pressed); ok {
+		return m, cmd, true
+	}
 	switch pressed {
 	case "enter":
 		return m, m.openThread(selected), true
@@ -458,8 +461,6 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 		return m, m.openViewer(selected, 0), true
 	case "D":
 		m.confirmDelete(selected)
-	case "y":
-		return m, m.copyCommitLink(selected), true
 	default:
 		return m, nil, false
 	}

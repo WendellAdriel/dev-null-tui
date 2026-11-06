@@ -515,7 +515,7 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.openAuthor(n.Actor)
-	case "enter", "r", "q", "y", "v":
+	case "enter", "r", "q", "y", "v", "Q", "T":
 		if pressed == "enter" && profileRow(entry) {
 			return m, m.openAuthor(n.Actor)
 		}
@@ -523,13 +523,14 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 			m.notice = "This notification has no commit to open."
 			return m, nil
 		}
+		if cmd, ok := m.commitShortcut(*n.Commit, pressed); ok {
+			return m, cmd
+		}
 		switch pressed {
 		case "r":
 			return m, m.composeTo("reply", *n.Commit)
 		case "q":
 			return m, m.composeTo("quote", *n.Commit)
-		case "y":
-			return m, m.copyCommitLink(*n.Commit)
 		case "v":
 			return m, m.openViewer(*n.Commit, 0)
 		}

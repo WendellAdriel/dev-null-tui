@@ -197,7 +197,7 @@ func (m AppModel) organizationRows(frame *profileFrame, s *profileState, width i
 func (m AppModel) organizationBindings(bind func(string, string) key.Binding) appKeys {
 	s := m.profiles[len(m.profiles)-1]
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / mentions"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / mentions"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("n", "older commits"), bind("ctrl+r", "reload organization"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
+	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / mentions"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("n", "older commits"), bind("ctrl+r", "reload organization"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	if s.page.CanClaim {
 		all = append(all, bind("C", "claim this organization"))
 	}

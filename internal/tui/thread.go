@@ -265,6 +265,9 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 	t.restoreSelection(entries)
 	entry := entries[t.selected]
 	move := func(delta int) { m.selectEntry(t, t.selected+delta) }
+	if cmd, ok := m.commitShortcut(entry.commit, pressed); ok {
+		return m, cmd, true
+	}
 	switch pressed {
 	case "s":
 		return m, m.startEngagement(entry.commit, "star"), true
@@ -307,8 +310,6 @@ func (m AppModel) threadKey(pressed string) (AppModel, tea.Cmd, bool) {
 		if entry.commit.DeletedAt == nil && hasProfile(entry.commit.Author) {
 			return m, m.openAuthor(entry.commit.Author), true
 		}
-	case "y":
-		return m, m.copyCommitLink(entry.commit), true
 	case "ctrl+r":
 		m.threadGeneration++
 		t.generation = m.threadGeneration

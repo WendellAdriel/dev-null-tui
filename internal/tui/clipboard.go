@@ -70,3 +70,20 @@ func writeClipboard(ctx context.Context, value string) error {
 	}
 	return errors.New("clipboard integration unavailable")
 }
+
+// manualNoun names what the clipboard fallback shows, since commit text is not a link.
+func manualNoun(what string) string {
+	if what == "Commit text" {
+		return "text"
+	}
+	return "link"
+}
+
+// safeLines cleans each line like safeText but keeps the line breaks of copied commit text.
+func safeLines(value string) string {
+	lines := strings.Split(value, "\n")
+	for i, line := range lines {
+		lines[i] = safeText(line)
+	}
+	return strings.Join(lines, "\n")
+}

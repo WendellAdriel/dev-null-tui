@@ -243,6 +243,13 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	if len(commit.Images) > 0 {
 		actions = append(actions, commitAction{"View", "v"})
 	}
+	if commit.QuotedID != nil || commit.Quote != nil {
+		actions = append(actions, commitAction{"Open quote", "Q"})
+	}
+	actions = append(actions, commitAction{"Copy link", "y"})
+	if m.canCopyText(commit) {
+		actions = append(actions, commitAction{"Copy text", "T"})
+	}
 	if m.ownCommit(commit) {
 		actions = append(actions, commitAction{"Delete", "D"})
 	} else if commit.Status == "" || commit.Status == "approved" {

@@ -230,6 +230,9 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	c := f.commits[f.selected]
+	if cmd, ok := m.commitShortcut(c, pressed); ok {
+		return m, cmd
+	}
 	switch pressed {
 	case "enter":
 		return m, m.openThread(c)
@@ -247,8 +250,6 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.openViewer(c, 0)
 	case "D":
 		m.confirmDelete(c)
-	case "y":
-		return m, m.copyCommitLink(c)
 	}
 	return m, nil
 }
