@@ -437,6 +437,10 @@ func (m *AppModel) renderRemoteThread() {
 	sameRun := func(a, b api.Message) bool {
 		return a.Event == "" && b.Event == "" && a.UserID == b.UserID && dayLabel(a.CreatedAt, m.now) == dayLabel(b.CreatedAt, m.now) && b.CreatedAt.Sub(a.CreatedAt) <= 5*time.Minute
 	}
+	status := -1
+	if t.conversation.Kind == "org" {
+		status = orgStatusIndex(t.messages, len(m.messaging.pending[t.conversation.ID]))
+	}
 	for i, message := range t.messages {
 		if label := dayLabel(message.CreatedAt, m.now); label != day {
 			lines = append(lines, "", center(paintLine(" ● "+label+" ", p.muted, p.wash)), "")
@@ -545,11 +549,23 @@ func (m *AppModel) renderRemoteThread() {
 			}
 		}
 		t.spans[fmt.Sprint("m:", message.ID)] = [2]int{spanStart, len(lines)}
-		if !endsRun {
+		if !endsRun && i != status {
 			continue
 		}
-		footer := text(p.muted).Render(message.CreatedAt.In(time.Local).Format("3:04 PM"))
-		if mine && i == len(t.messages)-1 && t.conversation.Kind != "org" && len(m.messaging.pending[t.conversation.ID]) == 0 {
+		clock := message.CreatedAt.In(time.Local).Format("3:04 PM")
+		footer := text(p.muted).Render(clock)
+		switch {
+		case i == status && mine:
+			state := "✓ pushed"
+			if pulled := pulledByText(orgPulls(t.data.Members, message, m.account.user.ID)); pulled != "" {
+				state = "✓✓ pulled by " + pulled
+			}
+			footer = text(p.muted).Render(fit(state, max(1, bubble-len(clock)-2))) + "  " + footer
+		case i == status:
+			if pulled := pulledByText(orgPulls(t.data.Members, message, m.account.user.ID)); pulled != "" {
+				footer = text(p.muted).Render(fit(clock+" · pulled by "+pulled, bubble))
+			}
+		case mine && i == len(t.messages)-1 && t.conversation.Kind != "org" && len(m.messaging.pending[t.conversation.ID]) == 0:
 			state := "✓ pushed"
 			if t.data.PartnerReadThroughID >= message.ID {
 				state = "✓✓ pulled"
