@@ -148,11 +148,11 @@ func emojiPresentation(s string) string {
 		}
 		if i+1 < len(runes) {
 			next := runes[i+1]
-			if next == '️' || next == '︎' || next == '‍' || next == '⃣' || next >= 0x1f3fb && next <= 0x1f3ff {
+			if next == '\ufe0f' || next == '\ufe0e' || next == '\u200d' || next == '\u20e3' || next >= 0x1f3fb && next <= 0x1f3ff {
 				continue
 			}
 		}
-		b.WriteRune('️')
+		b.WriteRune('\ufe0f')
 	}
 	return b.String()
 }

@@ -294,7 +294,7 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 	return tea.Batch(list, notice, refresh)
 }
 
-// applyAccount takes a returned CurrentUserResource, from a settings save or a live stream change.
+// applyAccount takes a returned CurrentUserResource, from a settings save, a live stream change or an account refresh.
 func (m *AppModel) applyAccount(u auth.User) {
 	m.account.user = u
 	m.accountRefresh.version++

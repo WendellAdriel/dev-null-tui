@@ -30,7 +30,7 @@ func TestJScrollsAProfileHeaderBeforeLeavingThePinnedCommit(t *testing.T) {
 	m = deliver(m, runAll(m.openProfile("grace")))
 	s := m.topProfile()
 	if s.starts[0] < s.viewport.Height() {
-		t.Skip("the header fits, so there is nothing to scroll")
+		t.Fatalf("the fixture header must be taller than the view: pinned starts at %d, view is %d", s.starts[0], s.viewport.Height())
 	}
 	sawPinned, sawTabs := false, false
 	for range 20 {

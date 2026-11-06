@@ -98,7 +98,7 @@ func runSkippingTicks(cmd tea.Cmd) []tea.Msg {
 			return msgs
 		}
 		return []tea.Msg{msg}
-	case <-time.After(time.Second):
+	case <-time.After(200 * time.Millisecond):
 		return nil
 	}
 }
