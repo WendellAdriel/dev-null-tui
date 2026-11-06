@@ -120,3 +120,39 @@ func (m *AppModel) acceptSuggestion() tea.Cmd {
 	m.invalidatePreview()
 	return m.refreshSuggestions()
 }
+
+// bareEmoji are the catalog's single BMP codepoints. Terminal fonts often have plain text glyphs for them, so a
+// terminal draws ⚡ as a thin symbol unless U+FE0F asks for the color emoji.
+var bareEmoji = func() map[rune]bool {
+	bare := map[rune]bool{}
+	for _, value := range emojiCatalog {
+		if r, size := utf8.DecodeRuneInString(value); size == len(value) && r <= 0xffff {
+			bare[r] = true
+		}
+	}
+	return bare
+}()
+
+// emojiPresentation adds U+FE0F after a bare emoji, unless a selector, skin tone, joiner or keycap already follows
+// it. The emoji keeps its two-cell width.
+func emojiPresentation(s string) string {
+	if !strings.ContainsFunc(s, func(r rune) bool { return bareEmoji[r] }) {
+		return s
+	}
+	runes := []rune(s)
+	var b strings.Builder
+	for i, r := range runes {
+		b.WriteRune(r)
+		if !bareEmoji[r] {
+			continue
+		}
+		if i+1 < len(runes) {
+			next := runes[i+1]
+			if next == '️' || next == '︎' || next == '‍' || next == '⃣' || next >= 0x1f3fb && next <= 0x1f3ff {
+				continue
+			}
+		}
+		b.WriteRune('️')
+	}
+	return b.String()
+}

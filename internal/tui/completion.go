@@ -111,7 +111,7 @@ func (c *completion) labels() []string {
 	switch c.kind {
 	case "emoji":
 		for _, e := range c.emojis {
-			labels = append(labels, e.value+" :"+e.name+":")
+			labels = append(labels, emojiPresentation(e.value)+" :"+e.name+":")
 		}
 	case "mention":
 		for _, person := range c.people[:c.count()] {

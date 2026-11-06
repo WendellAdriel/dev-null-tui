@@ -167,7 +167,7 @@ func (r bodyRenderer) segmentPieces(segments []api.Segment) []piece {
 	for _, segment := range segments {
 		switch segment.Type {
 		case "text":
-			pieces = append(pieces, r.linkified(emojify(remoteBody(segment.Text)))...)
+			pieces = append(pieces, r.linkified(emojiPresentation(emojify(remoteBody(segment.Text))))...)
 		case "code":
 			pieces = append(pieces, piece{text: "`" + remoteBody(segment.Code) + "`", paint: text(r.p.code).Render})
 		}

@@ -641,7 +641,7 @@ func reactionChips(reactions []api.Reaction, user string, p palette) ([]string, 
 		if mine[emoji] {
 			border = p.blue
 		}
-		chip := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(border)).Foreground(lipgloss.Color(p.ink)).Padding(0, 1).Render(fmt.Sprintf("%s %d", emoji, counts[emoji]))
+		chip := lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color(border)).Foreground(lipgloss.Color(p.ink)).Padding(0, 1).Render(fmt.Sprintf("%s %d", emojiPresentation(emoji), counts[emoji]))
 		parts = append(parts, chip)
 		spans = append(spans, chipSpan{x, lipgloss.Width(chip), reactionOriginal(reactions, emoji)})
 		x += lipgloss.Width(chip)
