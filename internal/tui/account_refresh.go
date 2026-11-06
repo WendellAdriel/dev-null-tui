@@ -16,10 +16,12 @@ type accountRefresh struct {
 	version int
 }
 
+// counts is the notification count generation when the request started. An inbox read since then cleared the
+// badge, so the count this result carries is older than it.
 type meResult struct {
-	session, version int
-	user             auth.User
-	err              error
+	session, version, counts int
+	user                     auth.User
+	err                      error
 }
 
 func (m *AppModel) refreshAccount() tea.Cmd {
@@ -27,12 +29,12 @@ func (m *AppModel) refreshAccount() tea.Cmd {
 		return nil
 	}
 	m.accountRefresh.loading = true
-	session, version, load, base := m.session, m.accountRefresh.version, m.meCall, m.account.life.ctx
+	session, version, counts, load, base := m.session, m.accountRefresh.version, m.notificationCountGeneration, m.meCall, m.account.life.ctx
 	return m.account.life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(base, 30*time.Second)
 		defer cancel()
 		user, err := load(ctx)
-		return meResult{session: session, version: version, user: user, err: err}
+		return meResult{session: session, version: version, counts: counts, user: user, err: err}
 	})
 }
 
@@ -44,6 +46,9 @@ func (m *AppModel) acceptAccountRefresh(msg meResult) {
 	if msg.err != nil || msg.version != m.accountRefresh.version || msg.user.ID != m.account.user.ID {
 		m.revoked(msg.err)
 		return
+	}
+	if msg.counts != m.notificationCountGeneration {
+		msg.user.UnreadNotifications = nil
 	}
 	m.applyAccount(msg.user)
 }

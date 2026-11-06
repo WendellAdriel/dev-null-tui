@@ -102,3 +102,20 @@ func runSkippingTicks(cmd tea.Cmd) []tea.Msg {
 		return nil
 	}
 }
+
+func TestAnAccountRefreshKeepsTheBadgeAnInboxReadCleared(t *testing.T) {
+	m, _ := liveApp(t)
+	five := 5
+	m.meCall = func(context.Context) (auth.User, error) {
+		u := m.account.user
+		u.UnreadNotifications = &five
+		return u, nil
+	}
+	cmd := m.refreshAccount()
+	m, _ = m.openNotifications()
+	m = inboxPage(m, fixtureNotification("n"))
+	m = deliver(m, runAll(cmd))
+	if m.unreadNotifications != 0 {
+		t.Fatalf("a refresh from before the inbox read brought back %d unread", m.unreadNotifications)
+	}
+}
