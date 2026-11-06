@@ -178,12 +178,14 @@ type TUISettings struct {
 	VoiceVolume float64 `json:"voice_volume"`
 	// PinWarningDismissed skips the warning before pinning a message for a whole org, like the web's Don't show this again.
 	PinWarningDismissed bool `json:"pin_warning_dismissed,omitempty"`
+	// RecentSearches keeps each account's last searches, newest first, keyed by user ID like the web's recent-searches.
+	RecentSearches map[string][]string `json:"recent_searches,omitempty"`
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.
 func (s Store) TUISettings() TUISettings {
 	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1}
-	data, ok := s.readState(tuiSettingsFile, 4096)
+	data, ok := s.readState(tuiSettingsFile, 16384)
 	if !ok {
 		return defaults
 	}

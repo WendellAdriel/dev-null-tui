@@ -164,7 +164,7 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	if err := store.Disconnect(); err != nil || store.TUISettings().SkippedVersion != "v0.3.0" {
 		t.Fatal("disconnecting must keep TUI settings")
 	}
-	for _, corrupt := range []string{"{", `{"check_for_updates":"yes"}`, strings.Repeat(" ", 5000) + "{}"} {
+	for _, corrupt := range []string{"{", `{"check_for_updates":"yes"}`, strings.Repeat(" ", 20000) + "{}"} {
 		if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(corrupt), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -177,5 +177,21 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	}
 	if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "v0.4.0" {
 		t.Fatalf("missing keys must keep their defaults: %+v", got)
+	}
+}
+
+func TestStoreKeepsRecentSearchesPerAccount(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
+	if err := store.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	settings := store.TUISettings()
+	settings.RecentSearches = map[string][]string{"u1": {"caching", strings.Repeat("é", 100), "@ada"}, "u2": {"laravel"}}
+	if err := store.SaveTUISettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	got := store.TUISettings().RecentSearches
+	if len(got["u1"]) != 3 || got["u1"][1] != strings.Repeat("é", 100) || len(got["u2"]) != 1 {
+		t.Fatalf("recent searches: %+v", got)
 	}
 }
