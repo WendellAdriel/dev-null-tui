@@ -29,7 +29,10 @@ func fixtureApp(t *testing.T) AppModel {
 		return api.Page{Log: api.Following, Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}}, nil
 	}
 	key, _ := auth.GenerateKey()
-	updated, _ := m.Update(accountResult{key: key, user: auth.User{ID: "fixture", Handle: "fixture", Name: "Fixture"}})
+	user := auth.User{ID: "fixture", Handle: "fixture", Name: "Fixture"}
+	// Tests read the account offline, so a refresh returns the fixture user instead of calling example.test.
+	m.meCall = func(context.Context) (auth.User, error) { return user, nil }
+	updated, _ := m.Update(accountResult{key: key, user: user})
 	return updated.(AppModel)
 }
 

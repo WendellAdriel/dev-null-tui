@@ -138,6 +138,8 @@ type AppModel struct {
 	live                       *liveDialog
 	liveEnding                 bool
 	liveNow                    []api.User
+	meCall                     func(context.Context) (auth.User, error)
+	accountRefresh             accountRefresh
 	search                     *searchDialog
 	completionCalls            completionCalls
 	completionGeneration       int
@@ -489,9 +491,12 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var live tea.Cmd
 		if _, _, aside := m.columns(); m.focused && !m.accountOpen && aside > 0 {
-			live = m.fetchLiveNow()
+			live = m.refreshAside()
 		}
 		return m, tea.Batch(m.tickClock(), live)
+	case meResult:
+		m.acceptAccountRefresh(msg)
+		return m, nil
 	case clipboardResult:
 		if msg.session != m.session || !m.connected || m.accountOpen {
 			return m, nil
@@ -549,7 +554,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.mode == "new" {
 			m.acceptNewest(msg.index, msg.page)
-			return m, nil
+			return m, m.refreshAside()
 		}
 		for i, submitted := range f.submitted {
 			for _, current := range msg.page.Data {
@@ -762,6 +767,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.liveCalls.goLive == nil {
 			m.liveCalls = newLiveCalls(client)
 		}
+		if m.meCall == nil {
+			m.meCall = client.CurrentUser
+		}
 		if m.searchCalls.profiles == nil {
 			m.searchCalls = newSearchCalls(client)
 		}
@@ -834,6 +842,7 @@ func (m *AppModel) leaveApplication() {
 	m.closeSearch()
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}
+	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
@@ -1115,7 +1124,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		}
 		cmd := m.load("refresh")
 		expiry := m.notify("info", "Refreshing", "Checking "+m.refreshScope()+".")
-		return m, tea.Batch(cmd, m.loadNotificationCount(), m.refreshRemotesCount(), expiry)
+		return m, tea.Batch(cmd, m.loadNotificationCount(), m.refreshRemotesCount(), m.refreshAside(), expiry)
 	case "j", "down", "k", "up":
 		delta := 1
 		if pressed == "k" || pressed == "up" {

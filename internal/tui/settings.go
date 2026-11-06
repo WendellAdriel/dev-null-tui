@@ -297,6 +297,7 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 // applyAccount takes a returned CurrentUserResource, from a settings save or a live stream change.
 func (m *AppModel) applyAccount(u auth.User) {
 	m.account.user = u
+	m.accountRefresh.version++
 	if u.UnreadNotifications != nil {
 		m.invalidateNotificationCount()
 		m.unreadNotifications = *u.UnreadNotifications
