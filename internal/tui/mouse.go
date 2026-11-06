@@ -107,6 +107,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.connected && !m.accountOpen && m.search != nil {
 		return m.searchMouse(msg.X, msg.Y)
 	}
+	if m.connected && !m.accountOpen && m.achievements != nil {
+		return m.achievementsMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.vote.confirm {
 		_, _, areas := m.voteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -365,6 +368,13 @@ func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
 	if m.search != nil && m.connected && !m.accountOpen && !m.composer.open {
 		cmd := m.searchKey(tea.KeyPressMsg{Code: code})
 		return m, cmd
+	}
+	if m.achievements != nil && m.connected && !m.accountOpen {
+		pressed := "down"
+		if code == tea.KeyUp {
+			pressed = "up"
+		}
+		return m.achievementsKey(pressed)
 	}
 	if m.composer.open && m.connected && !m.accountOpen {
 		if !m.composerUsable() || m.composer.sending || !m.composerBounds().contains(msg.X, msg.Y) {

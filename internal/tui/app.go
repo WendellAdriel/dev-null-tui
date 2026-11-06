@@ -145,6 +145,7 @@ type AppModel struct {
 	meCall                     func(context.Context) (auth.User, error)
 	accountRefresh             accountRefresh
 	search                     *searchDialog
+	achievements               *achievementsDialog
 	completionCalls            completionCalls
 	completionGeneration       int
 	searchGeneration           int
@@ -636,6 +637,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.liveKey(msg)
 			return m, cmd
 		}
+		if m.connected && m.achievements != nil && msg.String() != "ctrl+c" {
+			next, cmd := m.achievementsKey(msg.String())
+			return next, cmd
+		}
 		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
 			cmd := m.deleteKey(msg.String())
 			return m, cmd
@@ -842,6 +847,7 @@ func (m *AppModel) leaveApplication() {
 	m.claiming = ""
 	m.live, m.liveEnding, m.liveNow = nil, false, nil
 	m.closeSearch()
+	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}
 	m.meCall, m.accountRefresh = nil, accountRefresh{}

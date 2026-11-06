@@ -146,8 +146,11 @@ func (f *profileFrame) show(requests ...graphics.Request) {
 	}
 }
 
-func (f *profileFrame) target(x, width int, action string) {
-	f.actions = append(f.actions, hitArea{uiRect{x, len(f.lines), width, 1}, action, 0})
+func (f *profileFrame) target(x, width int, action string) { f.targetLines(x, width, 1, action) }
+
+// targetLines makes the next lines lines clickable from column x.
+func (f *profileFrame) targetLines(x, width, lines int, action string) {
+	f.actions = append(f.actions, hitArea{uiRect{x, len(f.lines), width, lines}, action, 0})
 }
 
 func (m *AppModel) renderProfile(s *profileState) {
@@ -364,7 +367,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	}
 	if a := profile.Achievements; a != nil {
 		frame.add("")
-		achievements(frame, a, lane, inner, p)
+		m.achievementsShelf(frame, a, lane, inner, p)
 		frame.add("", hairline)
 	}
 }
@@ -459,17 +462,20 @@ func activityLabel(scale, date string) string {
 	return ""
 }
 
-func achievements(frame *profileFrame, a *api.Achievements, lane string, width int, p palette) {
+func (m AppModel) achievementsShelf(frame *profileFrame, a *api.Achievements, lane string, width int, p palette) {
 	pad := "  "
 	unlocked := 0
-	var shelf []string
+	var shelf [][3]string
+	var icons []graphics.Request
 	for _, badge := range a.Badges {
 		if badge.Unlocked {
 			unlocked++
-			shelf = append(shelf, chip(safeText(badge.Name), p.ink, p))
+			shelf = append(shelf, tallChip(badgeIcon(badge.Icon, p.ink, m.images)+" "+text(p.ink).Render(safeText(badge.Name)), p.wash))
+			icons = append(icons, badgeRequest(badge.Icon, p.ink))
 		}
 	}
-	title := text(lane).Render("◎ ") + text(p.ink).Bold(true).Render(fmt.Sprintf("Lv. %d · %s", a.Level, safeText(a.Rank))) + text(p.muted).Render(" · "+formatCount(a.XP)+" XP")
+	frame.show(badgeRequest("award", lane))
+	title := badgeIcon("award", lane, m.images) + " " + text(p.ink).Bold(true).Render(fmt.Sprintf("Lv. %d · %s", a.Level, safeText(a.Rank))) + text(p.muted).Render(" · "+formatCount(a.XP)+" XP")
 	frame.add(pad + split(title, text(p.muted).Render(fmt.Sprintf("%d / %d unlocked", unlocked, len(a.Badges))), width))
 	progress, remaining := formatCount(a.XP)+" XP", "max level"
 	if a.NextLevelXP != nil {
@@ -485,28 +491,42 @@ func achievements(frame *profileFrame, a *api.Achievements, lane string, width i
 	frame.add(pad + split(text(p.muted).Render(progress), text(p.muted).Render(remaining), width))
 	filled := int(math.Round(max(0, min(100, a.LevelProgress)) / 100 * float64(width)))
 	frame.add(pad + text(lane).Render(strings.Repeat("━", filled)) + text(p.hairline).Render(strings.Repeat("━", width-filled)))
+	// The web opens All achievements from the badge row, so a click anywhere on it does too.
 	if len(shelf) == 0 {
+		frame.add("")
+		frame.target(2, width, "A")
+		frame.add(pad + text(p.muted).Render("View achievements ") + keyChip("A", p))
 		return
 	}
-	row, shown := "", 0
+	// The A chip ends the row, so every badge that shows leaves room for it.
+	shortcut := "  " + keyChip("A", p)
+	var rows [3]string
+	shown := 0
 	for i, badge := range shelf {
 		more := ""
 		if rest := len(shelf) - i - 1; rest > 0 {
 			more = fmt.Sprintf("  +%d more", rest)
 		}
-		if lipgloss.Width(row)+2+lipgloss.Width(badge)+len(more) > width && shown > 0 {
+		if lipgloss.Width(rows[1])+2+lipgloss.Width(badge[1])+len(more)+lipgloss.Width(shortcut) > width && shown > 0 {
 			break
 		}
-		if row != "" {
-			row += "  "
+		for line := range rows {
+			if rows[line] != "" {
+				rows[line] += "  "
+			}
+			rows[line] += badge[line]
 		}
-		row += badge
 		shown++
 	}
 	if shown < len(shelf) {
-		row += text(p.muted).Render(fmt.Sprintf("  +%d more", len(shelf)-shown))
+		rows[1] += text(p.muted).Render(fmt.Sprintf("  +%d more", len(shelf)-shown))
 	}
-	frame.add("", pad+row)
+	rows[1] += shortcut
+	frame.add("")
+	frame.targetLines(2, width, 3, "A")
+	frame.add(pad + rows[0])
+	frame.show(icons[:shown]...)
+	frame.add(pad+rows[1], pad+rows[2])
 }
 
 func (m AppModel) profileTabs(frame *profileFrame, tabs [2]string, active, width int, p palette) {
@@ -723,7 +743,7 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 		return appKeys{short, all}
 	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
+	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("A", "all achievements"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
 	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
 	return appKeys{short, all}

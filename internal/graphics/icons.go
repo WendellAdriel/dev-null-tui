@@ -13,7 +13,7 @@ func validIcon(kind string) bool {
 	case "starred", "followed", "approved", "rejected", "stats-star", "stats-starred", "logo-dark", "logo-light", "pastel":
 		return true
 	}
-	return false
+	return knownBadge(kind)
 }
 
 func notificationIcon(kind, lane string) *image.NRGBA {

@@ -398,6 +398,9 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 	case "esc":
 		m.closeProfile()
 		return m, nil, true
+	case "A":
+		m.openAchievements()
+		return m, m.syncImages(), true
 	case "j", "down":
 		return m, m.stepProfile(s, 1), true
 	case "k", "up":

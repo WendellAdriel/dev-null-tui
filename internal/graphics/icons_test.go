@@ -107,3 +107,36 @@ func TestPastelIconKeepsItsOwnColorsOnASquareCanvas(t *testing.T) {
 		t.Fatalf("pastel icon lost its colors: %+v", center)
 	}
 }
+
+func TestBadgeIconsTintTheWebIconsInTheRingColor(t *testing.T) {
+	m := New("https://example.test")
+	m.Enabled = true
+	for _, name := range []string{"terminal", "file-code", "flame", "zap", "server", "box", "shield", "star", "sparkles", "git-merge", "key", "bot-off", "bomb", "dragon-ball", "mushroom-cloud", "award"} {
+		jobs, _ := m.Plan(t.Context(), []Request{{Icon: "badge-" + name, Ring: "#123abc", Cols: 2, Rows: 1}})
+		if len(jobs) != 1 {
+			t.Fatalf("no icon job for %s", name)
+		}
+		result := m.Fetch(jobs[0])
+		im := result.avatar
+		if result.Err != nil || im == nil || im.Bounds().Dx() != 96 || im.NRGBAAt(0, 0).A != 0 {
+			t.Fatalf("%s: %v", name, result.Err)
+		}
+		inked := 0
+		for y := range 96 {
+			for x := range 96 {
+				if c := im.NRGBAAt(x, y); c.A > 0 {
+					if c.R != 0x12 || c.G != 0x3a || c.B != 0xbc {
+						t.Fatalf("%s pixel %d,%d is %v, not the ring color", name, x, y, c)
+					}
+					inked++
+				}
+			}
+		}
+		if inked < 300 {
+			t.Fatalf("%s drew only %d pixels", name, inked)
+		}
+	}
+	if jobs, _ := m.Plan(t.Context(), []Request{{Icon: "badge-unknown", Ring: "#123abc", Cols: 2, Rows: 1}}); len(jobs) != 0 {
+		t.Fatal("an unknown badge icon was accepted")
+	}
+}

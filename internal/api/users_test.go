@@ -16,7 +16,7 @@ func TestProfileDecodesSignedMetadataAndKeepsMissingCountsDistinct(t *testing.T)
 			"is_following":true,"follows_you":false,"is_muting":false,"pasteis_received":7,
 			"activity":{"scale":"week","buckets":[{"date":"2026-10-21","count":0},{"date":"2026-10-22","count":2}]},
 			"streaks":{"longest":4,"current":2},
-			"achievements":{"level":5,"rank":"wheel","xp":1821,"next_level_xp":2500,"level_progress":72.8,"ranks":[{"rank":"wheel","level":5,"min_xp":1500,"achieved":true},{"rank":"root","level":6,"min_xp":2500,"achieved":false}],"badges":[{"id":"init","name":"init","unlocked":true},{"id":"uptime","name":"uptime","unlocked":false}]},
+			"achievements":{"level":5,"rank":"wheel","xp":1821,"next_level_xp":2500,"level_progress":72.8,"ranks":[{"rank":"wheel","level":5,"min_xp":1500,"achieved":true},{"rank":"root","level":6,"min_xp":2500,"achieved":false}],"badges":[{"id":"init","name":"init","description":"Piped your first commit to /dev/null.","icon":"terminal","unlocked":true,"progress":1,"target":1},{"id":"uptime","name":"uptime","description":"Maintained a 7-day commit streak without a reboot.","icon":"flame","unlocked":false,"progress":6,"target":7}]},
 			"pinned_commit":{"id":"c9","body":"Pinned","author":{"id":"u1","handle":"ada"}}}`)
 	})
 	profile, err := client.Profile(t.Context(), "ada")
@@ -33,7 +33,7 @@ func TestProfileDecodesSignedMetadataAndKeepsMissingCountsDistinct(t *testing.T)
 	if profile.Activity == nil || profile.Activity.Scale != "week" || len(profile.Activity.Buckets) != 2 || profile.Activity.Buckets[1].Count != 2 {
 		t.Fatalf("activity: %+v", profile.Activity)
 	}
-	if profile.Streaks == nil || profile.Streaks.Longest != 4 || profile.Achievements == nil || profile.Achievements.Rank != "wheel" || profile.Achievements.NextLevelXP == nil || len(profile.Achievements.Badges) != 2 {
+	if profile.Streaks == nil || profile.Streaks.Longest != 4 || profile.Achievements == nil || profile.Achievements.Rank != "wheel" || profile.Achievements.NextLevelXP == nil || len(profile.Achievements.Badges) != 2 || profile.Achievements.Badges[1] != (Badge{ID: "uptime", Name: "uptime", Description: "Maintained a 7-day commit streak without a reboot.", Icon: "flame", Progress: 6, Target: 7}) {
 		t.Fatalf("achievements: %+v %+v", profile.Streaks, profile.Achievements)
 	}
 	if profile.Pinned == nil || profile.Pinned.ID != "c9" {

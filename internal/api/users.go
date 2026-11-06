@@ -68,9 +68,13 @@ type Rank struct {
 }
 
 type Badge struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Unlocked bool   `json:"unlocked"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Unlocked    bool   `json:"unlocked"`
+	Progress    int    `json:"progress"`
+	Target      int    `json:"target"`
 }
 
 type Achievements struct {

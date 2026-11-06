@@ -186,6 +186,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.voteModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.achievements != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.achievementsModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.search != nil && m.connected && !m.accountOpen {
 		content, r, _ := m.searchModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)

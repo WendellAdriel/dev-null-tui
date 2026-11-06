@@ -132,6 +132,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if u.PasteisMode {
 		stars = append(stars, pastelIconRequest)
 	}
+	if m.achievements != nil {
+		stars = append(stars, m.achievementsMedia(p)...)
+	}
 	if nav, _, _ := m.columns(); nav >= 12 {
 		stars = append(stars, logoRequest(m.account.dark))
 	}

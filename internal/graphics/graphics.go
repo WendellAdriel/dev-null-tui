@@ -307,6 +307,13 @@ func (m *Manager) Fetch(job Job) Result {
 				result.Err = err
 				return result
 			}
+		} else if knownBadge(job.Request.Icon) {
+			var err error
+			picture, err = tintedBadge(job.Request.Icon, job.Request.Ring)
+			if err != nil {
+				result.Err = err
+				return result
+			}
 		} else {
 			picture = notificationIcon(job.Request.Icon, job.Request.Ring)
 		}
