@@ -37,6 +37,9 @@ func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 	case "ctrl+k":
 		key.Code = 'k'
 		key.Mod = tea.ModCtrl
+	case "ctrl+l":
+		key.Code = 'l'
+		key.Mod = tea.ModCtrl
 	case "ctrl+d":
 		key.Code = 'd'
 		key.Mod = tea.ModCtrl

@@ -5,7 +5,6 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
-	"github.com/charmbracelet/x/ansi"
 )
 
 var searchHeadings = map[string]string{
@@ -24,10 +23,12 @@ var actionLabels = map[string]struct{ label, command string }{
 	"end-stream": {"End stream", ""},
 }
 
-// searchLine is one row of the dialog's list, and the option it opens, or -1 for a heading.
+// searchLine is one row of the dialog's list, and the option it opens, or -1 for a heading. clear marks the
+// Recent searches heading, whose Clear link is clickable.
 type searchLine struct {
 	text   string
 	option int
+	clear  bool
 }
 
 func (m AppModel) searchModal(p palette) (string, uiRect, []hitArea) {
@@ -82,7 +83,7 @@ func (m AppModel) searchModal(p palette) (string, uiRect, []hitArea) {
 		switch {
 		case line.option >= 0:
 			areas = append(areas, hitArea{uiRect{r.x + 2, top + i - start, width, 1}, "search-option", line.option})
-		case strings.HasPrefix(ansi.Strip(line.text), searchHeadings["recent"]):
+		case line.clear:
 			areas = append(areas, hitArea{uiRect{r.x + 2 + width - 5, top + i - start, 5, 1}, "ctrl+l", 0})
 		}
 		rows = append(rows, line.text)
@@ -109,19 +110,19 @@ func (m AppModel) searchLines(options []searchOption, selected, width int, p pal
 	for i, option := range options {
 		if heading, ok := searchHeadings[option.kind]; ok && (i == 0 || options[i-1].kind != option.kind) {
 			if i > 0 {
-				lines = append(lines, searchLine{"", -1})
+				lines = append(lines, searchLine{text: "", option: -1})
 			}
 			label := text(p.muted).Render(heading)
 			if option.kind == "recent" {
 				label = split(label, text(p.blue).Render("Clear"), width)
 			}
-			lines = append(lines, searchLine{label, -1})
+			lines = append(lines, searchLine{text: label, option: -1, clear: option.kind == "recent"})
 		}
 		marker := "  "
 		if i == selected {
 			marker = text(p.blue).Render("▌ ")
 		}
-		lines = append(lines, searchLine{marker + m.searchOptionText(option, i == selected, width-2, p), i})
+		lines = append(lines, searchLine{text: marker + m.searchOptionText(option, i == selected, width-2, p), option: i})
 	}
 	return lines
 }

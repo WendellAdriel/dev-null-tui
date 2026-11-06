@@ -370,3 +370,20 @@ func TestHelpListsSearchOnEveryScreen(t *testing.T) {
 		t.Fatalf("search results list Starred-only keys:\n%s", help)
 	}
 }
+
+func TestClickingClearForgetsRecentSearches(t *testing.T) {
+	m, _ := searchApp(t)
+	m.tuiSettings.RecentSearches = map[string][]string{m.account.user.ID: {"@ada"}}
+	m = searchKey(m, "ctrl+k")
+	_, _, areas := m.searchModal(colors(m.account.dark))
+	for _, area := range areas {
+		if area.action == "ctrl+l" {
+			m, _ = m.searchMouse(area.x, area.y)
+			if len(m.tuiSettings.RecentSearches[m.account.user.ID]) != 0 {
+				t.Fatal("clicking Clear kept the recent searches")
+			}
+			return
+		}
+	}
+	t.Fatal("the Recent searches heading has no Clear hit area")
+}
