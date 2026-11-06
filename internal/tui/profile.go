@@ -351,13 +351,33 @@ func (m *AppModel) selectProfileEntry(index int) tea.Cmd {
 	m.notice = ""
 	m.renderProfile(s)
 	m.revealProfileSelection(s)
-	if l.selected == 0 {
+	if l.selected == 0 && (len(s.ends) == 0 || s.ends[0] <= s.viewport.Height()) {
 		s.viewport.GotoTop()
 	}
 	if l.selected > previous && l.selected >= count-2 {
 		return m.fetchProfileList(s, true)
 	}
 	return nil
+}
+
+// stepProfile moves the selection like j and k, but first scrolls through a header taller than the view, so the
+// bio, the tabs and the pinned commit all show before the selection moves past them.
+func (m *AppModel) stepProfile(s *profileState, delta int) tea.Cmd {
+	l := &s.lists[s.tab]
+	if l.selected < len(s.starts) {
+		top, height := s.viewport.YOffset(), s.viewport.Height()
+		start, end := s.starts[l.selected], s.ends[l.selected]
+		step := max(1, height/3)
+		if delta > 0 && start > top && end > top+height {
+			s.viewport.SetYOffset(top + min(step, start-top, end-top-height))
+			return nil
+		}
+		if delta < 0 && l.selected == 0 {
+			s.viewport.SetYOffset(max(0, top-step))
+			return nil
+		}
+	}
+	return m.selectProfileEntry(l.selected + delta)
 }
 
 func (m *AppModel) reloadProfile(s *profileState) tea.Cmd {
@@ -378,9 +398,9 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 		m.closeProfile()
 		return m, nil, true
 	case "j", "down":
-		return m, m.selectProfileEntry(l.selected + 1), true
+		return m, m.stepProfile(s, 1), true
 	case "k", "up":
-		return m, m.selectProfileEntry(l.selected - 1), true
+		return m, m.stepProfile(s, -1), true
 	case "pgdown", "ctrl+d":
 		return m, m.selectProfileEntry(l.selected + 5), true
 	case "pgup", "ctrl+u":
