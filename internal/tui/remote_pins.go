@@ -254,7 +254,7 @@ func (m AppModel) pinWarningModal(p palette) (string, uiRect, []hitArea) {
 		areas[i].y += rect.y + rect.h - 1 - lipgloss.Height(footer)
 	}
 	areas = append(areas, hitArea{uiRect{rect.x + 2, rect.y + 3 + lipgloss.Height(description) + 1, width, 1}, "space", 0}, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-	return panel("Pin for the whole org?", body, footer, rect, p, p.hairline), rect, areas
+	return panel("Pin for the whole org?", body, footer, rect, p, p.blue), rect, areas
 }
 
 func (m AppModel) pinListModal(p palette) (string, uiRect, []hitArea) {
@@ -289,7 +289,7 @@ func (m AppModel) pinListModal(p palette) (string, uiRect, []hitArea) {
 		hints = "enter jump · ! unpin · esc close"
 	}
 	areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-	return panel(fmt.Sprintf("Pinned · %d", len(pinned)), strings.Join(lines, "\n"), text(p.muted).Render(fit(hints, width)), rect, p, p.hairline), rect, areas
+	return panel(fmt.Sprintf("Pinned · %d", len(pinned)), strings.Join(lines, "\n"), text(p.muted).Render(fit(hints, width)), rect, p, p.blue), rect, areas
 }
 
 func (m AppModel) pinModalMouse(x, y int) (AppModel, tea.Cmd) {

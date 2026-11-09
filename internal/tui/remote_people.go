@@ -494,7 +494,7 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 		}
 	}
 	areas = append(append(areas, footerAreas...), hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-	return panel(title, strings.Join(lines, "\n"), footer, rect, pal, pal.hairline), rect, areas
+	return panel(title, strings.Join(lines, "\n"), footer, rect, pal, pal.blue), rect, areas
 }
 
 func (m AppModel) peopleMouse(x, y int) (AppModel, tea.Cmd) {

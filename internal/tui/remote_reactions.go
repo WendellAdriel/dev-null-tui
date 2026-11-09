@@ -387,7 +387,7 @@ func (m AppModel) reactionModal(p palette) (string, uiRect, []hitArea) {
 	}
 	footer := text(p.muted).Render(fit("type to search · enter react · esc close", width))
 	areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-	return panel("React", strings.Join(lines, "\n"), footer, rect, p, p.hairline), rect, areas
+	return panel("React", strings.Join(lines, "\n"), footer, rect, p, p.blue), rect, areas
 }
 
 func (m AppModel) reactionModalMouse(x, y int) (AppModel, tea.Cmd) {

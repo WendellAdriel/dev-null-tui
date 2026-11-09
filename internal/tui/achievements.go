@@ -146,7 +146,7 @@ func (m AppModel) achievementsModal(p palette) (string, uiRect, []hitArea) {
 			areas = append(areas, hitArea{uiRect{r.x + 2 + cell.x, r.y + 3 + (cell.y-first)*cell.h, cell.w, cell.h}, "badge", i})
 		}
 	}
-	return panel("All achievements", body, footer, r, p, p.hairline), r, areas
+	return panel("All achievements", body, footer, r, p, p.blue), r, areas
 }
 
 func (m AppModel) achievementsKey(pressed string) (AppModel, tea.Cmd) {

@@ -791,7 +791,7 @@ func (m AppModel) remotesModal(p palette) (string, uiRect, []hitArea) {
 			heading = "Mute " + title
 		}
 		areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-		return panel(heading, strings.TrimSuffix(body, "\n"), footer, rect, p, p.hairline), rect, areas
+		return panel(heading, strings.TrimSuffix(body, "\n"), footer, rect, p, p.blue), rect, areas
 	}
 	verb, question, description := "Block", "Block "+title+"?", "This conversation goes away for both of you, and neither of you can message, follow, reply to, or star the other. They won't be told. You can unblock them any time from your settings."
 	switch {
