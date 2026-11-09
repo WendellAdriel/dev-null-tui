@@ -8,7 +8,7 @@
 <h1 align="center">/dev/null TUI</h1>
 
 > [!WARNING]
-> Pull requests and issues are disabled until the TUI is close to feature parity with the [web app](https://dev-null.sh).
+> Pull requests and issues are disabled for now. They will be enabled when the first stable version, v1.0.0, is released.
 
 A terminal client for [dev-null.sh](https://dev-null.sh). Read logs, threads, and notifications, publish text commits, revisit Starred, follow developers, and manage supported account settings.
 
