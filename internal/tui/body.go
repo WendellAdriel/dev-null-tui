@@ -47,6 +47,18 @@ func folded(commit api.Commit, style statsStyle) bool {
 
 // bodyLines renders a commit body wrapped to width, or unwrapped when width is zero.
 func bodyLines(commit api.Commit, width int, p palette, style statsStyle) []string {
+	commit, notice := translatedBody(commit, style)
+	lines := renderBody(commit, width, p, style)
+	if notice == "" {
+		return lines
+	}
+	if width > 0 {
+		notice = fit(notice, max(1, width-2))
+	}
+	return append([]string{text(p.muted).Italic(true).Render(notice)}, lines...)
+}
+
+func renderBody(commit api.Commit, width int, p palette, style statsStyle) []string {
 	segments := commit.Segments
 	if folded(commit, style) {
 		segments = commit.Preview
@@ -854,9 +866,15 @@ const (
 	hashtagEnd   = "\x1b_devnull-tag\x1b\\"
 )
 
+// A star count marked with its commit opens Starred by when clicked.
+const (
+	starsStart = "\x1b_devnull-stars;"
+	starsEnd   = "\x1b_devnull-stars\x1b\\"
+)
+
 var (
 	hashtagMarks  = regexp.MustCompile(`\x1b_devnull-tag;([^\x1b]*)\x1b\\`)
-	hashtagMarker = regexp.MustCompile(`\x1b_devnull-tag[^\x1b]*\x1b\\`)
+	hashtagMarker = regexp.MustCompile(`\x1b_devnull-(?:tag|stars)[^\x1b]*\x1b\\`)
 )
 
 // hashtags draws #tags like links. The web's lookbehind allows no word rune or any of "&/#>-" before the "#".
@@ -885,15 +903,25 @@ func (r bodyRenderer) hashtags(s string, offset int) []piece {
 
 // hashtagAt is the hashtag drawn at column x of a rendered line.
 func hashtagAt(line string, x int) string {
+	tag := markAt(line, x, hashtagStart, hashtagEnd)
+	tag, _ = url.PathUnescape(tag)
+	return tag
+}
+
+// starsAt is the commit whose star count is drawn at column x of a rendered line.
+func starsAt(line string, x int) string { return markAt(line, x, starsStart, starsEnd) }
+
+// markAt is the value of the APC mark around column x of a rendered line.
+func markAt(line string, x int, start, end string) string {
 	tag, column := "", 0
 	var state byte
 	for line != "" {
 		sequence, width, n, next := ansi.DecodeSequence(line, state, nil)
 		state = next
 		switch {
-		case strings.HasPrefix(sequence, hashtagStart):
-			tag, _ = url.PathUnescape(strings.TrimSuffix(strings.TrimPrefix(sequence, hashtagStart), "\x1b\\"))
-		case sequence == hashtagEnd:
+		case strings.HasPrefix(sequence, start):
+			tag = strings.TrimSuffix(strings.TrimPrefix(sequence, start), "\x1b\\")
+		case sequence == end:
 			tag = ""
 		case width > 0:
 			if x >= column && x < column+width {

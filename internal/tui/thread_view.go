@@ -19,6 +19,9 @@ func threadParents(entries []threadEntry) []int {
 	for i, entry := range entries {
 		d := entry.depth
 		parents[i] = -1
+		if entry.kind == "related" {
+			continue
+		}
 		switch {
 		case d == 0:
 			parents[i] = last[0]
@@ -32,6 +35,9 @@ func threadParents(entries []threadEntry) []int {
 	}
 	return parents
 }
+
+// relatedHeader owns the lines above related commits, which align with the root rather than its replies.
+const relatedHeader = -2
 
 func (m *AppModel) renderThread(t *threadState) {
 	p := colors(m.account.dark)
@@ -47,7 +53,19 @@ func (m *AppModel) renderThread(t *threadState) {
 	t.starts, t.ends, t.widths, t.pictures, t.actions = nil, nil, nil, nil, nil
 	var bodies []string
 	var owners, nodes, stats []int
+	more := -1
+	addMore := func() {
+		if t.next != "" && more < 0 {
+			more = len(bodies)
+			bodies, owners = append(bodies, text(p.muted).Render("More replies ")+keyChip("n", p)), append(owners, -1)
+		}
+	}
 	for i, entry := range entries {
+		if entry.kind == "related" && (i == 0 || entries[i-1].kind != "related") {
+			addMore()
+			rule := text(p.hairline).Render(strings.Repeat("─", max(1, width-4)))
+			bodies, owners = append(bodies, "", text(p.ink).Bold(true).Render("Related commits"), rule, ""), append(owners, relatedHeader, relatedHeader, relatedHeader, relatedHeader)
+		}
 		indent := column(entry.depth) + gap
 		contentWidth := max(1, width-indent-2)
 		commit := entry.commit
@@ -66,7 +84,9 @@ func (m *AppModel) renderThread(t *threadState) {
 		nodes, stats = append(nodes, len(bodies)), append(stats, len(bodies)+len(rows)-1)
 		if i == t.selected {
 			navigation := commitAction{}
-			if entry.depth < 2 && (entry.kind == "focus" || entry.commit.Replies > 0) {
+			if entry.kind == "related" {
+				navigation = commitAction{"Open", "enter"}
+			} else if entry.depth < 2 && (entry.kind == "focus" || entry.commit.Replies > 0) {
 				navigation = commitAction{"Replies", "space"}
 			}
 			chips, areas := m.commitActions(entry.commit, navigation, contentWidth, p)
@@ -85,11 +105,7 @@ func (m *AppModel) renderThread(t *threadState) {
 		t.ends = append(t.ends, len(bodies))
 		bodies, owners = append(bodies, ""), append(owners, -1)
 	}
-	more := -1
-	if t.next != "" {
-		more = len(bodies)
-		bodies, owners = append(bodies, text(p.muted).Render("More replies ")+keyChip("n", p)), append(owners, -1)
-	}
+	addMore()
 
 	lane := func(i int) string {
 		if entries[i].commit.DeletedAt != nil || entries[i].commit.Author == nil {
@@ -100,8 +116,11 @@ func (m *AppModel) renderThread(t *threadState) {
 	cells := make([][]string, len(bodies))
 	for line := range cells {
 		depth := 1
-		if owners[line] >= 0 {
+		switch {
+		case owners[line] >= 0:
 			depth = entries[owners[line]].depth
+		case owners[line] == relatedHeader:
+			depth = 0
 		}
 		cells[line] = strings.Split(strings.Repeat(" ", column(depth)+gap), "")
 	}
@@ -250,11 +269,77 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	if m.canCopyText(commit) {
 		actions = append(actions, commitAction{"Copy text", "T"})
 	}
+	if len(m.commitLinks(commit)) > 0 {
+		actions = append(actions, commitAction{"Open link", "x"})
+	}
+	if strings.TrimSpace(commit.Body) != "" {
+		label := "Translate"
+		if t, ok := m.translations[commit.ID]; ok && t.shown {
+			label = "Original"
+		}
+		actions = append(actions, commitAction{label, "t"})
+	}
+	if commit.Stars > 0 && m.ownCommit(commit) && !m.organizationSettingsKey() {
+		actions = append(actions, commitAction{"Starred by", "S"})
+	}
+	if m.canPinCommit(commit) {
+		label := "Pin"
+		if commit.Pinned != nil && *commit.Pinned {
+			label = "Unpin"
+		}
+		actions = append(actions, commitAction{label, "P"})
+	}
 	if m.ownCommit(commit) {
 		actions = append(actions, commitAction{"Delete", "D"})
 	} else if commit.Status == "" || commit.Status == "approved" {
 		actions = append(actions, commitAction{"Report", "!"})
 	}
+	return commitChips(actions, width, p)
+}
+
+// commitChips sets a commit's shortcuts apart from its text: a rule above, then each shortcut in its own chip.
+func commitChips(actions []commitAction, width int, p palette) ([]string, []hitArea) {
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.hairline))
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft)).Bold(true)
+	var rows [][]string
+	var row []string
+	used := 0
+	for _, action := range actions {
+		label := action.label
+		if action.key == "s" {
+			label += strings.Repeat(" ", max(0, len("Unstar")-lipgloss.Width(label)))
+		}
+		chip := labelStyle.Render(" "+label+" ") + keyStyle.Render(" "+action.key+" ")
+		if len(row) > 0 && used+2+lipgloss.Width(chip) > width {
+			rows, row, used = append(rows, row), nil, 0
+		}
+		if len(row) > 0 {
+			used += 2
+		}
+		row = append(row, chip)
+		used += lipgloss.Width(chip)
+	}
+	rows = append(rows, row)
+	lines := []string{text(p.hairline).Render(strings.Repeat("─", max(1, width)))}
+	var areas []hitArea
+	for y, chips := range rows {
+		x, line := 0, ""
+		for i, chip := range chips {
+			if i > 0 {
+				line += "  "
+				x += 2
+			}
+			areas = append(areas, hitArea{uiRect{x, y + 1, lipgloss.Width(chip), 1}, actions[len(areas)].key, 0})
+			line += chip
+			x += lipgloss.Width(chip)
+		}
+		lines = append(lines, line)
+	}
+	return lines, areas
+}
+
+// actionChips lays out labelled key chips, wrapping to width, with a hit area for each.
+func actionChips(actions []commitAction, width int, p palette) ([]string, []hitArea) {
 	var rows []string
 	var areas []hitArea
 	line := ""
@@ -373,9 +458,13 @@ func (m AppModel) threadBackX() int {
 
 func (m AppModel) deleteModal(p palette) (string, uiRect, []hitArea) {
 	actions := []modalAction{{"Keep commit", "esc", "esc"}, {"Delete commit", "ctrl+d", "ctrl+d"}}
-	r := centeredRect(max(1, m.account.width), max(1, m.account.height), 64, 12)
+	r := centeredRect(max(1, m.account.width), max(1, m.account.height), 64, 13)
 	width := max(1, r.w-4)
-	body := text(p.ink).Bold(true).Render("Delete this commit?") + "\n\n" + text(p.muted).Render(fit("It disappears from every log. This cannot be undone.", width)) + "\n" + text(p.muted).Render(fit("Replies stay and show it as deleted.", width))
+	var lines []string
+	for _, line := range []string{"It disappears from every log.", "You can undo it for 30 seconds.", "Replies stay and show it as deleted."} {
+		lines = append(lines, text(p.muted).Render(fit(line, width)))
+	}
+	body := text(p.ink).Bold(true).Render("Delete this commit?") + "\n\n" + strings.Join(lines, "\n")
 	footer, areas := modalFooter(actions, width, m.deleting.focus+1, p)
 	for i := range areas {
 		areas[i].x += r.x + 2

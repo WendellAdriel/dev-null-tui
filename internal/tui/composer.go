@@ -38,6 +38,8 @@ type composer struct {
 	browser                                              *fileBrowser
 	author                                               *auth.Organization
 	picker                                               *authorPicker
+	schedule                                             *schedulePicker
+	scheduleAt                                           *time.Time
 }
 
 type submissionResult struct {
@@ -172,6 +174,9 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	if c.picker != nil {
 		return m.authorPickerKey(msg)
 	}
+	if c.schedule != nil {
+		return m.scheduleKey(msg)
+	}
 	if c.editing != "" {
 		return m.fieldKey(msg)
 	}
@@ -205,6 +210,8 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.startPoll()
 		case "ctrl+a":
 			return m.openAuthorPicker()
+		case "ctrl+t":
+			return m.openSchedulePicker()
 		}
 		if c.focus == composerStrip {
 			if cmd, ok := m.stripKey(pressed); ok {
@@ -371,6 +378,10 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	c.suggest.close()
 	c.status = "Signing and submitting..."
 	c.input.Blur()
+	if c.scheduleAt != nil {
+		c.status = "Signing and scheduling..."
+		return m.startSchedule(draft)
+	}
 	timeout := 30 * time.Second
 	if len(draft.Images) > 0 {
 		timeout = auth.UploadTimeout

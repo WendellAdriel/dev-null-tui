@@ -153,10 +153,14 @@ type statsStyle struct {
 	unfolded map[string]bool
 	// mentions, when set, are the only lowercase handles linked, as the web's messages render with linksEveryMention off.
 	mentions map[string]bool
+	// translations are the commits translated with t, drawn in place of their original body while shown.
+	translations map[string]translation
+	// viewer is the signed-in user, who alone can open Starred by on their own commits.
+	viewer string
 }
 
 func (m AppModel) statsStyle() statsStyle {
-	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option, unfolded: m.unfolded, now: m.now}
+	return statsStyle{pasteis: m.account.user.PasteisMode, icons: m.images, glyphs: m.icons, origin: m.account.origin, voting: m.vote.commitID, voteOption: m.vote.option, unfolded: m.unfolded, now: m.now, translations: m.translations, viewer: m.account.user.ID}
 }
 
 func starIconRequest(filled bool, ink string) graphics.Request {
@@ -298,7 +302,11 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	if commit.Replies == 1 {
 		label = "reply"
 	}
-	stats := statsStar(commit, p, style.icons) + text(p.muted).Render(fmt.Sprintf(" %-5d ", commit.Stars))
+	stats := statsStar(commit, p, style.icons) + text(p.muted).Render(fmt.Sprintf(" %-5d", commit.Stars))
+	if commit.Stars > 0 && commit.DeletedAt == nil && commit.Author != nil && style.viewer != "" && commit.Author.ID == style.viewer {
+		stats = starsStart + commit.ID + "\x1b\\" + stats + starsEnd
+	}
+	stats += " "
 	if style.pasteis && commit.Pasteis != nil {
 		stats += pastelIcon(p, style.icons) + text(p.muted).Render(fmt.Sprintf(" %-3d ", *commit.Pasteis))
 	}

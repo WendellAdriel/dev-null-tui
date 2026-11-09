@@ -558,3 +558,43 @@ func TestViewerPanelDrawsTheReplyGraph(t *testing.T) {
 		t.Fatalf("viewer replies do not request their author avatars: %v", want)
 	}
 }
+
+func TestUndoRestoresADeletedCommitInPlaceWithinTheWindow(t *testing.T) {
+	m := openThread(t, threadApp(t))
+	m.deleteCommit = func(context.Context, string) error { return nil }
+	restored := 0
+	m.commitCalls.restore = func(_ context.Context, id string) (api.Commit, error) {
+		restored++
+		c := fixtureCommit(id)
+		c.Author.ID = m.account.user.ID
+		c.Author.Handle = m.account.user.Handle
+		return c, nil
+	}
+	m, _ = m.handleKey("D")
+	m, cmd := clickText(t, m, "Delete commit")
+	m = deliver(m, runAll(cmd))
+	if m.undo.id != "a" || !strings.Contains(ansi.Strip(m.View().Content), "to undo") {
+		t.Fatal("delete did not offer undo")
+	}
+	m, cmd = m.handleKey("z")
+	m = deliver(m, runAll(cmd))
+	if restored != 1 || m.undo.id != "" || m.feeds[0].commits[0].ID != "a" || m.threads[0].root.DeletedAt != nil {
+		t.Fatalf("restore did not put the commit back: %d %+v", restored, m.feeds[0].commits[0])
+	}
+	if m, _ = m.handleKey("z"); restored != 1 {
+		t.Fatal("undo ran twice")
+	}
+}
+
+func TestUndoWindowExpires(t *testing.T) {
+	m := openThread(t, threadApp(t))
+	m.deleteCommit = func(context.Context, string) error { return nil }
+	m, _ = m.handleKey("D")
+	m, cmd := clickText(t, m, "Delete commit")
+	m = deliver(m, runAll(cmd))
+	m.undo.deadline = time.Now().Add(-time.Second)
+	m = deliver(m, []tea.Msg{undoTick{session: m.session, id: "a"}})
+	if m.undo.id != "" || !strings.Contains(ansi.Strip(m.View().Content), "Undo window expired") {
+		t.Fatal("expired window still offers undo")
+	}
+}

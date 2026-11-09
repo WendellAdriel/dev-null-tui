@@ -121,7 +121,7 @@ func (m AppModel) liveNowBlock(width int, p palette) (string, []hitArea) {
 	if len(m.liveNow) == 0 {
 		return "", nil
 	}
-	rows := []string{text(p.danger).Bold(true).Render("● ") + text(p.ink).Bold(true).Render("Live now")}
+	rows := []string{split(text(p.danger).Bold(true).Render("● ")+text(p.ink).Bold(true).Render("Live now"), keyChip("W", p), width)}
 	var areas []hitArea
 	for i, person := range m.liveNow {
 		name := safeText(person.Name)

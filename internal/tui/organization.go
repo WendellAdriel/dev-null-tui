@@ -70,11 +70,18 @@ func (m AppModel) organizationKey(s *profileState, pressed string) (AppModel, te
 		return m, m.claimOrganization(s), true
 	case "S":
 		if s.page.SettingsURL == nil {
-			return m, nil, true
+			return m, nil, false
 		}
 		return m, m.openLink(*s.page.SettingsURL), true
 	}
 	return m, nil, false
+}
+
+// organizationSettingsKey reports an organization page whose S opens its settings, where a click on a commit's star
+// count opens Starred by instead.
+func (m AppModel) organizationSettingsKey() bool {
+	s := m.topProfile()
+	return s != nil && s.organization && s.page.SettingsURL != nil && !m.threadOnTop()
 }
 
 func (m *AppModel) startOrganizationFollow(handle string, following bool) tea.Cmd {

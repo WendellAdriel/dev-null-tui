@@ -515,7 +515,7 @@ func (m AppModel) notificationKey(pressed string) (AppModel, tea.Cmd) {
 			return m, nil
 		}
 		return m, m.openAuthor(n.Actor)
-	case "enter", "r", "q", "y", "v", "Q", "T":
+	case "enter", "r", "q", "y", "v", "Q", "T", "S", "P", "t", "x":
 		if pressed == "enter" && profileRow(entry) {
 			return m, m.openAuthor(n.Actor)
 		}

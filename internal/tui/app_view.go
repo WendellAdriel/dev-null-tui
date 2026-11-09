@@ -44,7 +44,7 @@ func (m AppModel) screenBindings() appKeys {
 	}
 	bind := func(k, label string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, label)) }
 	if m.composer.open {
-		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
+		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("ctrl+t", "schedule for later"), bind("ctrl+a", "post as"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
 		if m.composer.previewing {
 			keys = append(keys, bind("up/down / pgup/pgdown", "scroll preview"))
 		}
@@ -104,11 +104,29 @@ func (m AppModel) screenBindings() appKeys {
 }
 
 func (m AppModel) engagementBindings() []key.Binding {
+	bindings := []key.Binding{key.NewBinding(key.WithKeys("g t"), key.WithHelp("g t", "scheduled commits"))}
+	if m.undo.id != "" {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "undo the delete")))
+	}
+	if len(m.liveNow) > 0 {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("W"), key.WithHelp("W", "watch someone live now")))
+	}
 	c, ok := m.focusedEngagementCommit()
 	if !ok {
-		return nil
+		return bindings
 	}
-	var bindings []key.Binding
+	if len(m.commitLinks(c)) > 0 {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("x"), key.WithHelp("x", "open a link in the commit")))
+	}
+	if strings.TrimSpace(c.Body) != "" && c.DeletedAt == nil {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "translate / show original")))
+	}
+	if c.Stars > 0 && c.DeletedAt == nil {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("S"), key.WithHelp("S", "who starred it")))
+	}
+	if m.canPinCommit(c) {
+		bindings = append(bindings, key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "pin / unpin on your profile")))
+	}
 	if m.canStar(c) {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("s"), key.WithHelp("s", "star / unstar selected commit")))
 	}
@@ -147,6 +165,14 @@ func (m AppModel) View() tea.View {
 	}
 	if m.deleting.id != "" && m.connected && !m.accountOpen {
 		content, r, _ := m.deleteModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.picker != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.listPickerModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.ask != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.askModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
 	if m.live != nil && m.connected && !m.accountOpen {
@@ -440,7 +466,7 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 	if m.remotesEnabled() {
 		entries = append(entries, navEntry{m.icons.remotes, "Remotes", countBadge(m.remotes.unread), "g r", "remotes", idle && m.remotes.open})
 	}
-	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.commitSearch == ""}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
+	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.commitSearch == "" && m.scheduled == nil}, navEntry{m.icons.scheduled, "Scheduled", "", "g t", "scheduled", idle && m.scheduled != nil}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
 	top := "\n" + logo
 	var areas []hitArea
 	for i, entry := range entries {
@@ -452,9 +478,14 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		compose, shortcut = m.icons.commit, ""
 	}
 	button := filledButton(compose, shortcut, inner, p.blue, p.shell)
-	buttonY := lipgloss.Height(top) + 1
+	// A blank row sets the button apart from Settings, and it grows a row of fill above and below when there is room.
+	if width >= 12 && lipgloss.Height(top)+2+3+1+2 <= height {
+		fill := lipgloss.NewStyle().Background(lipgloss.Color(p.blue)).Width(inner).Render("")
+		button = fill + "\n" + button + "\n" + fill
+	}
+	buttonY := lipgloss.Height(top) + 2
 	buttonX := (width - lipgloss.Width(button)) / 2
-	top += "\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
+	top += "\n\n\n" + lipgloss.PlaceHorizontal(width, lipgloss.Center, button)
 	areas = append(areas, hitArea{uiRect{buttonX, buttonY, lipgloss.Width(button), lipgloss.Height(button)}, "c", 0})
 	user := m.account.user
 	lane := laneColor(user.Lane, p)

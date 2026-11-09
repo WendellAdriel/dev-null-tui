@@ -40,6 +40,8 @@ type profileState struct {
 	handle       string
 	people       bool
 	organization bool
+	// mention opens a clicked @handle, which names a user or an organization, so a missing user tries the organization.
+	mention      bool
 	below, tab   int
 	profile      api.Profile
 	page         api.OrganizationPage
@@ -262,6 +264,12 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 	if msg.err != nil {
 		if m.revoked(msg.err) {
 			return nil
+		}
+		var failure *auth.APIError
+		if s.mention && errors.As(msg.err, &failure) && failure.Status == http.StatusNotFound && m.topProfile() == s {
+			handle := s.handle
+			m.closeProfile()
+			return m.openOrganization(handle)
 		}
 		s.status = profileError(msg.err, s.organization)
 		m.renderProfile(s)

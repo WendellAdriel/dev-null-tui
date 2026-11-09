@@ -852,6 +852,12 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 		}
 	}
 	switch pressed {
+	case "x":
+		if item, ok := m.selectedItem(); ok && item.message != nil {
+			msg := item.message
+			c := api.Commit{ID: "message-links", Body: msg.Body, Segments: msg.Segments, LinkPreview: msg.LinkPreview}
+			return m, m.openLinks(m.commitLinks(c))
+		}
 	case "I":
 		m.openMembers()
 	case "!":

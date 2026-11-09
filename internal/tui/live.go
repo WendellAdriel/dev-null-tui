@@ -230,6 +230,30 @@ func (m *AppModel) acceptLiveNow(msg liveNowResult) tea.Cmd {
 	return nil
 }
 
+// watchLiveNow opens the only stream in Live now at once, or asks whose to watch when there are several.
+func (m *AppModel) watchLiveNow() tea.Cmd {
+	var live []api.User
+	for _, person := range m.liveNow {
+		if person.Live.On(m.now) {
+			live = append(live, person)
+		}
+	}
+	switch len(live) {
+	case 0:
+		m.notice = "Nobody you follow is live now."
+		return nil
+	case 1:
+		return m.watchLive(live[0].Live)
+	}
+	m.pickerGeneration++
+	d := &picker{kind: "live", title: "Live now", intro: "Watch a stream in your browser.", generation: m.pickerGeneration}
+	for _, person := range live {
+		d.rows = append(d.rows, pickerRow{person: &person, label: person.Name, note: "@" + person.Handle})
+	}
+	m.picker = d
+	return m.syncImages()
+}
+
 // watchLive opens a live person's stream, from their profile or the Live now aside.
 func (m *AppModel) watchLive(live *auth.LiveStream) tea.Cmd {
 	if !live.On(m.now) {

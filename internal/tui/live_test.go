@@ -247,3 +247,27 @@ func TestGoLiveIsNotDrawnLikeADestructiveAction(t *testing.T) {
 		}
 	}
 }
+
+func TestWatchShortcutOpensTheOnlyStreamOrAsksWhichOne(t *testing.T) {
+	m, log := liveApp(t)
+	m = settle(t, m, "W")
+	if m.notice != "Nobody you follow is live now." || len(log.opened) != 0 {
+		t.Fatalf("W with nobody live: %q %v", m.notice, log.opened)
+	}
+	log.people = []api.User{{ID: "id-linus", Handle: "linus", Name: "Linus", Live: stream(m, "twitch", time.Hour)}}
+	m = settleCmd(m, m.fetchLiveNow())
+	m = settle(t, m, "W")
+	if m.picker != nil || strings.Join(log.opened, " ") != "https://www.twitch.tv/twitch-stream" {
+		t.Fatalf("W with one stream: picker %v, opened %v", m.picker != nil, log.opened)
+	}
+	log.people = append(log.people, api.User{ID: "id-grace", Handle: "grace", Name: "Grace", Live: stream(m, "youtube", time.Hour)})
+	m = settleCmd(m, m.fetchLiveNow())
+	m = settle(t, m, "W")
+	if m.picker == nil || m.picker.kind != "live" || !strings.Contains(frameText(m), "@grace") {
+		t.Fatalf("W with two streams did not ask which one:\n%s", frameText(m))
+	}
+	m = pickSecond(m)
+	if m.picker != nil || log.opened[len(log.opened)-1] != "https://www.twitch.tv/youtube-stream" {
+		t.Fatalf("picking the second stream: %v", log.opened)
+	}
+}

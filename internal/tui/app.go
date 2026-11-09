@@ -91,6 +91,14 @@ type AppModel struct {
 	viewer                                 viewerState
 	deleting                               deleteConfirm
 	deletingID                             string
+	undo                                   undoState
+	pinning                                string
+	ask                                    *ask
+	picker                                 *picker
+	pickerGeneration                       int
+	translations                           map[string]translation
+	scheduled                              *scheduledList
+	commitCalls                            commitCalls
 	toast                                  toastNotice
 	whatsNew                               whatsNewState
 	updates                                Updates
@@ -340,6 +348,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case submissionResult:
 		cmd := m.acceptSubmission(msg)
 		return m, cmd
+	case scheduleResult:
+		return m, m.acceptSchedule(msg)
 	case previewResult:
 		cmd := m.acceptPreview(msg)
 		return m, cmd
@@ -362,6 +372,24 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case deleteResult:
 		cmd := m.acceptDelete(msg)
 		return m, cmd
+	case commitPinCheck:
+		return m, m.acceptCommitPinCheck(msg)
+	case commitPinResult:
+		return m, m.acceptCommitPin(msg)
+	case stargazersResult:
+		return m, m.acceptStargazers(msg)
+	case translationResult:
+		return m, m.acceptTranslation(msg)
+	case relatedResult:
+		return m, m.acceptRelated(msg)
+	case scheduledResult:
+		return m, m.acceptScheduled(msg)
+	case scheduledActionResult:
+		return m, m.acceptScheduledAction(msg)
+	case undoTick:
+		return m, m.acceptUndoTick(msg)
+	case restoreResult:
+		return m, m.acceptRestore(msg)
 	case profileResult:
 		if msg.profile.Pinned != nil {
 			commits := m.safeCommitsFor([]api.Commit{*msg.profile.Pinned}, true)
@@ -641,6 +669,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next, cmd := m.achievementsKey(msg.String())
 			return next, cmd
 		}
+		if m.connected && !m.accountOpen && m.ask != nil && msg.String() != "ctrl+c" {
+			next, cmd := m.askKey(msg.String())
+			return next, cmd
+		}
+		if m.connected && !m.accountOpen && m.picker != nil && msg.String() != "ctrl+c" {
+			next, cmd := m.listPickerKey(msg.String())
+			return next, cmd
+		}
 		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
 			cmd := m.deleteKey(msg.String())
 			return m, cmd
@@ -771,6 +807,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.organizationCalls.load == nil {
 			m.organizationCalls = newOrganizationCalls(client)
 		}
+		if m.commitCalls.related == nil {
+			m.commitCalls = newCommitCalls(client)
+		}
 		if m.liveCalls.goLive == nil {
 			m.liveCalls = newLiveCalls(client)
 		}
@@ -849,12 +888,13 @@ func (m *AppModel) leaveApplication() {
 	m.closeSearch()
 	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
-	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}
+	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls, m.commitCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}, commitCalls{}
 	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
 	m.closeViewer()
-	m.deleting, m.deletingID = deleteConfirm{}, ""
+	m.deleting, m.deletingID, m.undo = deleteConfirm{}, "", undoState{}
+	m.pinning, m.translations, m.ask, m.picker = "", nil, nil, nil
 	m.vote, m.unfolded = voteState{}, nil
 	if m.images != nil {
 		m.images.Forget()
@@ -1018,6 +1058,12 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if pressed == "L" && !m.pendingG {
 		return m, m.toggleLive()
 	}
+	if pressed == "z" && !m.pendingG && m.undo.id != "" {
+		return m, m.startUndo()
+	}
+	if pressed == "W" && !m.pendingG && !m.profileOnTop() {
+		return m, m.watchLiveNow()
+	}
 	if m.threadOnTop() && !m.pendingG && pressed != "g" {
 		next, cmd, handled := m.threadKey(pressed)
 		if handled || (pressed != "c" && pressed != "a") {
@@ -1054,6 +1100,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.openProfile(m.account.user.Handle)
 		case "s":
 			return m.openStarred()
+		case "t":
+			return m.openScheduled()
 		case "r":
 			return m.openRemotes()
 		case ",":
@@ -1078,7 +1126,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	case "c":
 		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
-	case "enter", "r", "q", "v", "D", "s", "p", "u", "y", "Q", "T":
+	case "enter", "r", "q", "v", "D", "s", "p", "u", "y", "Q", "T", "S", "P", "t", "x":
 		f := &m.feeds[m.active]
 		if len(f.commits) == 0 {
 			return m, nil
@@ -1299,9 +1347,9 @@ func (m AppModel) feedStatus() string {
 	}
 	if m.pendingG {
 		if m.remotesEnabled() {
-			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  (1 second)"
+			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  t Scheduled  (1 second)"
 		}
-		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  (1 second)"
+		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  t Scheduled  (1 second)"
 	}
 	if m.profileOnTop() && m.notice == "" {
 		return m.profileStatus()

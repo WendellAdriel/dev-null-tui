@@ -88,6 +88,10 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		if r.contains(msg.X, msg.Y) {
 			if msg.Y == r.y+1 && msg.X >= r.x+r.w-4 {
 				m.toast.visible = false
+				return m, nil
+			}
+			if m.undo.id != "" && m.toast.id == m.undo.toast {
+				return m, m.startUndo()
 			}
 			return m, nil
 		}
@@ -143,6 +147,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
+	if m.connected && !m.accountOpen && m.ask != nil {
+		return m.askMouse(msg.X, msg.Y)
+	}
+	if m.connected && !m.accountOpen && m.picker != nil {
+		return m.listPickerMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.deleting.id != "" {
 		_, _, areas := m.deleteModal(colors(m.account.dark))
 		for _, area := range areas {
@@ -197,6 +207,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 			cmd := m.openSearch(tag)
 			return m, cmd
 		}
+		if link := linkAt(lines[msg.Y], msg.X); link != "" {
+			return m, m.clickLink(link)
+		}
+		if id := starsAt(lines[msg.Y], msg.X); id != "" {
+			return m, m.openStargazersFor(id)
+		}
 	}
 	nav, center, aside := m.columns()
 	left := (m.account.width - nav - center - aside - 2) / 2
@@ -217,6 +233,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				}
 				if area.action == "starred" {
 					return m.openStarred()
+				}
+				if area.action == "scheduled" {
+					return m.openScheduled()
 				}
 				if area.action == "remotes" {
 					return m.openRemotes()
@@ -356,8 +375,15 @@ func (m *AppModel) dragComposer(x, y int) {
 }
 
 func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
-	if m.composer.confirm != "" || m.deleting.id != "" || m.live != nil || m.vote.confirm || m.settings.dialog != "" {
+	if m.composer.confirm != "" || m.deleting.id != "" || m.live != nil || m.vote.confirm || m.settings.dialog != "" || m.ask != nil {
 		return m, nil
+	}
+	if m.picker != nil && m.connected && !m.accountOpen {
+		pressed := "down"
+		if msg.Button == tea.MouseWheelUp {
+			pressed = "up"
+		}
+		return m.listPickerKey(pressed)
 	}
 	code := tea.KeyDown
 	if msg.Button == tea.MouseWheelUp {

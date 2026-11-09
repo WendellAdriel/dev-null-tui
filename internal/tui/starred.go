@@ -33,6 +33,10 @@ func (m *AppModel) closeStarred() {
 	m.starredOpen = false
 	m.starredRemoved = nil
 	m.commitSearch = ""
+	if m.scheduled != nil && m.scheduled.cancelRequested != nil {
+		m.scheduled.cancelRequested()
+	}
+	m.scheduled = nil
 }
 
 func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("") }
@@ -203,6 +207,9 @@ func (m *AppModel) selectStarred(index int) tea.Cmd {
 }
 
 func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
+	if m.scheduled != nil {
+		return m.scheduledKey(pressed)
+	}
 	f := &m.starred
 	switch pressed {
 	case "esc":
@@ -255,6 +262,9 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) starredStatus() string {
+	if m.scheduled != nil {
+		return m.scheduledStatusLine()
+	}
 	f := m.starred
 	if f.status != "" {
 		return f.status

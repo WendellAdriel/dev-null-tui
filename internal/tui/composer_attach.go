@@ -291,6 +291,9 @@ func (m AppModel) stripView(width int, p palette) string {
 		if reason := c.pollBlocked(); reason != "" {
 			hint = "Ctrl+O or drop images · Poll unavailable: " + strings.TrimSuffix(reason, ".")
 		}
+		if c.mode == "" && m.commitCalls.schedule != nil {
+			hint += " · Ctrl+T schedule"
+		}
 		return text(p.muted).Render(fit(hint, width))
 	}
 	thumbnails := rows == stripThumbRows+2 && m.stripThumbnails()

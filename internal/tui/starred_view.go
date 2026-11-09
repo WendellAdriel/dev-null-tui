@@ -16,6 +16,10 @@ func (m *AppModel) renderStarred() {
 	if !m.starredOpen {
 		return
 	}
+	if m.scheduled != nil {
+		m.renderScheduled()
+		return
+	}
 	f, p := &m.starred, colors(m.account.dark)
 	width := max(1, f.viewport.Width())
 	day := ""
@@ -56,8 +60,15 @@ func (m *AppModel) sizeStarred() {
 	if !m.starredOpen {
 		return
 	}
-	f := &m.starred
 	_, width, _ := m.columns()
+	if s := m.scheduled; s != nil {
+		s.viewport.SetWidth(width)
+		s.viewport.SetHeight(max(1, m.mainHeight()-starredHeaderHeight))
+		m.renderScheduled()
+		m.revealScheduledSelection()
+		return
+	}
+	f := &m.starred
 	offset := f.viewport.YOffset()
 	if f.selected < len(f.starts) {
 		offset -= f.starts[f.selected]
@@ -84,6 +95,9 @@ func (m *AppModel) revealStarredSelection() {
 }
 
 func (m AppModel) starredColumn(width int, p palette) string {
+	if m.scheduled != nil {
+		return m.scheduledColumn(width, p)
+	}
 	line := text(p.hairline).Render(strings.Repeat("─", width))
 	header := split(text(p.ink).Bold(true).Render("Starred"), text(p.muted).Render(m.icons.lock+" Only you"), width-4)
 	about := "Commits you starred, newest first."
@@ -100,6 +114,9 @@ func (m AppModel) starredColumn(width int, p palette) string {
 }
 
 func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys {
+	if m.scheduled != nil {
+		return m.scheduledBindings(bind)
+	}
 	short := []key.Binding{bind("j/k", "move"), bind("enter", "open thread")}
 	if c, ok := m.focusedEngagementCommit(); ok && hasProfile(c.Author) {
 		short = append(short, bind("u", "author profile"))
@@ -121,6 +138,9 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 }
 
 func (m AppModel) starredMouse(x, y int) (AppModel, tea.Cmd) {
+	if m.scheduled != nil {
+		return m.scheduledMouse(x, y)
+	}
 	if y < starredHeaderHeight || y >= m.mainHeight() {
 		return m, nil
 	}

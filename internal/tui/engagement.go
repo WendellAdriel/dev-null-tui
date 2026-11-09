@@ -186,7 +186,7 @@ func (m *AppModel) eachCommit(update func(*api.Commit)) {
 	for i := range m.threads {
 		t := &m.threads[i]
 		update(&t.root)
-		for _, list := range [][]api.Commit{t.ancestors, t.replies} {
+		for _, list := range [][]api.Commit{t.ancestors, t.replies, t.related} {
 			for j := range list {
 				update(&list[j])
 			}

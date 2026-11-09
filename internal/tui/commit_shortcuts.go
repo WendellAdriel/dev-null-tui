@@ -21,6 +21,14 @@ func (m *AppModel) commitShortcut(c api.Commit, pressed string) (tea.Cmd, bool) 
 			return nil, true
 		}
 		return m.copyCommitText(c), true
+	case "S":
+		return m.openStargazers(c), true
+	case "P":
+		return m.startPin(c), true
+	case "t":
+		return m.toggleTranslation(c), true
+	case "x":
+		return m.openLinks(m.commitLinks(c)), true
 	}
 	return nil, false
 }

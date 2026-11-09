@@ -35,6 +35,7 @@ type threadState struct {
 	widths             []int
 	pictures           []pictureArea
 	actions            []hitArea
+	related            []api.Commit
 	ctx                context.Context
 	cancel             context.CancelFunc
 }
@@ -61,6 +62,7 @@ type repliesResult struct {
 type deleteResult struct {
 	session int
 	id      string
+	sentAt  time.Time
 	err     error
 }
 
@@ -149,6 +151,9 @@ func (m *AppModel) acceptThread(msg threadResult) tea.Cmd {
 	t.root, t.ancestors = msg.thread.Commit, msg.thread.Ancestors
 	m.renderThread(t)
 	m.revealThreadSelection(t)
+	if t.related == nil {
+		return m.loadRelated(t)
+	}
 	return nil
 }
 
@@ -219,9 +224,16 @@ func (t threadState) entries() []threadEntry {
 	focus := t.root
 	focus.Preview = nil
 	entries = append(entries, threadEntry{focus, 0, "focus"})
-	if t.hidden {
-		return entries
+	if !t.hidden {
+		entries = t.replyEntries(entries)
 	}
+	for _, c := range t.related {
+		entries = append(entries, threadEntry{c, 0, "related"})
+	}
+	return entries
+}
+
+func (t threadState) replyEntries(entries []threadEntry) []threadEntry {
 	for _, c := range t.replies {
 		kind := "reply"
 		if c.QuotedID != nil && *c.QuotedID == t.root.ID && (c.ParentID == nil || *c.ParentID != t.root.ID) {
@@ -419,6 +431,10 @@ func (m *AppModel) deleteKey(pressed string) tea.Cmd {
 }
 
 func (m *AppModel) confirmDelete(commit api.Commit) {
+	if m.undo.restoring {
+		m.notice = "Wait for the restore to finish before deleting another commit."
+		return
+	}
 	if m.ownCommit(commit) && m.deletingID == "" {
 		m.deleting = deleteConfirm{id: commit.ID}
 	}
@@ -431,7 +447,8 @@ func (m *AppModel) startDelete() tea.Cmd {
 	return life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(life.ctx, 30*time.Second)
 		defer cancel()
-		return deleteResult{session: session, id: id, err: remove(ctx, id)}
+		sentAt := time.Now()
+		return deleteResult{session: session, id: id, sentAt: sentAt, err: remove(ctx, id)}
 	})
 }
 
@@ -448,6 +465,7 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 		}
 		return m.notify("error", "Delete failed", safeText(msg.err.Error())+". The commit is unchanged.")
 	}
+	m.rememberSpots(msg.id, msg.sentAt)
 	tombstone := func(c *api.Commit) {
 		if c.ID == msg.id {
 			deleted := m.now
@@ -462,6 +480,9 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 		}
 		for j := range t.replies {
 			tombstone(&t.replies[j])
+		}
+		for j := range t.related {
+			tombstone(&t.related[j])
 		}
 		for _, children := range t.children {
 			for j := range children {
@@ -511,5 +532,9 @@ func (m *AppModel) acceptDelete(msg deleteResult) tea.Cmd {
 		m.closeViewer()
 	}
 	reload := m.removeStarred(msg.id)
-	return tea.Batch(reload, m.notify("success", "Commit deleted", "It is gone from your logs. Deletion cannot be undone."))
+	if missing {
+		m.undo = undoState{}
+		return tea.Batch(reload, m.notify("success", "Commit deleted", "It is gone from your logs."))
+	}
+	return tea.Batch(reload, m.offerUndo())
 }

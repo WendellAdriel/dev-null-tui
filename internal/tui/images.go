@@ -135,6 +135,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if m.achievements != nil {
 		stars = append(stars, m.achievementsMedia(p)...)
 	}
+	if m.picker != nil {
+		avatars = append(m.listPickerMedia(p), avatars...)
+	}
 	if nav, _, _ := m.columns(); nav >= 12 {
 		stars = append(stars, logoRequest(m.account.dark))
 	}

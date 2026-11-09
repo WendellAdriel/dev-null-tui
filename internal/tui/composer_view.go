@@ -46,6 +46,9 @@ func (m AppModel) composerStatusRows() int {
 
 func (m AppModel) composerLabels() []string {
 	preview, submit := "Preview", "Submit"
+	if m.composer.scheduleAt != nil {
+		submit = "Schedule"
+	}
 	if m.composer.previewing {
 		preview = "Edit"
 	}
@@ -172,6 +175,9 @@ func (m AppModel) composerView(width int, p palette) string {
 	if c.uncertain && c.status == "" {
 		status = "Previous outcome unknown. Check the web before submitting again."
 	}
+	if notice := m.scheduleNotice(); notice != "" && status == "" {
+		status = notice
+	}
 	statusView := ansi.Wrap(safeText(status), inner, "")
 	if labels := c.suggest.labels(); len(labels) > 0 {
 		var suggestions []string
@@ -189,6 +195,8 @@ func (m AppModel) composerView(width int, p palette) string {
 		rows[len(rows)-1] = m.browserView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if c.picker != nil {
 		rows[len(rows)-1] = m.authorPickerView(inner, c.input.Height()+m.composerStatusRows(), p)
+	} else if c.schedule != nil {
+		rows[len(rows)-1] = m.scheduleView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if height := m.composerStatusRows(); height > 0 {
 		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
 	}

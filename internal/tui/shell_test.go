@@ -187,10 +187,14 @@ func TestSidebarButtonsAreCompactFilledAndCentered(t *testing.T) {
 			if target.action != "c" {
 				continue
 			}
-			if target.h != 1 {
-				t.Fatal("commit button must occupy one row")
+			rows := map[int]int{5: 1, 25: 3}[width]
+			if target.h != rows {
+				t.Fatalf("commit button at width %d takes %d rows, want %d", width, target.h, rows)
 			}
-			line := lines[target.y]
+			if blank := strings.TrimSpace(ansi.Strip(lines[target.y-1])); blank != "" || strings.TrimSpace(ansi.Strip(lines[target.y-2])) != "" {
+				t.Fatal("commit button needs two blank rows above it")
+			}
+			line := lines[target.y+target.h/2]
 			plain := ansi.Strip(line)
 			if !strings.Contains(line, "48;2;") {
 				t.Fatal("commit button is not filled")
