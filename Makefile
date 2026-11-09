@@ -1,8 +1,9 @@
 GO ?= go
 GOLANGCI_LINT ?= golangci-lint
 GOVULNCHECK ?= govulncheck
+GOHAWK ?= gohawk
 
-.PHONY: fmt fmt-check lint test test-race coverage vuln verify build build-all check
+.PHONY: fmt fmt-check lint hawk test test-race coverage vuln verify build build-all check
 
 fmt:
 	$(GOLANGCI_LINT) fmt
@@ -12,6 +13,9 @@ fmt-check:
 
 lint:
 	$(GOLANGCI_LINT) run ./...
+
+hawk:
+	$(GOHAWK) -enable-all ./...
 
 test:
 	$(GO) test ./...
@@ -34,4 +38,4 @@ build:
 build-all:
 	$(GO) run ./tools/build
 
-check: fmt-check lint verify test vuln
+check: fmt-check lint hawk verify test vuln

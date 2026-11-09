@@ -24,6 +24,7 @@ jobs:
         shell: bash
         env:
           GOVULNCHECK_VERSION: v1.9.0
+          GOHAWK_VERSION: v0.7.2
         run: |
           version="$(cat "$GITHUB_WORKSPACE/.golangci-lint-version")"
           archive="golangci-lint-${version}-linux-amd64.tar.gz"
@@ -34,6 +35,7 @@ jobs:
           tar -xzf "$archive"
           echo "$RUNNER_TEMP/golangci-lint-${version}-linux-amd64" >> "$GITHUB_PATH"
           GOBIN="$RUNNER_TEMP/go-tools" go install "golang.org/x/vuln/cmd/govulncheck@$GOVULNCHECK_VERSION"
+          GOBIN="$RUNNER_TEMP/go-tools" go install "github.com/kojah/gohawk@$GOHAWK_VERSION"
           echo "$RUNNER_TEMP/go-tools" >> "$GITHUB_PATH"
       - run: golangci-lint version
       - run: make check
