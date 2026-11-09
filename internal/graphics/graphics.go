@@ -368,7 +368,10 @@ func (m *Manager) Fetch(job Job) Result {
 	return result
 }
 
-func AvatarURL(raw string) string {
+func AvatarURL(raw string) string { return AvatarSizedURL(raw, 96) }
+
+// AvatarSizedURL asks GitHub for an avatar at size pixels, and leaves any other address as it is.
+func AvatarSizedURL(raw string, size int) string {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.Host != "avatars.githubusercontent.com" || u.User != nil || u.Fragment != "" {
 		return raw
@@ -377,7 +380,7 @@ func AvatarURL(raw string) string {
 	if err != nil || query.Has("s") {
 		return raw
 	}
-	query.Set("s", "96")
+	query.Set("s", strconv.Itoa(size))
 	u.RawQuery = query.Encode()
 	return u.String()
 }

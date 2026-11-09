@@ -140,3 +140,30 @@ func TestBadgeIconsTintTheWebIconsInTheRingColor(t *testing.T) {
 		t.Fatal("an unknown badge icon was accepted")
 	}
 }
+
+func TestChristmasLogoWearsTheWebSantaHat(t *testing.T) {
+	red := func(kind string) int {
+		im, err := prepareLogo(Request{Icon: kind, Cols: 23, Rows: 2})
+		if err != nil {
+			t.Fatalf("%s: %v", kind, err)
+		}
+		count := 0
+		for y := range im.Bounds().Dy() {
+			for x := range im.Bounds().Dx() {
+				c := im.NRGBAAt(x, y)
+				if c.A > 200 && c.R > 180 && c.G < 90 && c.B < 90 {
+					count++
+				}
+			}
+		}
+		return count
+	}
+	for _, mode := range []string{"dark", "light"} {
+		if !validIcon("logo-"+mode+"-santa") || !embeddedIcon("logo-"+mode+"-santa") {
+			t.Fatalf("logo-%s-santa must be a local icon", mode)
+		}
+		if plain, hat := red("logo-"+mode), red("logo-"+mode+"-santa"); hat <= plain+20 {
+			t.Fatalf("%s: the hat must add red pixels (plain %d, hat %d)", mode, plain, hat)
+		}
+	}
+}

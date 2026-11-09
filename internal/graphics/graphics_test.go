@@ -294,3 +294,15 @@ func TestDownloadFetchesSmallFilesAndRefusesUnsafeOrLargeOnes(t *testing.T) {
 		}
 	}
 }
+
+func TestAvatarURLsAskGitHubForASize(t *testing.T) {
+	if got := AvatarSizedURL("https://avatars.githubusercontent.com/u/1?v=4", 1024); got != "https://avatars.githubusercontent.com/u/1?s=1024&v=4" {
+		t.Fatal(got)
+	}
+	if got := AvatarURL("https://avatars.githubusercontent.com/u/1"); got != "https://avatars.githubusercontent.com/u/1?s=96" {
+		t.Fatal(got)
+	}
+	if got := AvatarSizedURL("https://example.test/me.png", 1024); got != "https://example.test/me.png" {
+		t.Fatal(got)
+	}
+}
