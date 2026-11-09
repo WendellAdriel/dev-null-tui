@@ -300,13 +300,20 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	}
 	if u.Bio != "" {
 		frame.add("")
-		for _, line := range strings.Split(ansi.Wrap(remoteBody(u.Bio), inner, ""), "\n") {
-			frame.add(pad + text(p.ink).Render(fit(line, inner)))
+		lines, avatars := m.bioLines(u.Bio, profile.BioProfiles, inner, p)
+		for _, line := range lines {
+			frame.show(bioAvatarsOn(line, avatars)...)
+			frame.add(pad + fit(line, inner))
 		}
 	}
 	var meta []string
+	var companyAvatars []graphics.Request
+	if company := strings.TrimSpace(strings.ReplaceAll(remoteBody(u.Company), "\n", " ")); company != "" {
+		lines, avatars := m.bioLines(company, profile.BioProfiles, 0, p)
+		companyAvatars = avatars
+		meta = append(meta, text(p.muted).Render(m.icons.company+" ")+lines[0])
+	}
 	for _, item := range []struct{ icon, value, color string }{
-		{m.icons.company, safeText(u.Company), p.muted},
 		{m.icons.location, safeText(u.Location), p.muted},
 		{m.icons.link, displayURL(u.Website), p.blue},
 		{m.icons.github, displayURL(u.GitHubURL), p.blue},
@@ -321,6 +328,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	if len(meta) > 0 {
 		frame.add("")
 		for _, row := range spread(meta, inner, "   ") {
+			frame.show(bioAvatarsOn(row, companyAvatars)...)
 			frame.add(pad + row)
 		}
 	}
