@@ -257,10 +257,17 @@ func (m *AppModel) renderNotifications() {
 			bodyWidth = max(1, bodyWidth-2)
 		}
 		rows := m.notificationRows(n, bodyWidth, p, member)
-		if i == f.selected && hasProfile(n.Actor) {
-			chip := text(p.ink).Render("Profile") + " " + keyChip("u", p)
-			f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines) + len(rows), lipgloss.Width(chip), 1}, "u", i})
-			rows = append(rows, chip)
+		if i == f.selected {
+			row, x := "", gutter
+			for _, action := range notificationChips(entry) {
+				chip := text(p.ink).Render(action[0]) + " " + keyChip(action[1], p)
+				f.actions = append(f.actions, hitArea{uiRect{x, len(lines) + len(rows), lipgloss.Width(chip), 1}, action[1], i})
+				row += chip + "   "
+				x += lipgloss.Width(chip) + 3
+			}
+			if row != "" {
+				rows = append(rows, strings.TrimRight(row, " "))
+			}
 		}
 		ring := len(rows)
 		if !member {
@@ -357,6 +364,18 @@ func (m *AppModel) renderNotifications() {
 		lines = append(lines, "       "+text(p.blue).Render("n Older notifications"))
 	}
 	f.viewport.SetContent(strings.Join(lines, "\n"))
+}
+
+// notificationChips are the selected entry's labeled shortcuts: Enter opens its commit, u its actor.
+func notificationChips(entry notificationEntry) [][2]string {
+	var chips [][2]string
+	if entry.notification.Commit != nil {
+		chips = append(chips, [2]string{"Open", "enter"})
+	}
+	if hasProfile(entry.notification.Actor) {
+		chips = append(chips, [2]string{"Profile", "u"})
+	}
+	return chips
 }
 
 func (m AppModel) notificationMouse(x, y int) (AppModel, tea.Cmd) {

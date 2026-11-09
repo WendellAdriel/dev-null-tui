@@ -245,3 +245,23 @@ func TestNotificationBadgeKeepsNavigationShortcutVisible(t *testing.T) {
 		t.Fatalf("badge clipped shortcut: %q", notificationRow)
 	}
 }
+
+func TestSelectedNotificationShowsOpenAndProfileChips(t *testing.T) {
+	m := inboxPage(inboxFixture(t), fixtureNotification("a"))
+	content := ansi.Strip(m.notificationFeed().viewport.GetContent())
+	if !strings.Contains(content, "Open  enter") || !strings.Contains(content, "Profile  u") {
+		t.Fatalf("selected notification lacks its Open and Profile chips:\n%s", content)
+	}
+	var open hitArea
+	for _, area := range m.notificationFeed().actions {
+		if area.action == "enter" {
+			open = area
+		}
+	}
+	_, width, _ := m.columns()
+	header, _ := m.notificationHeader(width, colors(true))
+	m, _ = m.notificationMouse(open.x, open.y+lipgloss.Height(header)-m.notificationFeed().viewport.YOffset())
+	if len(m.threads) != 1 {
+		t.Fatal("clicking Open did not open the commit")
+	}
+}
