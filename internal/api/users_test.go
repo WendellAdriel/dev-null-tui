@@ -124,3 +124,31 @@ func TestFollowUsesSignedNoContentWrites(t *testing.T) {
 		t.Fatal("unsafe follow handle")
 	}
 }
+
+func TestSuggestedUsersAskForTheirContextAndDismissalsPost(t *testing.T) {
+	var requests []string
+	client := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		requests = append(requests, r.Method+" "+r.URL.RequestURI())
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		_, _ = io.WriteString(w, `{"data":[{"id":"u2","handle":"grace","name":"Grace","followers_count":3,"is_followed":false,"followed_by_following_count":2}]}`)
+	})
+	people, err := client.SuggestedUsers(t.Context(), SuggestionQuery{Round: 2, Handle: "ada"})
+	if err != nil || len(people) != 1 || people[0].Handle != "grace" || people[0].FollowedByFollowing != 2 || people[0].Followers == nil {
+		t.Fatalf("suggestions: %+v %v", people, err)
+	}
+	if _, err := client.SuggestedUsers(t.Context(), SuggestionQuery{CommitID: "c-1"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.DismissSuggestion(t.Context(), "grace"); err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(requests) != "[GET /api/v1/me/suggested-users?handle=ada&round=2 GET /api/v1/me/suggested-users?commit_id=c-1 POST /api/v1/users/grace/dismiss]" {
+		t.Fatal(requests)
+	}
+	if _, err := client.SuggestedUsers(t.Context(), SuggestionQuery{Handle: "ada", CommitID: "c-1"}); err == nil {
+		t.Fatal("a handle and a commit together must be refused, as the server prohibits them")
+	}
+}

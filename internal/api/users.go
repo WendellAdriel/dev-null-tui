@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -166,4 +167,69 @@ func (c *Client) SetFollow(ctx context.Context, handle string, follow bool) erro
 		return c.transport.Post(ctx, path+"/follow")
 	}
 	return c.transport.Delete(ctx, path+"/follow")
+}
+
+// SuggestedUser is a Who to follow suggestion, with how many people the user follows follow them.
+type SuggestedUser struct {
+	User
+	FollowedByFollowing int `json:"followed_by_following_count"`
+}
+
+// SuggestionQuery asks for a round of suggestions. Beside a profile or a commit, the server puts the people that
+// developer follows, or the thread's participants, first. The server refuses a handle and a commit together.
+type SuggestionQuery struct {
+	Round            int
+	Handle, CommitID string
+}
+
+// SuggestedUsers is Who to follow: three people to show, then spares that take a dismissed person's place.
+func (c *Client) SuggestedUsers(ctx context.Context, q SuggestionQuery) ([]SuggestedUser, error) {
+	query := url.Values{}
+	switch {
+	case q.Handle != "" && q.CommitID != "":
+		return nil, errors.New("suggestions take a handle or a commit, not both")
+	case q.Handle != "" && !handlePattern.MatchString(q.Handle):
+		return nil, errors.New("invalid handle")
+	case q.CommitID != "" && !commitID.MatchString(q.CommitID):
+		return nil, errors.New("invalid commit")
+	case q.Round < 0:
+		return nil, errors.New("invalid round")
+	}
+	if q.Handle != "" {
+		query.Set("handle", q.Handle)
+	}
+	if q.CommitID != "" {
+		query.Set("commit_id", q.CommitID)
+	}
+	if q.Round > 0 {
+		query.Set("round", strconv.Itoa(q.Round))
+	}
+	path := "/api/v1/me/suggested-users"
+	if len(query) > 0 {
+		path += "?" + query.Encode()
+	}
+	var result struct {
+		Data []SuggestedUser `json:"data"`
+	}
+	if err := c.transport.GetJSON(ctx, path, &result); err != nil {
+		return nil, err
+	}
+	if result.Data == nil {
+		return nil, errors.New("server returned invalid suggestions")
+	}
+	for _, person := range result.Data {
+		if person.ID == "" || !handlePattern.MatchString(person.Handle) {
+			return nil, errors.New("server returned an invalid person")
+		}
+	}
+	return result.Data, nil
+}
+
+// DismissSuggestion is Not interested: the person is never suggested again, and nothing else changes.
+func (c *Client) DismissSuggestion(ctx context.Context, handle string) error {
+	path, err := userPath(handle)
+	if err != nil {
+		return err
+	}
+	return c.transport.Post(ctx, path+"/dismiss")
 }
