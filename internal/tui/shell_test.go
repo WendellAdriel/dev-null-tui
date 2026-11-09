@@ -73,7 +73,7 @@ func TestReaderHasAuthorIdentityAndComposerEntry(t *testing.T) {
 	m := fixtureApp(t)
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{fixtureCommit("a")}})
 	plain := ansi.Strip(m.View().Content)
-	for _, value := range []string{"●", "Ada Fixture", "@ada", "What did you ship?", "c Commit"} {
+	for _, value := range []string{"●", "Ada Fixture", "@ada", "What did you ship?", " Commit  c "} {
 		if !strings.Contains(plain, value) {
 			t.Fatalf("workspace lost identity or active reading control %q", value)
 		}

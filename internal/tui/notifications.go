@@ -21,6 +21,7 @@ type notificationFeed struct {
 	viewport             viewport.Model
 	starts, ends         []int
 	actions              []hitArea
+	avatars              []avatarHit
 	selected, generation int
 	loaded, loading      bool
 	next, status         string

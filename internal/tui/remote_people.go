@@ -21,15 +21,17 @@ import (
 
 // peopleDialog is one of the people dialogs. Mode is "remote", "org", or "add", and org is the org people are added to.
 type peopleDialog struct {
-	mode       string
-	org        api.Conversation
-	name       string
-	query      string
-	field      int
-	results    []api.Candidate
-	index      int
-	picks      []api.User
-	share      bool
+	mode    string
+	org     api.Conversation
+	name    string
+	query   string
+	field   int
+	results []api.Candidate
+	index   int
+	picks   []api.User
+	share   bool
+	// commit is what Send in Remotes sends.
+	commit     api.Commit
 	loading    bool
 	sending    bool
 	err        string
@@ -157,7 +159,7 @@ func (m *AppModel) peopleKey(pressed string) tea.Cmd {
 		return nil
 	case "enter":
 		switch {
-		case p.field == peopleList || (p.mode == "remote" && len(p.results) > 0):
+		case p.field == peopleList || ((p.mode == "remote" || p.mode == "share") && len(p.results) > 0):
 			return m.choosePerson()
 		case p.field == peopleShare:
 			p.share = !p.share
@@ -232,6 +234,8 @@ func (m *AppModel) acceptPeopleTick(msg peopleSearchTick) tea.Cmd {
 		query.For = api.ForOrg
 	case "add":
 		query.For, query.Org = "", p.org.ID
+	case "share":
+		query.For = api.ForShare
 	}
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	p.cancel = cancel
@@ -257,6 +261,9 @@ func (m *AppModel) acceptPeopleResult(msg peopleSearchResult) tea.Cmd {
 		return nil
 	}
 	p.results = msg.candidates
+	if p.mode == "share" {
+		p.results = slices.DeleteFunc(slices.Clone(p.results), func(c api.Candidate) bool { return c.User.ID == m.account.user.ID })
+	}
 	p.index = max(0, min(p.index, len(p.results)-1))
 	if len(p.results) == 0 && p.field == peopleList {
 		p.field = peopleSearch
@@ -278,9 +285,13 @@ func (m *AppModel) choosePerson() tea.Cmd {
 	if p.reason(candidate) != "" {
 		return nil
 	}
-	if p.mode == "remote" {
+	switch p.mode {
+	case "remote":
 		m.closePeople()
 		return m.openPerson(candidate.User)
+	case "share":
+		m.confirmShare(p.commit, candidate.User)
+		return nil
 	}
 	if p.room() > 0 {
 		p.picks = append(p.picks, candidate.User)
@@ -301,7 +312,7 @@ func (m *AppModel) openPerson(user api.User) tea.Cmd {
 
 func (m *AppModel) savePeople() tea.Cmd {
 	p := m.remotes.people
-	if p.mode == "remote" || len(p.picks) == 0 || p.full() || p.sending {
+	if p.mode == "remote" || p.mode == "share" || len(p.picks) == 0 || p.full() || p.sending {
 		return nil
 	}
 	p.sending, p.err = true, ""
@@ -387,6 +398,8 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 		title, subtitle = "New org", "You maintain it. Everyone you add contributes."
 	case "add":
 		title, subtitle = "Add people", "They join as contributors."
+	case "share":
+		title = "Send commit in Remotes"
 	}
 	rect := centeredRect(max(1, m.account.width), max(1, m.account.height), 60, peopleRows+12)
 	width := max(1, rect.w-4)
@@ -415,7 +428,11 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 	if p.mode == "org" {
 		add(field(p.name, "Name it (optional)", p.field == peopleName), "name")
 	}
-	add(text(pal.muted).Render("/ ")+field(p.query, "Find people by name or @handle", p.field == peopleSearch), "search")
+	placeholder := "Find people by name or @handle"
+	if p.mode == "share" {
+		placeholder = "Find a developer"
+	}
+	add(text(pal.muted).Render("/ ")+field(p.query, placeholder, p.field == peopleSearch), "search")
 	add("", "")
 	term := searchTerm(p.query)
 	switch {
@@ -436,7 +453,7 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 		picked := p.picked(candidate.User.Handle) >= 0
 		reason := p.reason(candidate)
 		marker := " "
-		if p.mode != "remote" {
+		if p.mode != "remote" && p.mode != "share" {
 			marker = "○"
 			if picked {
 				marker = text(pal.blue).Render("●")
@@ -473,9 +490,12 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 	}
 	var footer string
 	var footerAreas []hitArea
-	if p.mode == "remote" {
+	switch p.mode {
+	case "remote":
 		footer = text(pal.muted).Render(fit("type to search · ↑/↓ choose · enter open · esc close", width))
-	} else {
+	case "share":
+		footer = text(pal.muted).Render(fit("type to search · ↑/↓ choose · enter send · esc close", width))
+	default:
 		verb := "Create org"
 		if p.mode == "add" {
 			verb = fmt.Sprintf("Add %d", len(p.picks))
@@ -499,7 +519,7 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 
 func (m AppModel) peopleMouse(x, y int) (AppModel, tea.Cmd) {
 	p := m.remotes.people
-	_, rect, areas := m.peopleModal(colors(m.account.dark))
+	_, rect, areas := m.peopleModal(m.account.colors())
 	if p.sending {
 		return m, nil
 	}

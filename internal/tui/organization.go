@@ -68,6 +68,11 @@ func (m AppModel) organizationKey(s *profileState, pressed string) (AppModel, te
 		return m, m.startOrganizationFollow(s.handle, s.page.IsFollowing), true
 	case "C":
 		return m, m.claimOrganization(s), true
+	case "V":
+		if !s.loaded {
+			return m, nil, true
+		}
+		return m, m.openAvatar("@"+safeText(s.page.Organization.Handle), s.page.Organization.AvatarURL), true
 	case "S":
 		if s.page.SettingsURL == nil {
 			return m, nil, false

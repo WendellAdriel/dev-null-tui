@@ -49,7 +49,7 @@ func TestTheShelfShowsBadgeIconsOrTheirGlyphs(t *testing.T) {
 		if !strings.Contains(line, "init") {
 			continue
 		}
-		if !strings.HasSuffix(strings.TrimSpace(line), "stdout     A") {
+		if !strings.HasSuffix(strings.TrimSpace(line), "stdout     All  A") {
 			t.Fatalf("the badge row doesn't end with its A shortcut: %q", line)
 		}
 		if !strings.HasPrefix(strings.TrimSpace(lines[i-1]), "▄▄▄") || !strings.HasPrefix(strings.TrimSpace(lines[i+1]), "▀▀▀") {

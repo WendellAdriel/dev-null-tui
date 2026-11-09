@@ -16,9 +16,14 @@ type pickerRow struct {
 	person      *api.User
 	label, note string
 	value       string
+	// key runs the row from the commit menu, and danger marks a destructive one.
+	key    string
+	danger bool
+	// heading starts a group of rows, such as Event themes. It can't be selected.
+	heading bool
 }
 
-// picker is a centered list dialog: Starred by, the link picker, and the Live now picker.
+// picker is a centered list dialog: Starred by, the link picker, the Live now picker, and the themes.
 type picker struct {
 	kind, title, intro string
 	rows               []pickerRow
@@ -27,6 +32,9 @@ type picker struct {
 	commitID, next, status string
 	loading                bool
 	generation             int
+	// The commit menu keeps its commit and, once read, the author's profile.
+	commit api.Commit
+	author *api.Profile
 }
 
 const pickerVisibleRows = 8
@@ -39,7 +47,30 @@ func (p *picker) move(delta int) {
 	if count == 0 {
 		return
 	}
-	p.selected = max(0, min(count-1, p.selected+delta))
+	step := 1
+	if delta < 0 {
+		step = -1
+	}
+	at := p.selected
+	for remaining := max(delta, -delta); remaining > 0; remaining-- {
+		next := at + step
+		for next >= 0 && next < len(p.rows) && p.rows[next].heading {
+			next += step
+		}
+		if next < 0 || next >= count {
+			break
+		}
+		at = next
+	}
+	p.selected = at
+}
+
+// first selects the first row that isn't a heading.
+func (p *picker) first() {
+	p.selected = 0
+	for p.selected < len(p.rows)-1 && p.rows[p.selected].heading {
+		p.selected++
+	}
 }
 
 // moreRow reports whether the Show more row is selected.
@@ -74,6 +105,9 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 		if i == d.selected {
 			line = withBackground(lipgloss.NewStyle().Width(width).Render(line), pal.soft)
 		}
+		if i < len(d.rows) && d.rows[i].person != nil && d.rows[i].key == "" {
+			areas = append(areas, hitArea{uiRect{0, top + i - first, 2, 1}, "avatar", i})
+		}
 		areas = append(areas, hitArea{uiRect{0, top + i - first, width, 1}, "row", i})
 		lines = append(lines, line)
 	}
@@ -88,7 +122,11 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	}
 	body := strings.Join(lines, "\n")
 	hint := "j/k choose  enter open  esc close"
-	if d.next != "" {
+	if d.kind == "commit-menu" {
+		hint = "j/k choose  enter run  esc close"
+	} else if d.kind == "event-theme" || d.kind == "theme" {
+		hint = "j/k choose  enter apply  esc close"
+	} else if d.next != "" {
 		hint = "j/k choose  enter open  n more  esc close"
 	}
 	footer := text(pal.muted).Render(fit(hint, width))
@@ -102,7 +140,19 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 }
 
 func (m AppModel) listPickerRow(row pickerRow, width int, pal palette) string {
+	if row.heading {
+		return text(pal.muted).Render(fit(safeText(row.label), width))
+	}
 	label := text(pal.ink).Bold(true).Render(safeText(row.label))
+	if row.danger {
+		label = text(pal.danger).Bold(true).Render(safeText(row.label))
+	}
+	if row.value == "" && row.person == nil {
+		label = text(pal.muted).Render(safeText(row.label))
+	}
+	if row.key != "" {
+		return split(label, text(pal.blue).Render(row.key), width)
+	}
 	if row.person != nil {
 		_, avatar := m.userAvatar(row.person, 2, 1, pal)
 		label = avatar[0] + " " + label
@@ -126,6 +176,14 @@ func (m AppModel) listPickerMedia(pal palette) []graphics.Request {
 
 func (m AppModel) listPickerKey(pressed string) (AppModel, tea.Cmd) {
 	d := m.picker
+	if d.kind == "commit-menu" {
+		for i, row := range d.rows {
+			if row.key == pressed {
+				d.selected = i
+				return m.choosePicker()
+			}
+		}
+	}
 	switch pressed {
 	case "esc", "q":
 		m.picker = nil
@@ -135,7 +193,7 @@ func (m AppModel) listPickerKey(pressed string) (AppModel, tea.Cmd) {
 	case "k", "up", "shift+tab":
 		d.move(-1)
 	case "home", "g":
-		d.selected = 0
+		d.first()
 	case "end", "G":
 		d.move(len(d.rows) + 1)
 	case "n":
@@ -147,7 +205,7 @@ func (m AppModel) listPickerKey(pressed string) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) listPickerMouse(x, y int) (AppModel, tea.Cmd) {
-	_, r, areas := m.listPickerModal(colors(m.account.dark))
+	_, r, areas := m.listPickerModal(m.account.colors())
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
@@ -155,6 +213,15 @@ func (m AppModel) listPickerMouse(x, y int) (AppModel, tea.Cmd) {
 		if area.action == "esc" {
 			m.picker = nil
 			return m, m.syncImages()
+		}
+		if area.action == "avatar" {
+			// The picker routes keys before the viewer, so it closes first.
+			person := m.picker.rows[area.index].person
+			m.picker = nil
+			return m, tea.Batch(m.openAvatar("@"+safeText(person.Handle), person.AvatarURL), m.syncImages())
+		}
+		if area.index < len(m.picker.rows) && m.picker.rows[area.index].heading {
+			return m, nil
 		}
 		m.picker.selected = area.index
 		return m.choosePicker()
@@ -175,12 +242,19 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	row := d.rows[d.selected]
+	if d.kind == "commit-menu" {
+		return m.chooseCommitMenu(row)
+	}
 	m.picker = nil
 	switch d.kind {
 	case "stars":
 		return m, tea.Batch(m.syncImages(), m.openProfile(row.person.Handle))
 	case "live":
 		return m, tea.Batch(m.syncImages(), m.watchLive(row.person.Live))
+	case "event-theme":
+		return m, m.setEventTheme(row.value)
+	case "theme":
+		return m, m.setTheme(row.value)
 	}
 	return m, tea.Batch(m.syncImages(), m.openLink(row.value))
 }
@@ -237,7 +311,7 @@ func (m AppModel) askKey(pressed string) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) askMouse(x, y int) (AppModel, tea.Cmd) {
-	_, _, areas := m.askModal(colors(m.account.dark))
+	_, _, areas := m.askModal(m.account.colors())
 	for _, area := range areas {
 		if area.contains(x, y) {
 			return m.askKey(area.action)
@@ -254,6 +328,10 @@ func (m AppModel) confirmAsk() (AppModel, tea.Cmd) {
 		return m, m.savePin(a.commit, true)
 	case "cancel-scheduled":
 		return m, m.cancelScheduled(a.id)
+	case "delete-draft":
+		return m, m.deleteDraft(a.id)
+	case "share-commit":
+		return m, m.shareCommit(a.commit, a.id)
 	}
 	return m, nil
 }

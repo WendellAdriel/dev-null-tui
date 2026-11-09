@@ -144,7 +144,7 @@ func (m *AppModel) acceptThread(msg threadResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		t.status = "Couldn't load this commit: " + safeText(msg.err.Error()) + ". Ctrl+R to retry."
+		t.status = m.ghostly(msg.err, "Couldn't load this commit: "+safeText(msg.err.Error())+". Ctrl+R to retry.")
 		m.renderThread(t)
 		return nil
 	}
@@ -202,7 +202,7 @@ func (m *AppModel) revoked(err error) bool {
 	}
 	m.leaveApplication()
 	// A revoked device may not be the user's any more, so its drafts go too.
-	_ = m.account.store.DeleteMessageDrafts()
+	_ = m.account.store.DeleteDrafts()
 	m.account.state, m.account.status = "failed", "Device approval is no longer valid. Connect again."
 	m.account.approvalRequired = true
 	return true

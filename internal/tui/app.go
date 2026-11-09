@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"charm.land/bubbles/v2/viewport"
@@ -39,6 +40,9 @@ type feed struct {
 	arrivals []api.Commit
 	cancel   context.CancelFunc
 	cursors  map[string]bool
+	// person is the Who to follow row under the cursor, counted from one, or 0 when a commit is.
+	person                   int
+	personStarts, personEnds []int
 }
 
 type logResult struct {
@@ -147,6 +151,8 @@ type AppModel struct {
 	claiming                   string
 	openURL                    func(context.Context, string) error
 	liveCalls                  liveCalls
+	suggestCalls               suggestCalls
+	whoToFollow                whoToFollow
 	live                       *liveDialog
 	liveEnding                 bool
 	liveNow                    []api.User
@@ -160,11 +166,27 @@ type AppModel struct {
 	searchCalls                searchCalls
 	// commitSearch is set while the Starred list screen shows that search's matching commits instead.
 	commitSearch string
+	// batRunning keeps one Halloween bat tick chain alive, and batAt is the clock it last moved on.
+	batRunning bool
+	batAt      time.Time
+	// commitDrafts are the account's saved commit drafts by place, and drafts is their screen.
+	commitDrafts map[string]auth.CommitDraft
+	drafts       draftsState
 }
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
+	settings := store.TUISettings()
+	if theme == "" {
+		// Without --theme, the saved mode applies.
+		theme = settings.Mode
+		if theme != "light" && theme != "dark" {
+			theme = "auto"
+		}
+	}
 	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, openURL: auth.OpenBrowser, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
-	m.tuiSettings = store.TUISettings()
+	m.tuiSettings = settings
+	m.account.themeName = themeNamed(settings.Theme).name
+	m.applyEventTheme()
 	m.images = graphics.New(origin)
 	images := m.images
 	m.voice.openSound, m.voice.record = audio.OpenDevice, audio.StartRecording
@@ -227,7 +249,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	app := next.(AppModel)
 	app.settleArrivals()
 	images := app.syncImages()
-	return app, tea.Batch(cmd, images)
+	suggestions := app.syncSuggestions()
+	return app, tea.Batch(cmd, images, suggestions)
 }
 
 func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -253,6 +276,18 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptLogTick(msg)
 	case remoteActionResult:
 		return m, m.acceptRemoteAction(msg)
+	case suggestionTick:
+		return m, m.acceptSuggestionTick(msg)
+	case suggestionResult:
+		m.acceptSuggestions(msg)
+		return m, nil
+	case suggestionDismissed:
+		return m, m.acceptSuggestionDismissed(msg)
+	case commitMenuAuthor:
+		m.acceptCommitMenuAuthor(msg)
+		return m, nil
+	case commitShared:
+		return m, m.acceptCommitShared(msg)
 	case peopleSearchTick:
 		return m, m.acceptPeopleTick(msg)
 	case peopleSearchResult:
@@ -486,7 +521,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if !m.connected {
 			return m, nil
 		}
-		polls := m.restartPolls()
+		polls := tea.Batch(m.restartPolls(), m.startBat())
 		if m.remotesOnTop() {
 			m.now = time.Now()
 			return m, tea.Batch(polls, m.pollRemotes(), m.markRemoteRead())
@@ -499,7 +534,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.account = updated.(AccountModel)
 		m.images.Enabled = m.graphicsSupported && m.account.profile == colorprofile.TrueColor
 		m.reflow()
-		return m, cmd
+		return m, tea.Batch(cmd, m.startBat())
 	case clockTick:
 		if msg.session != m.session || !m.connected {
 			return m, nil
@@ -508,6 +543,11 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.tickClock()
 		}
 		m.now = msg.at
+		event := m.account.event
+		if m.applyEventTheme(); event != m.account.event {
+			m.reflow()
+		}
+		bat := m.startBat()
 		for i := range m.feeds {
 			m.renderFeed(i)
 		}
@@ -522,7 +562,11 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if s := m.topProfile(); s != nil {
 			m.renderProfile(s)
 		}
-		return m, tea.Batch(m.tickClock(), m.refreshAside())
+		return m, tea.Batch(m.tickClock(), m.refreshAside(), bat)
+	case batTick:
+		return m, m.acceptBat(msg)
+	case draftTargetLoaded:
+		return m, m.acceptDraftTarget(msg)
 	case meResult:
 		m.acceptAccountRefresh(msg)
 		return m, nil
@@ -635,10 +679,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyPressMsg:
 		if msg.String() == "f2" {
-			m.account.toggleTheme()
-			m.resetSequence()
-			m.reflow()
-			return m, nil
+			return m, m.toggleTheme()
 		}
 		if (m.connected && m.composer.open) || m.composer.confirm != "" {
 			wasExit := m.composer.confirm == "exit"
@@ -676,6 +717,14 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.connected && !m.accountOpen && m.picker != nil && msg.String() != "ctrl+c" {
 			next, cmd := m.listPickerKey(msg.String())
 			return next, cmd
+		}
+		if m.connected && !m.accountOpen && m.whoToFollow.open && msg.String() != "ctrl+c" {
+			next, cmd := m.suggestionModalKey(msg.String())
+			return next, cmd
+		}
+		if m.connected && !m.accountOpen && m.sharingCommit() && msg.String() != "ctrl+c" {
+			cmd := m.peopleKey(msg.String())
+			return m, cmd
 		}
 		if m.connected && m.deleting.id != "" && msg.String() != "ctrl+c" {
 			cmd := m.deleteKey(msg.String())
@@ -797,6 +846,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.remoteCalls = newRemoteCalls(client)
 		}
 		m.startMessaging()
+		m.loadCommitDrafts()
 		m.fetchNotifications, m.fetchNotificationGroup, m.fetchNotificationCount = client.Notifications, client.NotificationGroup, client.NotificationCount
 		if m.loadThread == nil {
 			m.loadThread, m.loadReplies, m.deleteCommit = client.Thread, client.Replies, client.DeleteCommit
@@ -812,6 +862,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.liveCalls.goLive == nil {
 			m.liveCalls = newLiveCalls(client)
+		}
+		if m.suggestCalls.list == nil {
+			m.suggestCalls = suggestCalls{list: client.SuggestedUsers, dismiss: client.DismissSuggestion}
 		}
 		if m.meCall == nil {
 			m.meCall = client.CurrentUser
@@ -842,6 +895,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m *AppModel) leaveApplication() {
 	// Cleared first, so closing the thread below can't write the drafts back.
 	m.messaging = messagingState{}
+	m.commitDrafts, m.drafts, m.whoToFollow = nil, draftsState{}, whoToFollow{}
 	m.closeVoice()
 	m.settings.generation++
 	m.settings = settingsState{generation: m.settings.generation}
@@ -1034,6 +1088,11 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		cmd := m.settingsKey(pressed)
 		return m, cmd
 	}
+	if m.draftsOnTop() && !m.pendingG {
+		if next, cmd, ok := m.draftsKey(pressed); ok {
+			return next, cmd
+		}
+	}
 	if m.remotesOnTop() && (m.remotes.dialog != "" || m.remotes.searching || m.remotesOverlay() || (!m.pendingG && pressed != "g" && pressed != "c" && pressed != "a")) {
 		return m.remotesKey(pressed)
 	}
@@ -1063,6 +1122,11 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if pressed == "W" && !m.pendingG && !m.profileOnTop() {
 		return m, m.watchLiveNow()
+	}
+	if pressed == "w" && !m.pendingG {
+		if cmd := m.openWhoToFollow(); cmd != nil {
+			return m, cmd
+		}
 	}
 	if m.threadOnTop() && !m.pendingG && pressed != "g" {
 		next, cmd, handled := m.threadKey(pressed)
@@ -1102,6 +1166,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.openStarred()
 		case "t":
 			return m.openScheduled()
+		case "d":
+			return m.openDrafts()
 		case "r":
 			return m.openRemotes()
 		case ",":
@@ -1122,11 +1188,16 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if m.starredOnTop() && pressed != "c" && pressed != "a" && pressed != "g" {
 		return m.starredKey(pressed)
 	}
+	if m.feeds[m.active].person > 0 {
+		if next, cmd, handled := m.suggestionKey(pressed); handled {
+			return next, cmd
+		}
+	}
 	switch pressed {
 	case "c":
 		cmd := m.composeTo("", api.Commit{})
 		return m, cmd
-	case "enter", "r", "q", "v", "D", "s", "p", "u", "y", "Q", "T", "S", "P", "t", "x":
+	case "enter", "r", "q", "v", "D", "s", "p", "u", "y", "Q", "T", "S", "P", "t", "x", ".":
 		f := &m.feeds[m.active]
 		if len(f.commits) == 0 {
 			return m, nil
@@ -1186,7 +1257,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		if pressed == "k" || pressed == "up" {
 			delta = -1
 		}
-		return m.selectCommit(m.feeds[m.active].selected + delta)
+		return m.moveLog(delta)
 	case "home":
 		return m.selectCommit(0)
 	case "G", "end":
@@ -1213,6 +1284,7 @@ func (m AppModel) selectCommit(index int) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	previous := f.selected
+	f.person = 0
 	f.selected = max(0, min(len(f.commits)-1, index))
 	m.renderFeed(m.active)
 	m.revealSelection()
@@ -1258,13 +1330,19 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if msg.Y < feedHeaderHeight || msg.Y >= m.mainHeight() {
 		return m, nil
 	}
-	if pill, at := m.arrivalsPill(center, colors(m.account.dark)); pill != "" && msg.Y >= feedHeaderHeight && msg.Y < feedHeaderHeight+lipgloss.Height(pill) && x >= at && x < at+lipgloss.Width(pill) {
+	if pill, at := m.arrivalsPill(center, m.account.colors()); pill != "" && msg.Y >= feedHeaderHeight && msg.Y < feedHeaderHeight+lipgloss.Height(pill) && x >= at && x < at+lipgloss.Width(pill) {
 		f.arrivals = nil
 		return m.selectCommit(0)
 	}
 	row := msg.Y - feedHeaderHeight + f.viewport.YOffset()
 	for _, area := range f.actions {
 		if area.contains(x, row) {
+			if strings.HasPrefix(area.action, "wtf-") {
+				return m.suggestionAction(area.action, area.index)
+			}
+			if area.action == "avatar" {
+				return m, m.openAuthorAvatar(f.commits[area.index].Author)
+			}
 			return m.mouseKey(area.action)
 		}
 	}
@@ -1291,8 +1369,9 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	left := m.notificationsOpen || m.starredOpen || m.remotes.open || len(m.profiles) > 0
+	left := m.notificationsOpen || m.starredOpen || m.remotes.open || m.drafts.open || len(m.profiles) > 0
 	if left {
+		m.drafts = draftsState{}
 		m.closeStarred()
 		m.closeRemotes()
 		m.cancelNotifications()
@@ -1347,9 +1426,9 @@ func (m AppModel) feedStatus() string {
 	}
 	if m.pendingG {
 		if m.remotesEnabled() {
-			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  t Scheduled  (1 second)"
+			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  t Scheduled  d Drafts  (1 second)"
 		}
-		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  t Scheduled  (1 second)"
+		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  t Scheduled  d Drafts  (1 second)"
 	}
 	if m.profileOnTop() && m.notice == "" {
 		return m.profileStatus()

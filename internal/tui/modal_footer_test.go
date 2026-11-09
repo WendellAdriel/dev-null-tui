@@ -55,12 +55,12 @@ func TestDraftFooterKeepsForLaterAndBackReturnsToEditing(t *testing.T) {
 	m = pressApp(m, "esc")
 	next, _ := m.Update(tea.KeyPressMsg{Code: 'k', Mod: tea.ModCtrl})
 	m = next.(AppModel)
-	if m.composer.open || m.composer.confirm != "" || m.composer.input.Value() != "Retain this draft" {
-		t.Fatal("Keep draft must close composer and keep text")
+	if m.composer.open || m.composer.confirm != "" || m.commitDrafts["commit"].Body != "Retain this draft" {
+		t.Fatal("Keep draft must close composer and save the text")
 	}
 	m = pressApp(m, "c")
 	if !m.composer.open || m.composer.input.Value() != "Retain this draft" {
-		t.Fatal("saved in-memory draft did not reopen")
+		t.Fatal("saved draft did not reopen")
 	}
 	m = pressApp(m, "esc")
 	next, _ = m.Update(tea.KeyPressMsg{Code: 'd', Mod: tea.ModCtrl})

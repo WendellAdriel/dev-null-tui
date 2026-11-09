@@ -41,7 +41,7 @@ func (m *AppModel) sizeNotifications() {
 	if f.selected < len(f.starts) {
 		offset -= f.starts[f.selected]
 	}
-	header, _ := m.notificationHeader(width, colors(m.account.dark))
+	header, _ := m.notificationHeader(width, m.account.colors())
 	f.viewport.SetWidth(width)
 	f.viewport.SetHeight(max(1, m.mainHeight()-lipgloss.Height(header)))
 	m.renderNotifications()
@@ -125,7 +125,8 @@ func notificationExcerpt(c *api.Commit, width int, p palette, style statsStyle, 
 	return append(result, text(p.hairline).Render("╰"+strings.Repeat("─", max(0, width-2))+"╯"))
 }
 
-func (m AppModel) notificationRows(n api.Notification, width int, p palette, member bool) []string {
+// notificationRows also returns where its avatars sit, relative to the body.
+func (m AppModel) notificationRows(n api.Notification, width int, p palette, member bool) ([]string, []avatarHit) {
 	_, verb := notificationVerb(n)
 	name := "Unknown actor"
 	handle := ""
@@ -140,10 +141,12 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 	actorsCommit := n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned"
 	stamp := text(p.muted).Render(relativeAge(n.CreatedAt, m.now))
 	var rows []string
+	var hits []avatarHit
 	if member && (n.Type == "starred" || n.Type == "followed") {
 		top, bottom := "", ""
 		if n.Actor != nil {
 			top, bottom = m.largeAvatar(n.Actor, p)
+			hits = append(hits, authorHit(uiRect{0, 0, max(1, ansi.StringWidth(top)-1), 2}, n.Actor))
 		}
 		icon, _ := notificationVerb(n)
 		marker := text(authorColor(n.Actor, p)).Render(icon)
@@ -155,12 +158,14 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		meta := top + identity + " " + text(p.muted).Render(handle)
 		tail := marker + " " + stamp
 		meta = fit(meta, max(1, width-ansi.StringWidth(tail)-2))
-		return []string{meta + strings.Repeat(" ", max(1, width-ansi.StringWidth(meta)-ansi.StringWidth(tail))) + tail, bottom}
+		return []string{meta + strings.Repeat(" ", max(1, width-ansi.StringWidth(meta)-ansi.StringWidth(tail))) + tail, bottom}, hits
 	}
 	if actorsCommit || member {
 		meta := identity + " " + text(p.muted).Render(handle)
 		if member && n.Actor != nil {
-			meta = smallAvatar(n.Actor, p, m.images, m.now) + meta
+			avatar := smallAvatar(n.Actor, p, m.images, m.now)
+			hits = append(hits, authorHit(uiRect{0, 0, max(1, ansi.StringWidth(avatar)-1), 1}, n.Actor))
+			meta = avatar + meta
 		}
 		meta = fit(meta, max(1, width-ansi.StringWidth(stamp)-2))
 		rows = append(rows, meta+strings.Repeat(" ", max(1, width-ansi.StringWidth(meta)-ansi.StringWidth(stamp)))+stamp)
@@ -173,6 +178,7 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		stack, under := "", ""
 		for _, actor := range actors[:min(3, len(actors))] {
 			top, bottom := m.largeAvatar(&actor, p)
+			hits = append(hits, authorHit(uiRect{ansi.StringWidth(stack), 0, max(1, ansi.StringWidth(top)-1), 2}, &actor))
 			stack, under = stack+top, under+bottom
 		}
 		if n.ActorsCount > len(actors) {
@@ -208,12 +214,12 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 	if member {
 		rows = append(rows, "")
 	}
-	return rows
+	return rows, hits
 }
 
 func (m *AppModel) renderNotifications() {
 	f := m.notificationFeed()
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, f.viewport.Width())
 	gutter := 7
 	contentWidth := max(1, width-gutter-2)
@@ -222,6 +228,7 @@ func (m *AppModel) renderNotifications() {
 	f.starts = nil
 	f.ends = nil
 	f.actions = nil
+	f.avatars = nil
 	var lines []string
 	day := ""
 	var previous *api.Notification
@@ -256,17 +263,35 @@ func (m *AppModel) renderNotifications() {
 		if member {
 			bodyWidth = max(1, bodyWidth-2)
 		}
-		rows := m.notificationRows(n, bodyWidth, p, member)
-		if i == f.selected {
-			row, x := "", gutter
-			for _, action := range notificationChips(entry) {
-				chip := text(p.ink).Render(action[0]) + " " + keyChip(action[1], p)
-				f.actions = append(f.actions, hitArea{uiRect{x, len(lines) + len(rows), lipgloss.Width(chip), 1}, action[1], i})
-				row += chip + "   "
-				x += lipgloss.Width(chip) + 3
+		rows, hits := m.notificationRows(n, bodyWidth, p, member)
+		indent := gutter
+		if member {
+			indent += 2
+		}
+		for _, hit := range hits {
+			hit.area.x += indent
+			hit.area.y += len(lines)
+			f.avatars = append(f.avatars, hit)
+		}
+		if n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned" {
+			if !member && n.Actor != nil && m.images.Row(m.authorAvatar(n.Actor, p, 5, 2), 0) != "" {
+				f.avatars = append(f.avatars, authorHit(uiRect{1, len(lines), 5, 2}, n.Actor))
 			}
-			if row != "" {
-				rows = append(rows, strings.TrimRight(row, " "))
+		}
+		if i == f.selected {
+			var actions []commitAction
+			for _, action := range notificationChips(entry) {
+				actions = append(actions, commitAction{action[0], action[1]})
+			}
+			if len(actions) > 0 {
+				chips, areas := commitChips(actions, bodyWidth, p)
+				for _, area := range areas {
+					area.x += gutter
+					area.y += len(lines) + len(rows)
+					area.index = i
+					f.actions = append(f.actions, area)
+				}
+				rows = append(rows, chips...)
 			}
 		}
 		ring := len(rows)
@@ -284,11 +309,12 @@ func (m *AppModel) renderNotifications() {
 					rows = append(rows, strings.Split(ansi.Wrap(g.status, bodyWidth, ""), "\n")...)
 				}
 			}
+			line := text(p.blue).Render(label)
 			if i == f.selected || n.ID == selectedParent {
-				label += "  " + keyChip("space", p)
+				line = actionChip(label, "space", p)
 			}
 			f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines) + len(rows), contentWidth, 1}, "space", i})
-			rows = append(rows, text(p.blue).Render(label))
+			rows = append(rows, line)
 			if g := f.groups[n.ID]; g != nil && g.open && g.next != "" {
 				f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines) + len(rows), contentWidth, 1}, "n", i})
 				rows = append(rows, text(p.blue).Render("n Show older "+notificationNoun(n)))
@@ -380,7 +406,7 @@ func notificationChips(entry notificationEntry) [][2]string {
 
 func (m AppModel) notificationMouse(x, y int) (AppModel, tea.Cmd) {
 	_, width, _ := m.columns()
-	header, areas := m.notificationHeader(width, colors(m.account.dark))
+	header, areas := m.notificationHeader(width, m.account.colors())
 	for _, area := range areas {
 		if area.contains(x, y) {
 			return m.notificationKey(area.action)
@@ -390,6 +416,9 @@ func (m AppModel) notificationMouse(x, y int) (AppModel, tea.Cmd) {
 	row := y - lipgloss.Height(header) + f.viewport.YOffset()
 	if y < lipgloss.Height(header) || y >= m.mainHeight() {
 		return m, nil
+	}
+	if cmd, ok := m.openAvatarAt(f.avatars, x, row); ok {
+		return m, cmd
 	}
 	for _, area := range f.actions {
 		if area.contains(x, row) {
@@ -431,7 +460,7 @@ func (m *AppModel) openNotificationAt(i int) tea.Cmd {
 
 func (m *AppModel) notificationMedia() []graphics.Request {
 	f := m.notificationFeed()
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	var requests []graphics.Request
 	for i, entry := range m.notificationEntries() {
 		if i >= len(f.starts) || f.ends[i] <= f.viewport.YOffset() || f.starts[i] >= f.viewport.YOffset()+f.viewport.Height() {

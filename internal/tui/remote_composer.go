@@ -122,7 +122,7 @@ func (m AppModel) newMessageInput(c api.Conversation) textarea.Model {
 	input.DynamicHeight, input.MinHeight, input.MaxHeight = true, 1, composerMaxRows
 	// Enter pushes, so a new line takes Shift+Enter, as on the web, or Ctrl+J where the terminal can't tell them apart.
 	input.KeyMap.InsertNewline = key.NewBinding(key.WithKeys("shift+enter", "ctrl+j", "alt+enter"))
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
 		state.Base = lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink))

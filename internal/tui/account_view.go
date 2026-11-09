@@ -47,7 +47,7 @@ func (m AccountModel) actions() []accountAction {
 }
 
 func (m AccountModel) View() tea.View {
-	p := colors(m.dark)
+	p := m.colors()
 	page, _ := m.accountScreen(p)
 	view := tea.NewView(canvas(page, p, max(0, m.width), max(0, m.height)))
 	view.AltScreen = true

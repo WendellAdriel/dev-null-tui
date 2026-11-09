@@ -27,13 +27,27 @@ func (m AppModel) settingsRows() []settingsRow {
 	case settingsDevices:
 		return m.deviceRows()
 	case settingsAppearance:
-		theme := "Light"
-		if m.account.dark {
-			theme = "Dark"
+		mode := map[string]string{"auto": "Auto", "light": "Light", "dark": "Dark"}[m.account.theme]
+		event := eventLabel(m.tuiSettings.EventTheme)
+		if m.tuiSettings.EventTheme == "auto" {
+			if m.account.event != "" {
+				event += " (" + themeNamed(m.account.event).label + " now)"
+			}
 		}
-		return []settingsRow{{"Theme: " + theme, "Change this session's appearance. F2 works throughout the app.", "theme", ""}}
+		return []settingsRow{
+			{"Mode: " + mode, "Auto follows your terminal's background. F2 switches dark and light anywhere. Saved in tui.json.", "theme-mode", ""},
+			{"Event theme: " + event, "Halloween (Oct 29 to Nov 1), Christmas (Dec 23 to 26) and New Year (Dec 30 to Jan 2) colors, like the web. Auto follows the dates, Default never shows them. Saved in tui.json.", "event-theme", ""},
+			{"Who to follow: " + map[bool]string{true: "Hidden", false: "Shown"}[m.tuiSettings.HideWhoToFollow], "The Who to follow action (w) in the aside, and suggested people in the Following and Latest logs after the fifth commit when the aside has no room. Saved in tui.json.", "who-to-follow", ""},
+		}
 	case settingsTUI:
-		return []settingsRow{{"Check for updates: " + on(m.tuiSettings.CheckForUpdates), "Look for a new release once a day when devnull starts. Saved on this device in tui.json.", "update-check", ""}}
+		theme := themeNamed(m.account.themeName).label
+		if m.account.event != "" && m.account.event != m.account.themeName {
+			theme += " (" + themeNamed(m.account.event).label + " event theme on now)"
+		}
+		return []settingsRow{
+			{"Theme: " + theme, "The colors throughout the app. An active event theme overrides this choice. More TUI themes are coming. Saved on this device in tui.json.", "theme-name", ""},
+			{"Check for updates: " + on(m.tuiSettings.CheckForUpdates), "Look for a new release each time devnull starts. Saved on this device in tui.json.", "update-check", ""},
+		}
 	case settingsSafety:
 		var rows []settingsRow
 		for i, kind := range []string{"muted", "blocked"} {
@@ -108,7 +122,7 @@ func (m *AppModel) sizeSettings() {
 	for s.selected < len(rows)-1 && rows[s.selected].action == "" {
 		s.selected++
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	var lines []string
 	if s.tab == settingsProfile {
 		u := m.account.user

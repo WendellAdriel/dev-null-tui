@@ -74,6 +74,13 @@ func activityColor(level int, lane string, p palette) string {
 	if level == 0 {
 		return p.hairline
 	}
+	// The Christmas theme turns the graph green, with its peak color on the busiest days, like the web's --graph-peak.
+	if p.graph != "" {
+		lane = p.graph
+	}
+	if level == len(activityMix)-1 && p.peak != "" {
+		lane = p.peak
+	}
 	return mixColor(lane, p.shell, activityMix[level])
 }
 
@@ -128,6 +135,7 @@ func followLabel(following bool) string {
 type profileFrame struct {
 	lines   []string
 	actions []hitArea
+	avatars []avatarHit
 	media   []lineMedia
 }
 
@@ -154,7 +162,7 @@ func (f *profileFrame) targetLines(x, width, lines int, action string) {
 }
 
 func (m *AppModel) renderProfile(s *profileState) {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, s.viewport.Width())
 	frame := &profileFrame{}
 	tabs := profileTabNames
@@ -195,11 +203,11 @@ func (m *AppModel) renderProfile(s *profileState) {
 			frame.add("     " + text(p.muted).Render(line))
 		}
 	case l.next != "":
-		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("More ")+keyChip("n", p)), "")
+		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(actionChip("More", "n", p)), "")
 	default:
 		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("EOF")), "")
 	}
-	s.actions, s.media = frame.actions, frame.media
+	s.actions, s.avatars, s.media = frame.actions, frame.avatars, frame.media
 	s.viewport.SetContent(strings.Join(frame.lines, "\n"))
 }
 
@@ -230,7 +238,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	u.Live = m.profileLive(s)
 	follow, followKey := "", "f"
 	if profile.IsFollowing != nil && !own {
-		follow = text(p.ink).Bold(true).Render(followLabel(*profile.IsFollowing)) + " " + keyChip("f", p)
+		follow = actionChip(followLabel(*profile.IsFollowing), "f", p)
 	}
 	if own && m.liveCalls.goLive != nil {
 		follow, followKey = m.liveAction(p), "L"
@@ -251,6 +259,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		name = text(p.ink).Bold(true).Render(safeText(u.Handle))
 	}
 	if len(avatar) > 0 {
+		frame.targetLines(2, req.Cols, len(avatar), "V")
 		for row, line := range avatar {
 			if row == 0 && follow != "" {
 				frame.target(2+inner-lipgloss.Width(follow), lipgloss.Width(follow), followKey)
@@ -280,7 +289,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		frame.add(pad + row)
 	}
 	if u.Live.On(m.now) {
-		watch := text(p.ink).Bold(true).Render("Watch") + " " + keyChip("W", p)
+		watch := actionChip("Watch", "W", p)
 		stream := liveLabel(u.Live, p) + text(p.muted).Render(" · until "+liveUntil(u.Live))
 		frame.add("")
 		frame.target(2+inner-lipgloss.Width(watch), lipgloss.Width(watch), "W")
@@ -291,8 +300,8 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		if profile.IsMuting != nil && *profile.IsMuting {
 			label = "Unmute"
 		}
-		mute := text(p.muted).Render(label) + " " + keyChip("M", p)
-		block := text(p.danger).Render("Block") + " " + keyChip("B", p)
+		mute := actionChip(label, "M", p)
+		block := dangerChip("Block", "B", p)
 		frame.add("")
 		frame.target(2, lipgloss.Width(mute), "M")
 		frame.target(4+lipgloss.Width(mute), lipgloss.Width(block), "B")
@@ -344,7 +353,7 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 		label := strings.SplitN(plural(*count.value, count.one, count.many), " ", 2)
 		item := text(p.ink).Bold(true).Render(label[0]) + text(p.muted).Render(" "+label[1])
 		if count.shortcut != "" {
-			item += " " + keyChip(count.shortcut, p)
+			item = actionChip(label[0]+" "+label[1], count.shortcut, p)
 		}
 		if len(counts) > 0 {
 			x += 3
@@ -503,11 +512,11 @@ func (m AppModel) achievementsShelf(frame *profileFrame, a *api.Achievements, la
 	if len(shelf) == 0 {
 		frame.add("")
 		frame.target(2, width, "A")
-		frame.add(pad + text(p.muted).Render("View achievements ") + keyChip("A", p))
+		frame.add(pad + actionChip("View achievements", "A", p))
 		return
 	}
 	// The A chip ends the row, so every badge that shows leaves room for it.
-	shortcut := "  " + keyChip("A", p)
+	shortcut := "  " + actionChip("All", "A", p)
 	var rows [3]string
 	shown := 0
 	for i, badge := range shelf {
@@ -583,9 +592,9 @@ func (m AppModel) peopleRows(frame *profileFrame, s *profileState, width int, p 
 			rows = append(rows, text(p.muted).Render(fit(strings.ReplaceAll(remoteBody(person.Bio), "\n", " "), inner)))
 		}
 		if i == l.selected {
-			actions := []string{text(p.ink).Render("Profile") + " " + keyChip("enter", p)}
+			actions := []string{actionChip("Profile", "enter", p)}
 			if person.IsFollowed != nil && !strings.EqualFold(person.Handle, m.account.user.Handle) {
-				actions = append(actions, text(p.ink).Render(followLabel(*person.IsFollowed))+" "+keyChip("f", p))
+				actions = append(actions, actionChip(followLabel(*person.IsFollowed), "f", p))
 			}
 			x := gutter
 			for n, action := range actions {
@@ -603,6 +612,8 @@ func (m AppModel) peopleRows(frame *profileFrame, s *profileState, width int, p 
 					rail = "  " + m.images.Row(m.avatarRequest(person.AvatarURL, lane, 4, 2), row) + " "
 					if lipgloss.Width(rail) != gutter {
 						rail = "  " + text(lane).Render("●") + strings.Repeat(" ", gutter-3)
+					} else if row == 0 {
+						frame.avatars = append(frame.avatars, userHit(uiRect{2, len(frame.lines), 4, 2}, &l.people[n]))
 					}
 				}
 			}
@@ -685,7 +696,7 @@ func (m *AppModel) sizeProfiles() {
 
 func (m AppModel) profileColumn(width int, p palette) string {
 	s := m.profiles[len(m.profiles)-1]
-	back := keyChip("esc", p) + text(p.muted).Render(" Back")
+	back := actionChip("Back", "esc", p)
 	name := s.profile.User.Name
 	if s.organization {
 		name = s.page.Organization.Name
@@ -751,7 +762,7 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 		return appKeys{short, all}
 	}
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("A", "all achievements"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
+	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("V", "view avatar"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("A", "all achievements"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
 	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
 	return appKeys{short, all}
@@ -767,8 +778,14 @@ func (m AppModel) profileMouse(x, y int) (AppModel, tea.Cmd) {
 	}
 	row := y - threadHeaderHeight + s.viewport.YOffset()
 	l := &s.lists[s.tab]
+	if cmd, ok := m.openAvatarAt(s.avatars, x, row); ok {
+		return m, cmd
+	}
 	for _, area := range s.actions {
 		if area.contains(x, row) {
+			if area.action == "avatar" {
+				return m, m.openAuthorAvatar(s.entries()[area.index].Author)
+			}
 			return m.mouseKey(area.action)
 		}
 	}

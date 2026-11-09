@@ -14,6 +14,13 @@ import (
 )
 
 // chipArea is a reaction chip on a thread line, for toggling it with a click.
+// pendingKey is a rejected push's Retry or Discard chip.
+type pendingKey struct {
+	line, x, w int
+	clientID   string
+	key        string
+}
+
 type chipArea struct {
 	line, x, w int
 	id         int64
@@ -106,12 +113,12 @@ func (m *AppModel) resizeThread() {
 		return
 	}
 	atBottom := t.viewport.AtBottom()
-	view, _ := m.messageComposerView(m.threadPaneWidth(), colors(m.account.dark))
+	view, _ := m.messageComposerView(m.threadPaneWidth(), m.account.colors())
 	input := &t.composer.input
 	overhead := lipgloss.Height(view) - input.Height()
 	input.MaxHeight = max(1, min(composerMaxRows, m.mainHeight()-remotesHeaderHeight-4-overhead))
 	input.SetWidth(max(1, m.threadPaneWidth()-2))
-	view, _ = m.messageComposerView(m.threadPaneWidth(), colors(m.account.dark))
+	view, _ = m.messageComposerView(m.threadPaneWidth(), m.account.colors())
 	t.viewport.SetHeight(max(1, m.mainHeight()-remotesHeaderHeight-3-m.bannerRows()-lipgloss.Height(view)))
 	if atBottom {
 		t.viewport.GotoBottom()
@@ -136,8 +143,8 @@ func accessText(access, handle string) string {
 
 // requestBar adds the web's Drop and Merge buttons under a fetched request's text, right-aligned.
 func requestBar(bar string, inner int, p palette) (string, []hitArea) {
-	drop := keyChip("d", p) + " " + text(p.muted).Render("Drop")
-	merge := keyChip("m", p) + " " + text(p.ink).Bold(true).Render("Merge")
+	drop := actionChip("Drop", "d", p)
+	merge := actionChip("Merge", "m", p)
 	row := lipgloss.Height(bar)
 	mergeX := 1 + inner - lipgloss.Width(merge)
 	dropX := mergeX - 3 - lipgloss.Width(drop)
@@ -274,7 +281,7 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		right = withBackground(text(p.ink).Render(" "+label+" "), p.wash)
 		if !mc.focused {
-			right = keyChip("p", p) + " " + text(p.muted).Render(label)
+			right = actionChip(label, "p", p)
 		}
 	}
 	if length := api.MessageLength(mc.input.Value()); length >= messageCountFrom {
@@ -284,13 +291,21 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		right += "  " + style.Render(groupDigits(length)+"/"+groupDigits(api.MaxMessageLength))
 	}
-	keys := "w write · ctrl+t voice · r reply · e react · j/k move"
-	if m.canPin() {
-		keys += " · ! pin"
-	}
-	hint := text(p.muted).Render(keys)
+	hint := ""
 	if voice := m.voiceKeysHint(); voice != "" {
 		hint = text(p.muted).Render(voice)
+	} else if !mc.voiceConfirm && mc.recording == nil && mc.status == "" && !mc.editing && !mc.stripFocus && !mc.focused {
+		actions := []commitAction{{"Reply", "r"}, {"React", "e"}, {"Voice", "ctrl+t"}}
+		if m.canPin() {
+			actions = append(actions, commitAction{"Pin", "!"})
+		}
+		var chipAreas []hitArea
+		hint, chipAreas = chipLine(actions, inner-lipgloss.Width(right)-1, p)
+		for _, area := range chipAreas {
+			area.x++
+			area.y = len(lines)
+			areas = append(areas, area)
+		}
 	}
 	switch {
 	case mc.voiceConfirm:
@@ -388,8 +403,8 @@ func (m AppModel) pendingLines(pending pendingMessage, width, bubble int, p pale
 	}
 	state := text(p.muted).Render("◌ staged")
 	if pending.status == "rejected" {
-		actions := " · r retry · d discard"
-		state = text(p.danger).Render(fit("✕ rejected · "+pending.reason, max(1, width-2-len(actions)))) + text(p.muted).Render(actions)
+		actions := " " + actionChip("Retry", "r", p) + " " + actionChip("Discard", "d", p)
+		state = text(p.danger).Render(fit("✕ rejected · "+pending.reason, max(1, width-2-lipgloss.Width(actions)))) + actions
 	}
 	return append(lines, align(state))
 }
@@ -399,4 +414,25 @@ func markSelected(lines []string, span [2]int, width int, p palette) {
 	for i := span[0]; i < min(span[1], len(lines)); i++ {
 		lines[i] = text(p.blue).Render("▌") + ansi.TruncateLeft(fit(lines[i], width), 1, "")
 	}
+}
+
+// chipLine lays out action chips on one line, leaving out the ones that don't fit, with a hit area for each.
+func chipLine(actions []commitAction, width int, p palette) (string, []hitArea) {
+	line, x := "", 0
+	var areas []hitArea
+	for _, action := range actions {
+		chip := actionChip(action.label, action.key, p)
+		gap := 0
+		if line != "" {
+			gap = 2
+		}
+		if x+gap+lipgloss.Width(chip) > width {
+			break
+		}
+		line += strings.Repeat(" ", gap) + chip
+		x += gap
+		areas = append(areas, hitArea{uiRect{x, 0, lipgloss.Width(chip), 1}, "key:" + action.key, 0})
+		x += lipgloss.Width(chip)
+	}
+	return line, areas
 }

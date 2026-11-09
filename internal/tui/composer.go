@@ -92,6 +92,7 @@ func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
 	}
 	cmd := m.openComposer()
 	m.composer.mode, m.composer.target = mode, target
+	m.restoreDraft()
 	m.sizeComposer()
 	return cmd
 }
@@ -286,6 +287,17 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 
 func (m *AppModel) keepDraft() tea.Cmd {
 	c := &m.composer
+	if m.canSaveDrafts() && c.hasDraft() {
+		action := c.confirm
+		if c.cancel != nil {
+			c.cancel()
+		}
+		cmd := m.stashComposer()
+		if action == "exit" {
+			return tea.Batch(cmd, m.quit())
+		}
+		return cmd
+	}
 	if c.loadingPreview {
 		if c.cancel != nil {
 			c.cancel()
@@ -312,7 +324,11 @@ func (m *AppModel) confirmDraftAction() tea.Cmd {
 		c.uncertain = false
 		return m.startSubmission()
 	}
+	dropped := m.dropDraft()
 	m.clearComposer()
+	if action != "exit" && dropped != nil {
+		return dropped
+	}
 	if action == "exit" {
 		return m.quit()
 	}
@@ -508,7 +524,11 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 	if index == 2 && c.mode != "reply" {
 		m.notice += " Trending stays ranked. Refresh to check for it."
 	}
+	removal := m.removeDraft()
 	m.clearComposer()
+	if removal != nil {
+		return m.notify("warning", "Submitted, draft kept", m.notice+" The saved draft couldn't be removed from this device, so delete it from Drafts.")
+	}
 	if commit.Status == "pending" {
 		return m.notify("success", "Submitted for review", "Your commit is awaiting review, not public yet.")
 	}
@@ -521,7 +541,7 @@ func (m *AppModel) reconnectComposer(err error) bool {
 		return false
 	}
 	m.leaveApplication()
-	_ = m.account.store.DeleteMessageDrafts()
+	_ = m.account.store.DeleteDrafts()
 	m.account.state, m.account.status = "failed", "Device approval is invalid. Reconnect to recover your in-memory draft."
 	m.account.approvalRequired = true
 	return true

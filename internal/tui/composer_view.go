@@ -75,7 +75,7 @@ func (m AppModel) composerFooter() (string, []hitArea) {
 	if m.composer.sending {
 		focus = 0
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, r.w-4)
 	counter := fmt.Sprintf("%d/%d", api.BodyCharacterCount(m.composer.input.Value()), api.MaxBodyLength)
 	counterWidth := max(len(counter), len(fmt.Sprintf("%d/%d", api.MaxRawBodyLength, api.MaxBodyLength)))
@@ -117,7 +117,7 @@ func (m AppModel) composerTitle(p palette) string {
 
 // composerIdentityArea is where the title shows who the commit is posted as, which a click changes like Ctrl+A.
 func (m AppModel) composerIdentityArea() uiRect {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	r := m.composerBounds()
 	return uiRect{r.x + 2 + lipgloss.Width(m.composerTitle(p)), r.y + 1, lipgloss.Width(m.composerIdentity(p)), 1}
 }
@@ -130,7 +130,7 @@ func (m *AppModel) sizeComposer() {
 	width := max(1, m.composerBounds().w-4)
 	c.input.SetWidth(width)
 	c.input.SetHeight(max(1, m.composerHeight()-m.composerContextRows()-m.composerStatusRows()-m.composerStripRows()))
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	styles := textarea.DefaultStyles(m.account.dark)
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
 		state.Base = lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell))
@@ -208,11 +208,18 @@ func (m AppModel) composerView(width int, p palette) string {
 
 func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 	c := m.composer
+	saves := m.canSaveDrafts()
 	title := "Discard this draft?"
 	detail := "Keep the text for later, discard it, or go back to editing."
+	if saves {
+		detail = "Keep it in Drafts for later, discard it, or go back to editing."
+	}
 	if c.confirm == "exit" {
 		title = "Exit and lose this draft?"
 		detail = "Discarding exits the application. Keeping the draft stays in this session."
+		if saves {
+			title, detail = "Exit and keep this draft?", "Keeping saves it to Drafts and exits. Discarding exits without it."
+		}
 	}
 	actions := []modalAction{{"Keep draft", "ctrl+k", "ctrl+k"}, {"Discard draft", "ctrl+d", "ctrl+d"}, {"Back", "esc", "esc"}}
 	if c.confirm == "retry" {
@@ -252,7 +259,11 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 	case len(c.images) > 1:
 		summary += fmt.Sprintf(" · %d images", len(c.images))
 	}
-	summary += " · memory only · nothing saved to disk"
+	if saves {
+		summary += " · Keep saves it on this device"
+	} else {
+		summary += " · memory only · nothing saved to disk"
+	}
 	if c.owner != m.account.user.ID {
 		summary = "Draft belongs to another account. Its text stays private."
 	}

@@ -78,7 +78,7 @@ func (m *AppModel) acceptCommitPinCheck(msg commitPinCheck) tea.Cmd {
 	if msg.pinned.Hash != "" {
 		detail = "Commit " + safeText(msg.pinned.Hash) + " goes back to your commits."
 	}
-	m.ask = &ask{kind: "pin", title: "/dev/null · PIN", question: "Replace your pinned commit?", detail: detail, confirm: "Pin", border: colors(m.account.dark).warning, focus: 1, commit: msg.commit}
+	m.ask = &ask{kind: "pin", title: "/dev/null · PIN", question: "Replace your pinned commit?", detail: detail, confirm: "Pin", border: m.account.colors().warning, focus: 1, commit: msg.commit}
 	return nil
 }
 

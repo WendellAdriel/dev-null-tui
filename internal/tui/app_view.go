@@ -64,7 +64,7 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("ctrl+r", "reload thread"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
+		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("ctrl+r", "reload thread"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
 		all = append(all, m.engagementBindings()...)
 		return appKeys{short, all}
 	}
@@ -75,11 +75,16 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind("v", "view commit images"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
+		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind(".", "more commit actions"), bind("v", "view commit images"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
 		return appKeys{short, all}
 	}
 	if m.starredOnTop() {
 		return m.starredBindings(bind)
+	}
+	if m.draftsOnTop() {
+		short := []key.Binding{bind("j/k", "move"), bind("enter", "open draft"), bind("D", "delete draft"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
+		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", m.account.nextTheme()+" theme"))
+		return appKeys{short, all}
 	}
 	if m.remotesOnTop() {
 		return m.remotesBindings(bind)
@@ -91,7 +96,7 @@ func (m AppModel) screenBindings() appKeys {
 	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
 	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
-	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("a", "account"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("1/2/3", "choose log"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
+	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind(".", "more commit actions"), bind("a", "account"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("1/2/3", "choose log"), bind("w", "Who to follow"), bind("f / X / R", "on a suggested person: follow, not interested, others"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
 	}
@@ -104,7 +109,7 @@ func (m AppModel) screenBindings() appKeys {
 }
 
 func (m AppModel) engagementBindings() []key.Binding {
-	bindings := []key.Binding{key.NewBinding(key.WithKeys("g t"), key.WithHelp("g t", "scheduled commits"))}
+	bindings := []key.Binding{key.NewBinding(key.WithKeys("g t"), key.WithHelp("g t", "scheduled commits")), key.NewBinding(key.WithKeys("g d"), key.WithHelp("g d", "drafts"))}
 	if m.undo.id != "" {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "undo the delete")))
 	}
@@ -145,6 +150,23 @@ func (m AppModel) engagementBindings() []key.Binding {
 	return bindings
 }
 
+// actionChip is the one look for an action you can click or press: its label on the hairline, then its key in blue.
+func actionChip(label, key string, p palette) string {
+	return chipStyled(label, key, p.ink, p)
+}
+
+// dangerChip is actionChip for a destructive action, such as Block.
+func dangerChip(label, key string, p palette) string {
+	return chipStyled(label, key, p.danger, p)
+}
+
+func chipStyled(label, key, ink string, p palette) string {
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ink)).Background(lipgloss.Color(p.hairline))
+	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft)).Bold(true)
+	return labelStyle.Render(" "+label+" ") + keyStyle.Render(" "+key+" ")
+}
+
+// keyChip names a key in shortcut lists and hints. Actions use actionChip.
 func keyChip(value string, p palette) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.wash)).Render(" " + value + " ")
 }
@@ -159,7 +181,8 @@ func filledButton(label, shortcut string, width int, background, foreground stri
 
 func (m AppModel) View() tea.View {
 	v := m.workspaceView()
-	p := colors(m.account.dark)
+	p := m.account.colors()
+	v.Content = m.haunt(v.Content, p)
 	if m.viewer.open && m.connected && !m.accountOpen && m.account.width >= 30 && m.account.height >= 10 {
 		v.Content, _ = m.viewerLayout(p)
 	}
@@ -169,6 +192,10 @@ func (m AppModel) View() tea.View {
 	}
 	if m.picker != nil && m.connected && !m.accountOpen {
 		content, r, _ := m.listPickerModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
+	if m.whoToFollow.open && m.connected && !m.accountOpen {
+		content, r, _ := m.suggestionModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
 	if m.ask != nil && m.connected && !m.accountOpen {
@@ -200,7 +227,7 @@ func (m AppModel) View() tea.View {
 			v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 		}
 	}
-	if m.remotes.people != nil && m.remotesOnTop() && m.connected && !m.accountOpen {
+	if m.remotes.people != nil && (m.remotesOnTop() || m.sharingCommit()) && m.connected && !m.accountOpen {
 		content, r, _ := m.peopleModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
@@ -257,7 +284,7 @@ func (m AppModel) workspaceView() tea.View {
 		v.AltScreen = true
 		return v
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	var page string
 	if w < 30 || h < 10 {
 		page = "/dev/null needs a bigger terminal."
@@ -273,6 +300,9 @@ func (m AppModel) workspaceView() tea.View {
 		}
 		if m.notificationsOpen && m.manualLink == "" {
 			main = m.notificationColumn(center, p)
+		}
+		if m.drafts.open && m.manualLink == "" {
+			main = m.draftsColumn(center, p)
 		}
 		if m.threadOnTop() && m.manualLink == "" {
 			main = m.threadColumn(center, p)
@@ -315,16 +345,19 @@ func (m AppModel) mainHeight() int {
 	return max(1, m.account.height-1)
 }
 
-func logoRequest(dark bool) graphics.Request {
+func logoRequest(dark bool, event string) graphics.Request {
 	kind := "logo-light"
 	if dark {
 		kind = "logo-dark"
+	}
+	if event == "christmas" {
+		kind += "-santa"
 	}
 	return graphics.Request{Icon: kind, Cols: 23, Rows: 2}
 }
 
 func (m AppModel) brand(p palette) string {
-	req := logoRequest(m.account.dark)
+	req := logoRequest(m.account.dark, m.account.event)
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		return top + "\n" + bottom
 	}
@@ -375,7 +408,7 @@ func (m AppModel) feedColumn(width int, p palette) string {
 			avatar = text(laneColor(user.Lane, p)).Render("◯ ")
 		}
 		reader := "  " + avatar + " " + text(p.muted).Render("What did you ship?")
-		refresh := keyChip("c Commit", p)
+		refresh := actionChip("Commit", "c", p)
 		reader = fit(reader, max(1, width-lipgloss.Width(refresh)-2)) + strings.Repeat(" ", max(1, width-lipgloss.Width(reader)-lipgloss.Width(refresh)-1)) + refresh
 		hairline := text(p.hairline).Render(strings.Repeat("─", width))
 		content = "\n" + m.feedTabs(width, p) + "\n" + hairline + "\n\n" + reader + "\n\n" + hairline + "\n"
@@ -459,14 +492,14 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		active                           bool
 	}
 	entries := []navEntry{
-		{m.icons.log, "Log", "", "g l", "log", idle && !m.notificationsOpen && !m.starredOpen && !m.remotes.open},
+		{m.icons.log, "Log", "", "g l", "log", idle && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && !m.drafts.open},
 		{m.icons.notifications, "Notifications", badge, "g n", "notifications", idle && m.notificationsOpen},
 	}
 	// The web's sidebar shows Remotes only to accounts that have them, between Notifications and Profile.
 	if m.remotesEnabled() {
 		entries = append(entries, navEntry{m.icons.remotes, "Remotes", countBadge(m.remotes.unread), "g r", "remotes", idle && m.remotes.open})
 	}
-	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.commitSearch == "" && m.scheduled == nil}, navEntry{m.icons.scheduled, "Scheduled", "", "g t", "scheduled", idle && m.scheduled != nil}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
+	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.commitSearch == "" && m.scheduled == nil}, navEntry{m.icons.scheduled, "Scheduled", "", "g t", "scheduled", idle && m.scheduled != nil}, navEntry{m.icons.drafts, "Drafts", draftCount(len(m.commitDrafts)), "g d", "drafts", idle && m.drafts.open}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
 	top := "\n" + logo
 	var areas []hitArea
 	for i, entry := range entries {
@@ -553,7 +586,7 @@ func (m AppModel) manualLinkView(width int, p palette) (string, hitArea) {
 			content += "\n\n" + block.Render(m.manualPage)
 		}
 	}
-	back := "  " + keyChip("esc", p) + " Back to log"
+	back := "  " + actionChip("Back to log", "esc", p)
 	area := hitArea{uiRect{2, lipgloss.Height(content) + 1, min(width-2, lipgloss.Width(back)-2), 1}, "esc", 0}
 	return content + "\n\n" + back, area
 }
@@ -563,7 +596,43 @@ func (m AppModel) aside(width, height int, p palette) string {
 	return column
 }
 
+// asideFit says how much of the aside to draw: how many shortcuts (-1 for all), and whether the version shows.
+type asideFit struct {
+	shortcuts int
+	version   bool
+}
+
+// asideLayout fits the aside to its height. It drops the version first, then shortcuts from the bottom, because the
+// aside doesn't scroll and anything below the bottom is cut off.
 func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) {
+	try := func(layout asideFit) (string, []hitArea, int, int) {
+		content, areas, shortcuts := m.asideAt(width, layout, p)
+		return content, areas, strings.Count(content, "\n") + 1, shortcuts
+	}
+	layout := asideFit{shortcuts: -1, version: true}
+	content, areas, rows, _ := try(layout)
+	if rows > height {
+		layout.version = false
+		var shortcuts int
+		content, areas, rows, shortcuts = try(layout)
+		if rows > height {
+			// The section's rule and heading go too when fewer than two shortcuts fit.
+			layout.shortcuts = shortcuts - (rows - height)
+			if layout.shortcuts < 2 {
+				layout.shortcuts = 0
+			}
+			content, areas, _, _ = try(layout)
+		}
+	}
+	return m.asideBox(content, width, height), areas
+}
+
+func (m AppModel) asideBox(content string, width, height int) string {
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content)
+}
+
+// asideAt draws the aside at one fit, returning how many shortcuts exist.
+func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitArea, int) {
 	var areas []hitArea
 	inner := width - 3
 	centered := lipgloss.NewStyle().Width(inner).Align(lipgloss.Center)
@@ -572,25 +641,32 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	search := searchRow(inner, p)
 	areas = append(areas, hitArea{uiRect{2, 0, inner, lipgloss.Height(search)}, "ctrl+k", 0})
 	controls := search + "\n"
+	if greeting := m.newYearGreeting(inner, p); greeting != "" {
+		controls += "\n" + greeting + "\n"
+	}
 	live, watch := m.liveNowBlock(inner, p)
 	if live != "" {
+		top := strings.Count(controls, "\n") + 1
 		for _, area := range watch {
 			area.x += 2
+			area.y += top
 			areas = append(areas, area)
 		}
 		controls += line + "\n" + live + "\n"
-		for i := range areas[1:] {
-			areas[i+1].y += 1 + lipgloss.Height(search)
-		}
 	}
-	// A rule separates Actions from the Live now block above it, and a blank line from the search box.
+	// A rule separates Actions from the blocks above it, and a blank line from the search box.
 	if live != "" {
 		controls += line + "\n"
 	} else {
 		controls += "\n"
 	}
 	controls += text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Actions") + "\n"
-	for i, action := range []struct{ label, key string }{{"Account", "a"}, {m.liveButton(), "L"}, {"Refresh", "ctrl+r"}} {
+	buttons := []struct{ label, key string }{{"Account", "a"}, {m.liveButton(), "L"}}
+	if !m.suggestionsHidden() && m.suggestCalls.list != nil {
+		buttons = append(buttons, struct{ label, key string }{"Who to follow", "w"})
+	}
+	buttons = append(buttons, struct{ label, key string }{"Refresh", "ctrl+r"})
+	for i, action := range buttons {
 		if i > 0 {
 			controls += "\n\n"
 		}
@@ -599,14 +675,24 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 		areas = append(areas, hitArea{uiRect{2 + x, strings.Count(controls, "\n"), lipgloss.Width(button), lipgloss.Height(button)}, action.key, 0})
 		controls += lipgloss.PlaceHorizontal(inner, lipgloss.Center, button)
 	}
-	controls += "\n" + line + "\n" + text(p.ink).Bold(true).Render("Shortcuts") + "\n"
 	workspace := m
 	workspace.composer.open = false
+	var shortcuts []key.Binding
 	for _, binding := range workspace.bindings().short {
-		h := binding.Help()
-		if h.Key == "c" || h.Key == "ctrl+r" || h.Key == "a" {
-			continue
+		if h := binding.Help(); h.Key != "c" && h.Key != "ctrl+r" && h.Key != "a" {
+			shortcuts = append(shortcuts, binding)
 		}
+	}
+	shown := shortcuts
+	if layout.shortcuts >= 0 {
+		shown = shortcuts[:min(layout.shortcuts, len(shortcuts))]
+	}
+	if len(shown) > 0 {
+		controls += "\n" + line + "\n" + text(p.ink).Bold(true).Render("Shortcuts")
+	}
+	controls += "\n"
+	for _, binding := range shown {
+		h := binding.Help()
 		action := h.Key
 		if action == "j/k" {
 			action = "down"
@@ -620,12 +706,14 @@ func (m AppModel) asideLayout(width, height int, p palette) (string, []hitArea) 
 	if version == "" {
 		version = release.Version
 	}
-	controls += line + "\n\n" + centered.Foreground(lipgloss.Color(p.muted)).Render("/dev/null TUI\n"+fit(safeText(version), inner))
+	if layout.version {
+		controls += line + "\n\n" + centered.Foreground(lipgloss.Color(p.muted)).Render("/dev/null TUI\n"+fit(safeText(version), inner))
+	}
 	for i := range areas {
 		areas[i].y += strings.Count(content, "\n")
 	}
-	content += controls
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).MaxWidth(width).PaddingLeft(2).PaddingRight(1).Render(content), areas
+	content += strings.TrimRight(controls, "\n")
+	return content, areas, len(shortcuts)
 }
 
 func (m AppModel) feedViewport(p palette) string {
@@ -657,7 +745,7 @@ func (m AppModel) helpLines(width int, p palette) []string {
 
 func (m AppModel) helpMaxScroll() int {
 	r := m.helpBounds()
-	return max(0, len(m.helpLines(max(1, r.w-4), colors(m.account.dark)))-max(1, r.h-6))
+	return max(0, len(m.helpLines(max(1, r.w-4), m.account.colors()))-max(1, r.h-6))
 }
 
 func (m AppModel) helpBounds() uiRect { return centeredRect(m.account.width, m.account.height, 62, 48) }

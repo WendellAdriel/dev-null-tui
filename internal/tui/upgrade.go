@@ -236,7 +236,7 @@ func (m AppModel) upgradeClick(x, y int) (AppModel, tea.Cmd) {
 	if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(x, y) {
 		return m.mouseKey("esc")
 	}
-	_, start := m.upgradeBody(colors(m.account.dark))
+	_, start := m.upgradeBody(m.account.colors())
 	choice := y - r.y - 3 - start
 	if start < 0 || choice < 0 || choice > 2 || x <= r.x || x >= r.x+r.w-1 {
 		return m, nil

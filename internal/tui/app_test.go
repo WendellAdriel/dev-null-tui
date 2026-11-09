@@ -24,6 +24,8 @@ func fixtureApp(t *testing.T) AppModel {
 	t.Helper()
 	m := NewApp("dark", auth.Store{Dir: t.TempDir()}, "https://example.test", t.Context())
 	m.now = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	// The fixture date has no event theme, so frames don't depend on the day the tests run.
+	m.applyEventTheme()
 	t.Cleanup(func() { _ = m.Close() })
 	m.fetch = func(context.Context, api.Log, string, string) (api.Page, error) {
 		return api.Page{Log: api.Following, Data: []api.Commit{fixtureCommit("a"), fixtureCommit("b")}}, nil

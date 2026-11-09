@@ -161,9 +161,14 @@ func TestKeptDraftReopensWithItsOriginalTarget(t *testing.T) {
 	}
 	m, _ = m.handleKey("j")
 	m, _ = m.handleKey("q")
-	c := m.composer
-	if !c.open || c.mode != "reply" || c.target.ID != "a" || c.input.Value() != "Kept reply" || !strings.Contains(c.status, "Finish or discard") {
-		t.Fatalf("kept draft not reopened: %+v", c.status)
+	if c := m.composer; !c.open || c.mode != "quote" || c.input.Value() != "" {
+		t.Fatal("another place starts its own draft")
+	}
+	m = pressApp(m, "esc")
+	m, _ = m.handleKey("k")
+	m, _ = m.handleKey("r")
+	if c := m.composer; !c.open || c.mode != "reply" || c.target.ID != "a" || c.input.Value() != "Kept reply" {
+		t.Fatalf("kept draft not reopened on its target: %q", c.input.Value())
 	}
 }
 
@@ -347,11 +352,11 @@ func TestNarrowThreadActionsWrapInsideTheirRows(t *testing.T) {
 		t.Fatalf("entry rows %v do not match %d rendered lines", th.ends, rendered)
 	}
 	for _, area := range th.actions {
-		if area.action == "D" {
+		if area.action == "." {
 			return
 		}
 	}
-	t.Fatal("wrapped Delete action has no hit area")
+	t.Fatal("wrapped More action has no hit area")
 }
 
 func TestThreadReloadIgnoresEarlierResponses(t *testing.T) {

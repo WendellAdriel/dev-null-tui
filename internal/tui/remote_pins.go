@@ -225,13 +225,13 @@ func (m AppModel) pinBanner(width int, p palette) string {
 	}
 	latest := t.data.Pinned[0]
 	left := text(p.muted).Render(m.icons.pin+" "+fmt.Sprintf("%d pinned · ", len(t.data.Pinned))) + text(p.ink).Render(m.pinAuthor(latest)+": "+pinnedText(latest))
-	right := keyChip("L", p) + " " + text(p.muted).Render("list")
+	right := actionChip("list", "L", p)
 	return " " + split(fit(left, max(1, width-ansi.StringWidth(right)-4)), right, max(1, width-2))
 }
 
 // bannerRows is the height the pin banner takes from the messages.
 func (m AppModel) bannerRows() int {
-	if m.pinBanner(1, colors(m.account.dark)) == "" {
+	if m.pinBanner(1, m.account.colors()) == "" {
 		return 0
 	}
 	return 1
@@ -246,7 +246,7 @@ func (m AppModel) pinWarningModal(p palette) (string, uiRect, []hitArea) {
 	if w.dismiss {
 		box = "[x]"
 	}
-	check := text(p.ink).Render(box+" Don't show this again") + " " + keyChip("space", p)
+	check := actionChip(box+" Don't show this again", "space", p)
 	body := description + "\n\n" + check
 	footer, areas := modalFooter([]modalAction{{"Cancel", "esc", "esc"}, {"Pin message", "enter", "enter"}}, width, 2, p)
 	for i := range areas {
@@ -296,9 +296,9 @@ func (m AppModel) pinModalMouse(x, y int) (AppModel, tea.Cmd) {
 	var rect uiRect
 	var areas []hitArea
 	if m.remotes.pinWarning != nil {
-		_, rect, areas = m.pinWarningModal(colors(m.account.dark))
+		_, rect, areas = m.pinWarningModal(m.account.colors())
 	} else {
-		_, rect, areas = m.pinListModal(colors(m.account.dark))
+		_, rect, areas = m.pinListModal(m.account.colors())
 	}
 	for _, area := range areas {
 		if !area.contains(x, y) {

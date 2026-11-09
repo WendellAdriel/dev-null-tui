@@ -86,9 +86,11 @@ func (l *accountLife) command(work func() tea.Msg) tea.Cmd {
 }
 
 type AccountModel struct {
-	width, height               int
-	theme                       string
-	dark                        bool
+	width, height int
+	theme         string
+	dark          bool
+	// themeName picks the palettes, and event is the event theme on screen, or empty.
+	themeName, event            string
 	backgroundKnown             bool
 	state                       string
 	status                      string
@@ -114,7 +116,7 @@ func NewAccount(theme string, store auth.Store, origin string, ctx context.Conte
 	input := textinput.New()
 	input.Placeholder = "Paste the complete callback link"
 	input.EchoMode, input.EchoCharacter, input.CharLimit = textinput.EchoPassword, '*', 2048
-	return AccountModel{width: 80, height: 24, theme: theme, dark: theme != "light", state: "restoring", status: "Checking your saved connection...", store: store, origin: origin, input: input, life: &accountLife{ctx: lifeCtx, cancel: cancel}}
+	return AccountModel{width: 80, height: 24, theme: theme, dark: theme != "light", themeName: "default", state: "restoring", status: "Checking your saved connection...", store: store, origin: origin, input: input, life: &accountLife{ctx: lifeCtx, cancel: cancel}}
 }
 
 func (m AccountModel) Close() error {

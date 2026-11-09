@@ -794,9 +794,16 @@ func (m *AppModel) activateSetting(action, value string) tea.Cmd {
 			return nil
 		}
 		return m.startSettings(settingsOperation{kind: "remote-preferences", from: from, receipts: receipts})
-	case "theme":
-		m.account.toggleTheme()
-		m.reflow()
+	case "theme-name":
+		m.openThemes()
+		return nil
+	case "theme-mode":
+		return m.cycleMode()
+	case "event-theme":
+		m.openEventThemes()
+		return nil
+	case "who-to-follow":
+		return m.toggleWhoToFollow()
 	case "update-check":
 		m.tuiSettings.CheckForUpdates = !m.tuiSettings.CheckForUpdates
 		m.sizeSettings()

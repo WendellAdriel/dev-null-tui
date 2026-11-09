@@ -165,7 +165,7 @@ func (m AppModel) scheduledKey(pressed string) (AppModel, tea.Cmd) {
 		}
 	case "D":
 		if item, ok := m.selectedScheduled(); ok && item.Status == "scheduled" && s.busy == "" {
-			m.ask = &ask{kind: "cancel-scheduled", title: "/dev/null · CANCEL", question: "Cancel this scheduled commit?", detail: "It won't be submitted. This can't be undone.", confirm: "Cancel commit", border: colors(m.account.dark).danger, id: item.ID}
+			m.ask = &ask{kind: "cancel-scheduled", title: "/dev/null · CANCEL", question: "Cancel this scheduled commit?", detail: "It won't be submitted. This can't be undone.", confirm: "Cancel commit", border: m.account.colors().danger, id: item.ID}
 		}
 	case "esc":
 		return m.switchLog(m.active)
@@ -271,7 +271,7 @@ func (m *AppModel) renderScheduled() {
 	if s == nil {
 		return
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, s.viewport.Width())
 	inner := max(1, width-4)
 	ink := map[string]string{"blue": p.blue, "warning": p.warning, "muted": p.muted, "success": p.success, "danger": p.danger}
@@ -343,7 +343,7 @@ func (m *AppModel) renderScheduled() {
 		add("No scheduled commits")
 		add("Press Ctrl+T in the composer to submit later.")
 	case s.more:
-		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("More ")+keyChip("n", p)), "")
+		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(actionChip("More", "n", p)), "")
 	}
 	s.viewport.SetContent(strings.Join(lines, "\n"))
 }

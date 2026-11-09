@@ -80,7 +80,7 @@ func (m AppModel) commitLinks(c api.Commit) []string {
 		return nil
 	}
 	var links []string
-	for _, link := range lineLinks(bodyLines(c, 0, colors(m.account.dark), m.statsStyle())) {
+	for _, link := range lineLinks(bodyLines(c, 0, m.account.colors(), m.statsStyle())) {
 		if m.mentionHandle(link) == "" {
 			links = append(links, link)
 		}

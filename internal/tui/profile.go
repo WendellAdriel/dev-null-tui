@@ -53,6 +53,7 @@ type profileState struct {
 	starts, ends []int
 	pictures     []pictureArea
 	actions      []hitArea
+	avatars      []avatarHit
 	media        []lineMedia
 	ctx          context.Context
 	cancel       context.CancelFunc
@@ -271,7 +272,7 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 			m.closeProfile()
 			return m.openOrganization(handle)
 		}
-		s.status = profileError(msg.err, s.organization)
+		s.status = m.ghostly(msg.err, profileError(msg.err, s.organization))
 		m.renderProfile(s)
 		return nil
 	}
@@ -308,7 +309,7 @@ func (m *AppModel) acceptProfileList(msg profileListResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		l.status = profileError(msg.err, s.organization)
+		l.status = m.ghostly(msg.err, profileError(msg.err, s.organization))
 		m.renderProfile(s)
 		return nil
 	}
@@ -445,6 +446,11 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 			return m, m.startFollow(s.handle, s.profile.IsFollowing), true
 		case "W":
 			return m, m.watchLive(m.profileLive(s)), true
+		case "V":
+			if !s.loaded {
+				return m, nil, true
+			}
+			return m, m.openAvatar("@"+safeText(s.profile.User.Handle), s.profile.User.AvatarURL), true
 		}
 	}
 	entries := s.entries()
@@ -600,6 +606,7 @@ func (m *AppModel) reconcileFollow(handle string, follow bool) {
 		delta = -1
 	}
 	own := m.account.user.Handle
+	m.reconcileSuggestionFollow(handle, follow)
 	for i := range m.profiles {
 		s := &m.profiles[i]
 		if strings.EqualFold(s.handle, handle) && s.profile.IsFollowing != nil && *s.profile.IsFollowing != follow {

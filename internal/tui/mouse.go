@@ -65,7 +65,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if m.connected && !m.accountOpen && m.settings.dialog != "" {
-		_, r, areas := m.settingsDialog(colors(m.account.dark))
+		_, r, areas := m.settingsDialog(m.account.colors())
 		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
 			return m.mouseKey("esc")
 		}
@@ -97,7 +97,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		}
 	}
 	if m.composer.confirm != "" {
-		_, _, areas := m.confirmationModal(colors(m.account.dark))
+		_, _, areas := m.confirmationModal(m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
 				return m.mouseKey(area.action)
@@ -115,7 +115,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m.achievementsMouse(msg.X, msg.Y)
 	}
 	if m.connected && m.vote.confirm {
-		_, _, areas := m.voteModal(colors(m.account.dark))
+		_, _, areas := m.voteModal(m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
 				return m.mouseKey(area.action)
@@ -139,7 +139,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m.reactionModalMouse(msg.X, msg.Y)
 	}
 	if m.connected && m.live != nil {
-		_, _, areas := m.liveModal(colors(m.account.dark))
+		_, _, areas := m.liveModal(m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
 				return m.mouseKey(area.action)
@@ -153,8 +153,14 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.connected && !m.accountOpen && m.picker != nil {
 		return m.listPickerMouse(msg.X, msg.Y)
 	}
+	if m.connected && !m.accountOpen && m.whoToFollow.open {
+		return m.suggestionModalMouse(msg.X, msg.Y)
+	}
+	if m.connected && !m.accountOpen && m.sharingCommit() {
+		return m.peopleMouse(msg.X, msg.Y)
+	}
 	if m.connected && m.deleting.id != "" {
-		_, _, areas := m.deleteModal(colors(m.account.dark))
+		_, _, areas := m.deleteModal(m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
 				return m.mouseKey(area.action)
@@ -170,7 +176,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m.viewerMouse(msg.X, msg.Y)
 	}
 	if !m.connected || m.accountOpen {
-		_, areas := m.account.accountScreen(colors(m.account.dark))
+		_, areas := m.account.accountScreen(m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X, msg.Y) {
 				if area.action == "account" {
@@ -217,7 +223,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	nav, center, aside := m.columns()
 	left := (m.account.width - nav - center - aside - 2) / 2
 	if (uiRect{left, 0, nav, m.mainHeight()}).contains(msg.X, msg.Y) {
-		_, areas := m.navigationLayout(nav, m.mainHeight(), colors(m.account.dark))
+		_, areas := m.navigationLayout(nav, m.mainHeight(), m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X-left, msg.Y) {
 				m.settings.open = false
@@ -236,6 +242,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				}
 				if area.action == "scheduled" {
 					return m.openScheduled()
+				}
+				if area.action == "drafts" {
+					return m.openDrafts()
 				}
 				if area.action == "remotes" {
 					return m.openRemotes()
@@ -257,7 +266,7 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if aside > 0 && (uiRect{left + nav + center + 2, 0, aside, m.mainHeight()}).contains(msg.X, msg.Y) {
-		_, areas := m.asideLayout(aside, m.mainHeight(), colors(m.account.dark))
+		_, areas := m.asideLayout(aside, m.mainHeight(), m.account.colors())
 		for _, area := range areas {
 			if area.contains(msg.X-left-nav-center-2, msg.Y) {
 				if area.action == "watch" {
@@ -269,9 +278,15 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if m.manualLink != "" {
-		_, back := m.manualLinkView(center, colors(m.account.dark))
+		_, back := m.manualLinkView(center, m.account.colors())
 		if back.contains(msg.X-left-nav-1, msg.Y) {
 			return m.mouseKey("esc")
+		}
+		return m, nil
+	}
+	if m.draftsOnTop() && !m.settings.open {
+		if x := msg.X - left - nav - 1; x >= 0 && x < center {
+			return m.draftsMouse(x, msg.Y, center)
 		}
 		return m, nil
 	}
@@ -384,6 +399,13 @@ func (m AppModel) mouseWheel(msg tea.MouseWheelMsg) (AppModel, tea.Cmd) {
 			pressed = "up"
 		}
 		return m.listPickerKey(pressed)
+	}
+	if m.whoToFollow.open && m.connected && !m.accountOpen {
+		pressed := "down"
+		if msg.Button == tea.MouseWheelUp {
+			pressed = "up"
+		}
+		return m.suggestionModalKey(pressed)
 	}
 	code := tea.KeyDown
 	if msg.Button == tea.MouseWheelUp {

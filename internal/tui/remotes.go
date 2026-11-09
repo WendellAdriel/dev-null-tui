@@ -76,9 +76,15 @@ type remoteThreadState struct {
 	selected string
 	spans    map[string][2]int
 	chips    []chipArea
-	voices   []voiceArea
+	// pendingKeys are the Retry and Discard chips on rejected pushes.
+	pendingKeys []pendingKey
+	// avatars are the senders' faces above their runs.
+	avatars []avatarHit
+	voices  []voiceArea
 	// jumpTo is a pinned message to select once older pages bring it in.
 	jumpTo int64
+	// unseen counts messages from others that arrived while the reader was scrolled up, for the Back to present pill.
+	unseen int
 }
 
 type remotesState struct {
@@ -461,6 +467,14 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 		if len(data.Messages) > 0 {
 			t.active = m.now
 		}
+		if !atBottom {
+			for _, message := range data.Messages {
+				known := slices.ContainsFunc(t.messages, func(old api.Message) bool { return old.ID == message.ID })
+				if !known && message.UserID != m.account.user.ID {
+					t.unseen++
+				}
+			}
+		}
 		t.messages = mergeMessages(t.messages, data.Messages)
 		applyReactionChanges(t.messages, data.ReactionChanges)
 		if data.ReactionsVersion == 0 {
@@ -504,6 +518,7 @@ func (m *AppModel) acceptRemoteThread(msg remoteThreadResult) tea.Cmd {
 		t.viewport.SetYOffset(t.viewport.YOffset() + t.viewport.TotalLineCount() - previousHeight)
 	case atBottom:
 		t.viewport.GotoBottom()
+		t.unseen = 0
 	}
 	var jump tea.Cmd
 	if id := t.jumpTo; id != 0 {
@@ -542,6 +557,9 @@ func applyReactionChanges(messages []api.Message, changes []api.ReactionChange) 
 // conversation-thread.tsx, it only reads a thread that is on screen and scrolled to the newest message.
 func (m *AppModel) markRemoteRead() tea.Cmd {
 	t := m.remotes.thread
+	if t != nil && t.viewport.AtBottom() {
+		t.unseen = 0
+	}
 	if t == nil || !m.focused || !m.remotesOnTop() || m.settings.open || m.accountOpen || !t.loaded || !t.viewport.AtBottom() || t.data.Access != "open" || len(t.messages) == 0 {
 		return nil
 	}
@@ -884,10 +902,7 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.fetchRemoteThread("older")
 		}
 	case "G", "end":
-		t.selected = ""
-		m.renderRemoteThread()
-		t.viewport.GotoBottom()
-		return m, m.markRemoteRead()
+		return m, m.backToPresent()
 	case "home":
 		t.viewport.GotoTop()
 		return m, m.fetchRemoteThread("older")
@@ -990,4 +1005,17 @@ func (m AppModel) remotesStatus() string {
 	}
 	hints = append(hints, "N new remote", "O new org")
 	return strings.Join(append(hints, "esc back"), "  ·  ")
+}
+
+// backToPresent jumps to the newest message at once, with no animation, for G and the pill above the composer.
+func (m *AppModel) backToPresent() tea.Cmd {
+	t := m.remotes.thread
+	if t == nil {
+		return nil
+	}
+	t.selected = ""
+	m.renderRemoteThread()
+	t.viewport.GotoBottom()
+	t.unseen = 0
+	return m.markRemoteRead()
 }

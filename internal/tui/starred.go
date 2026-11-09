@@ -37,6 +37,7 @@ func (m *AppModel) closeStarred() {
 		m.scheduled.cancelRequested()
 	}
 	m.scheduled = nil
+	m.drafts = draftsState{}
 }
 
 func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("") }

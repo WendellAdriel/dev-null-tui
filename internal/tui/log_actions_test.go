@@ -28,7 +28,7 @@ func TestLogShowsActionsOnlyForTheSelectedCommit(t *testing.T) {
 			next, _ := m.Update(size)
 			m = next.(AppModel)
 			content := ansi.Strip(m.feeds[0].viewport.GetContent())
-			for _, label := range []string{"Thread", "Reply", "Quote", "View", "Delete"} {
+			for _, label := range []string{"Thread", "Reply", "Quote", "View", "More"} {
 				if strings.Count(content, label) != 1 {
 					t.Fatalf("expected one %s action at %dx%d (%s):\n%s", label, size.Width, size.Height, theme, content)
 				}
@@ -51,7 +51,7 @@ func TestLogShowsActionsOnlyForTheSelectedCommit(t *testing.T) {
 
 func TestLogActionsAndKeysTargetTheSelectedCommit(t *testing.T) {
 	for _, mouse := range []bool{false, true} {
-		for _, action := range []struct{ label, key string }{{"Thread", "enter"}, {"Reply", "r"}, {"Quote", "q"}, {"View", "v"}, {"Delete", "D"}} {
+		for _, action := range []struct{ label, key string }{{"Thread", "enter"}, {"Reply", "r"}, {"Quote", "q"}, {"View", "v"}, {"More", "."}} {
 			m := logActionApp(t)
 			id := "a"
 			var cmd tea.Cmd
@@ -78,9 +78,9 @@ func TestLogActionsAndKeysTargetTheSelectedCommit(t *testing.T) {
 				if !m.viewer.open || m.viewer.commit.ID != id || len(m.threads) != 0 {
 					t.Fatal("log image action did not open the selected commit's image")
 				}
-			case "D":
-				if m.deleting.id != id || len(m.threads) != 0 {
-					t.Fatal("log delete action did not open confirmation")
+			case ".":
+				if m.picker == nil || m.picker.kind != "commit-menu" || m.picker.commit.ID != id || len(m.threads) != 0 {
+					t.Fatal("log More action did not open the selected commit's menu")
 				}
 			}
 		}

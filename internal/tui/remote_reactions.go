@@ -341,7 +341,7 @@ func (m AppModel) reactionRow(width int, p palette) (string, []hitArea) {
 		if i == len(quick) {
 			label = "+ more"
 		}
-		chip := keyChip(string(rune('1'+i)), p) + " " + label
+		chip := actionChip(label, string(rune('1'+i)), p)
 		if i == menu.focus {
 			chip = withBackground(chip+" ", p.soft)
 		} else {
@@ -392,7 +392,7 @@ func (m AppModel) reactionModal(p palette) (string, uiRect, []hitArea) {
 
 func (m AppModel) reactionModalMouse(x, y int) (AppModel, tea.Cmd) {
 	menu := m.remotes.thread.react
-	_, rect, areas := m.reactionModal(colors(m.account.dark))
+	_, rect, areas := m.reactionModal(m.account.colors())
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue

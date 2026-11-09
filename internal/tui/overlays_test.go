@@ -52,7 +52,7 @@ func TestComposerModalPreservesTheReaderViewport(t *testing.T) {
 
 func TestMouseOwnsComposerControlsAndCannotClickThrough(t *testing.T) {
 	m := fixtureApp(t)
-	m, _ = clickText(t, m, "c Commit")
+	m, _ = clickText(t, m, " Commit  c ")
 	if !m.composer.open {
 		t.Fatal("compose prompt did not open modal")
 	}
@@ -68,7 +68,7 @@ func TestMouseOwnsComposerControlsAndCannotClickThrough(t *testing.T) {
 		t.Fatal("mouse cancel bypassed draft protection")
 	}
 	m, _ = clickText(t, m, "Keep draft")
-	if m.composer.confirm != "" || m.composer.input.Value() != "Synthetic draft" {
+	if m.composer.confirm != "" || m.commitDrafts["commit"].Body != "Synthetic draft" {
 		t.Fatal("keep action lost draft")
 	}
 	m = pressApp(m, "c")

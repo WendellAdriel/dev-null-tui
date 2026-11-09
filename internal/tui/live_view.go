@@ -121,7 +121,7 @@ func (m AppModel) liveNowBlock(width int, p palette) (string, []hitArea) {
 	if len(m.liveNow) == 0 {
 		return "", nil
 	}
-	rows := []string{split(text(p.danger).Bold(true).Render("● ")+text(p.ink).Bold(true).Render("Live now"), keyChip("W", p), width)}
+	rows := []string{split(text(p.danger).Bold(true).Render("● ")+text(p.ink).Bold(true).Render("Live now"), actionChip("Watch", "W", p), width)}
 	var areas []hitArea
 	for i, person := range m.liveNow {
 		name := safeText(person.Name)
@@ -150,7 +150,7 @@ func (m AppModel) liveNowBlock(width int, p palette) (string, []hitArea) {
 
 // liveAction is your profile's Go live or End stream action. It's blue, since red marks destructive actions.
 func (m AppModel) liveAction(p palette) string {
-	return text(p.blue).Bold(true).Render(m.liveButton()) + " " + keyChip("L", p)
+	return actionChip(m.liveButton(), "L", p)
 }
 
 // liveButton is your own Go live or End stream action, shown on your profile and in the aside.

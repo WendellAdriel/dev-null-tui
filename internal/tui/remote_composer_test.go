@@ -655,3 +655,29 @@ func TestTabCompletesMessageEmojiBeforeSelectingImages(t *testing.T) {
 		})
 	}
 }
+
+func TestTheRejectedPushChipsAreClickable(t *testing.T) {
+	m, state := messagingApp(t)
+	m = openOrg(t, m)
+	state.pushErr = errors.New("offline")
+	m = send(m, typed("whello")...)
+	m = send(m, enterKey, escKey)
+	lines := strings.Split(m.remotes.thread.viewport.GetContent(), "\n")
+	var discard pendingKey
+	for _, k := range m.remotes.thread.pendingKeys {
+		label := map[string]string{"r": "Retry", "d": "Discard"}[k.key]
+		if got := ansi.Strip(ansi.Cut(lines[k.line], k.x, k.x+k.w)); !strings.Contains(got, label) {
+			t.Fatalf("the %s target covers %q", label, got)
+		}
+		if k.key == "d" {
+			discard = k
+		}
+	}
+	if discard.w == 0 {
+		t.Fatal("a rejected push must have a Discard target")
+	}
+	m.threadClick(discard.line, discard.x)
+	if len(m.messaging.pending[fixtureOrg]) != 0 {
+		t.Fatal("clicking Discard must drop the rejected push")
+	}
+}

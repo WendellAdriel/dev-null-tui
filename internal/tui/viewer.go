@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,13 +17,16 @@ import (
 
 type viewerState struct {
 	open, hidePanel, loading bool
-	commit                   api.Commit
-	index, generation        int
-	offset                   int
-	replies                  []api.Commit
-	next, status             string
-	ctx                      context.Context
-	cancel                   context.CancelFunc
+	// avatar shows one profile picture, named by label, with no commit panel.
+	avatar            bool
+	label             string
+	commit            api.Commit
+	index, generation int
+	offset            int
+	replies           []api.Commit
+	next, status      string
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 func (m *AppModel) openViewer(commit api.Commit, index int) tea.Cmd {
@@ -36,6 +40,53 @@ func (m *AppModel) openViewer(commit api.Commit, index int) tea.Cmd {
 	m.viewer = viewerState{open: true, commit: commit, index: max(0, min(index, len(commit.Images)-1)), generation: generation, ctx: ctx, cancel: cancel}
 	m.resetSequence()
 	return m.fetchViewerReplies(ctx, "")
+}
+
+// avatarViewSize is the size the viewer asks for, as the web's profile picture dialog does.
+const avatarViewSize = 1024
+
+// openAvatar shows a profile picture in the image viewer.
+func (m *AppModel) openAvatar(label, raw string) tea.Cmd {
+	if strings.TrimSpace(raw) == "" {
+		m.notice = "This avatar has no image to view."
+		return nil
+	}
+	m.closeViewer()
+	image := api.Image{URL: graphics.AvatarSizedURL(raw, avatarViewSize), Width: avatarViewSize, Height: avatarViewSize, Description: label}
+	m.viewer = viewerState{open: true, avatar: true, label: label, commit: api.Commit{Author: &api.Author{}, Images: []api.Image{image}}, generation: m.viewer.generation + 1}
+	m.resetSequence()
+	return nil
+}
+
+// avatarHit is a drawn avatar that a click opens in the viewer.
+type avatarHit struct {
+	area       uiRect
+	label, url string
+}
+
+func authorHit(area uiRect, a *api.Author) avatarHit {
+	return avatarHit{area, "@" + safeText(a.Handle), a.AvatarURL}
+}
+
+func userHit(area uiRect, u *api.User) avatarHit {
+	return avatarHit{area, "@" + safeText(u.Handle), u.AvatarURL}
+}
+
+// openAvatarAt opens the avatar under x and y, and reports whether there was one.
+func (m *AppModel) openAvatarAt(hits []avatarHit, x, y int) (tea.Cmd, bool) {
+	for _, hit := range hits {
+		if hit.area.contains(x, y) {
+			return m.openAvatar(hit.label, hit.url), true
+		}
+	}
+	return nil, false
+}
+
+func (m *AppModel) openAuthorAvatar(a *api.Author) tea.Cmd {
+	if a == nil {
+		return nil
+	}
+	return m.openAvatar("@"+safeText(a.Handle), a.AvatarURL)
 }
 
 func (m *AppModel) fetchViewerReplies(base context.Context, cursor string) tea.Cmd {
@@ -88,14 +139,14 @@ func (m AppModel) viewerKey(pressed string) (AppModel, tea.Cmd) {
 	case "j", "down", "k", "up", "pgdown", "pgup", "ctrl+d", "ctrl+u", "home", "end", "G":
 		delta := map[string]int{"j": 1, "down": 1, "k": -1, "up": -1, "pgdown": 5, "ctrl+d": 5, "pgup": -5, "ctrl+u": -5, "home": -1 << 20, "end": 1 << 20, "G": 1 << 20}[pressed]
 		height := m.viewerImageBounds().h
-		v.offset = max(0, min(len(m.viewerPanelLines(m.viewerPanelWidth(), colors(m.account.dark)))-height, v.offset+delta))
+		v.offset = max(0, min(len(m.viewerPanelLines(m.viewerPanelWidth(), m.account.colors()))-height, v.offset+delta))
 	case "n":
 		if v.next == "" || v.loading {
 			return m, nil
 		}
 		return m, m.fetchViewerReplies(v.ctx, v.next)
 	case "p":
-		v.hidePanel = !v.hidePanel
+		v.hidePanel = !v.hidePanel || v.avatar
 	case "y":
 		raw := v.commit.Images[v.index].URL
 		if !validImageURL(raw) {
@@ -108,7 +159,7 @@ func (m AppModel) viewerKey(pressed string) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) viewerPanelWidth() int {
-	if m.viewer.hidePanel || m.account.width < 70 {
+	if m.viewer.hidePanel || m.viewer.avatar || m.account.width < 70 {
 		return 0
 	}
 	return min(44, m.account.width*2/5)
@@ -140,12 +191,19 @@ func (m AppModel) viewerLayout(p palette) (string, []hitArea) {
 	image := v.commit.Images[v.index]
 	var areas []hitArea
 	toolbar := ""
-	for _, action := range []struct{ key, label string }{{"y", "Copy link"}, {"p", "Panel"}, {"esc", "Close"}} {
-		chip := keyChip(action.key, p) + " " + text(p.ink).Render(action.label)
+	tools := []struct{ key, label string }{{"y", "Copy link"}, {"p", "Panel"}, {"esc", "Close"}}
+	if v.avatar {
+		tools = slices.Delete(tools, 1, 2)
+	}
+	for _, action := range tools {
+		chip := actionChip(action.label, action.key, p)
 		toolbar += "  " + chip
 		areas = append(areas, hitArea{uiRect{lipgloss.Width(toolbar) - lipgloss.Width(chip), 0, lipgloss.Width(chip), 1}, action.key, 0})
 	}
 	title := " " + text(p.ink).Bold(true).Render(fmt.Sprintf("Image %d / %d", v.index+1, count))
+	if v.avatar {
+		title = " " + text(p.ink).Bold(true).Render("Avatar · "+v.label)
+	}
 	if v.status != "" {
 		title += "  " + text(p.muted).Render(v.status)
 	}
@@ -282,13 +340,13 @@ func (m AppModel) viewerPanelLines(width int, p palette) []string {
 		lines = append(lines, "", indent+text(p.muted).Render("No replies yet."))
 	}
 	if v.next != "" {
-		lines = append(lines, "", indent+text(p.muted).Render("More replies ")+keyChip("n", p))
+		lines = append(lines, "", indent+actionChip("More replies", "n", p))
 	}
 	return lines
 }
 
 func (m AppModel) viewerMouse(x, y int) (AppModel, tea.Cmd) {
-	_, areas := m.viewerLayout(colors(m.account.dark))
+	_, areas := m.viewerLayout(m.account.colors())
 	for _, area := range areas {
 		if area.contains(x, y) {
 			return m.mouseKey(area.action)

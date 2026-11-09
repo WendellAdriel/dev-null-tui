@@ -144,6 +144,10 @@ func (m AppModel) inboxLayout(width, height int, p palette) (string, []hitArea) 
 				row[j] = withBackground(text(p.blue).Render("▌")+fit(row[j][1:], width-1), p.soft)
 			}
 		}
+		// An org row's face is just one member, so only a partner's avatar opens.
+		if c := r.inbox[i]; c.Kind != "org" && c.Partner != nil {
+			areas = append(areas, hitArea{uiRect{1, len(lines), 4, 2}, "avatar", i})
+		}
 		areas = append(areas, hitArea{uiRect{0, len(lines), width, inboxRowHeight}, "row", i})
 		lines = append(append(lines, row...), "")
 	}
@@ -164,7 +168,7 @@ func (m AppModel) inboxLayout(width, height int, p palette) (string, []hitArea) 
 		}
 	}
 	if r.hasMore && len(lines) < height {
-		lines = append(lines, lipgloss.PlaceHorizontal(width, lipgloss.Center, text(p.muted).Render("More ")+keyChip("n", p)))
+		lines = append(lines, lipgloss.PlaceHorizontal(width, lipgloss.Center, actionChip("More", "n", p)))
 	}
 	content := strings.Join(lines, "\n")
 	return lipgloss.NewStyle().Width(width).Height(height).MaxWidth(width).MaxHeight(height).Render(content), areas
@@ -366,7 +370,7 @@ func (m AppModel) remoteThreadPane(width, height int, p palette) string {
 	if c.PinnedAt != nil {
 		right += text(p.muted).Render(m.icons.pin) + " "
 	}
-	right += keyChip(".", p) + text(p.muted).Render(" ⋯")
+	right += actionChip("⋯", ".", p)
 	_, face := m.userAvatar(m.conversationFace(c), 2, 1, p)
 	left := face[0] + " " + text(p.ink).Bold(true).Render(m.conversationTitle(c)) + "  " + text(p.muted).Render(subtitle)
 	header := " " + split(fit(left, max(1, width-ansi.StringWidth(right)-4)), right, width-2)
@@ -378,6 +382,12 @@ func (m AppModel) remoteThreadPane(width, height int, p palette) string {
 	messages := t.viewport.View()
 	if t.composer.browser != nil {
 		messages = indent(m.browserView(max(1, width-2), t.viewport.Height(), p))
+	}
+	if pill, at := m.presentPill(width, p); pill != "" {
+		rows := strings.Split(messages, "\n")
+		last := len(rows) - 1
+		rows[last] = ansi.Cut(rows[last], 0, at) + pill + ansi.Cut(rows[last], at+lipgloss.Width(pill), width)
+		messages = strings.Join(rows, "\n")
 	}
 	content := header + "\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n"
 	if banner := m.pinBanner(width, p); banner != "" {
@@ -416,7 +426,7 @@ func (m *AppModel) renderRemoteThread() {
 	if t == nil {
 		return
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	own := p
 	own.ink, own.blue, own.muted = p.shell, p.shell, p.shell
 	width := max(1, t.viewport.Width())
@@ -424,9 +434,9 @@ func (m *AppModel) renderRemoteThread() {
 	style := statsStyle{icons: m.images, glyphs: m.icons, origin: m.account.origin}
 	center := func(value string) string { return lipgloss.PlaceHorizontal(width, lipgloss.Center, value) }
 	var lines []string
-	t.media, t.chips, t.voices, t.spans = nil, nil, nil, map[string][2]int{}
+	t.media, t.chips, t.voices, t.spans, t.pendingKeys, t.avatars = nil, nil, nil, map[string][2]int{}, nil, nil
 	if t.data.HasOlder {
-		lines = append(lines, center(text(p.muted).Render("Older messages ")+keyChip("n", p)))
+		lines = append(lines, center(actionChip("Older messages", "n", p)))
 	}
 	day := ""
 	partner := t.data.Partner
@@ -471,6 +481,9 @@ func (m *AppModel) renderRemoteThread() {
 			}
 			req, avatar := m.userAvatar(sender, 2, 1, p)
 			t.media = append(t.media, remoteMedia{len(lines), len(lines) + 1, req})
+			if sender != nil {
+				t.avatars = append(t.avatars, userHit(uiRect{1, len(lines), 2, 1}, sender))
+			}
 			lines = append(lines, align(avatar[0]+" "+text(p.ink).Bold(true).Render(fit(name, bubble-3))))
 		case startsRun:
 			if len(lines) > 0 && lines[len(lines)-1] != "" {
@@ -591,6 +604,14 @@ func (m *AppModel) renderRemoteThread() {
 		start := len(lines)
 		lines = append(lines, m.pendingLines(pending, width, bubble, p)...)
 		t.spans["p:"+pending.clientID] = [2]int{start, len(lines)}
+		if pending.status == "rejected" {
+			// pendingLines right-aligns the state at width-1, ending with the Retry and Discard chips.
+			discard, retry := lipgloss.Width(actionChip("Discard", "d", p)), lipgloss.Width(actionChip("Retry", "r", p))
+			end := width - 1
+			t.pendingKeys = append(t.pendingKeys,
+				pendingKey{len(lines) - 1, end - discard, discard, pending.clientID, "d"},
+				pendingKey{len(lines) - 1, end - discard - 1 - retry, retry, pending.clientID, "r"})
+		}
 	}
 	if span, ok := t.spans[t.selected]; ok {
 		markSelected(lines, span, width, p)
@@ -715,7 +736,7 @@ func (m AppModel) userAvatar(u *api.User, cols, rows int, p palette) (graphics.R
 }
 
 func (m AppModel) remotesMedia() []graphics.Request {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	var requests []graphics.Request
 	add := func(u *api.User, cols, rows int) {
 		if u != nil {
@@ -813,7 +834,7 @@ func (m AppModel) remotesModal(p palette) (string, uiRect, []hitArea) {
 }
 
 func (m AppModel) remotesDialogMouse(x, y int) (AppModel, tea.Cmd) {
-	_, rect, areas := m.remotesModal(colors(m.account.dark))
+	_, rect, areas := m.remotesModal(m.account.colors())
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
@@ -839,7 +860,7 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 	if y < remotesHeaderHeight || y >= m.mainHeight() {
 		return m, nil
 	}
-	p, row := colors(m.account.dark), y-remotesHeaderHeight
+	p, row := m.account.colors(), y-remotesHeaderHeight
 	inbox := m.remotesSplit() || m.remotes.thread == nil
 	if inbox && (!m.remotesSplit() || x < inboxPaneWidth) {
 		width := m.remotesWidth()
@@ -865,6 +886,9 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 			case "/":
 				m.remotes.searching, m.remotes.query = true, m.remotes.term
 				return m, nil
+			case "avatar":
+				partner := m.remotes.inbox[area.index].Partner
+				return m, m.openAvatar("@"+safeText(partner.Handle), partner.AvatarURL)
 			case "row":
 				m.remotes.selected = area.index
 				return m, m.openRemoteThread(m.remotes.inbox[area.index])
@@ -885,6 +909,10 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		return m, cmd
 	}
 	t := m.remotes.thread
+	if row == 0 && t != nil && t.conversation.Kind != "org" && t.conversation.Partner != nil && x-left >= 1 && x-left < 3 {
+		partner := t.conversation.Partner
+		return m, m.openAvatar("@"+safeText(partner.Handle), partner.AvatarURL)
+	}
 	if row == 0 && t != nil && t.conversation.Kind == "org" {
 		// The header reads " ● title  org · N members"; the member count opens Members.
 		if x-left >= 6+ansi.StringWidth(m.conversationTitle(t.conversation)) {
@@ -901,6 +929,9 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		m.openPinList()
 		return m, nil
 	}
+	if pill, at := m.presentPill(m.threadPaneWidth(), p); pill != "" && row == 1+banner+t.viewport.Height() && x >= at && x < at+lipgloss.Width(pill) {
+		return m, m.backToPresent()
+	}
 	if line := t.viewport.YOffset() + row - 2 - banner; row >= 2+banner && row < 2+banner+t.viewport.Height() {
 		return m, m.threadClick(line, x)
 	}
@@ -914,6 +945,8 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 			return m, m.focusMessageComposer()
 		case "ping":
 			return m, m.sendPing()
+		case "key:ctrl+t", "key:r", "key:e", "key:!":
+			return m.remoteThreadKey(strings.TrimPrefix(area.action, "key:"))
 		case "merge", "drop":
 			return m.remoteThreadKey(area.action[:1])
 		case "react":
@@ -941,6 +974,18 @@ func (m *AppModel) threadClick(line, x int) tea.Cmd {
 				m.blurMessageComposer()
 			}
 			return m.voiceClick(area, x)
+		}
+	}
+	if cmd, ok := m.openAvatarAt(t.avatars, x, line); ok {
+		return cmd
+	}
+	for _, k := range t.pendingKeys {
+		if k.line == line && k.x <= x && x < k.x+k.w {
+			if k.key == "r" {
+				return m.retryMessage(k.clientID)
+			}
+			m.discardMessage(k.clientID)
+			return nil
 		}
 	}
 	for _, chip := range t.chips {
@@ -973,4 +1018,19 @@ func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys
 	}
 	all = append(all, bind("N", "new remote"), bind("O", "new org"), bind("P", "pin or unpin"), bind("S", "stash or pop"), bind("M", "mute or unmute"), bind("B", "block or leave org"), bind("u", "partner profile"), bind("ctrl+r", "refresh"), bind("[ / ]", "previous / next tab"), bind("n", "more conversations"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five"), bind("g r", "Remotes"), bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "open a conversation or tab"))
 	return appKeys{short, all}
+}
+
+// presentPill is the web's Back to present button: it shows while the reader is scrolled up, and counts messages
+// that arrived meanwhile. It returns the pill and its column.
+func (m AppModel) presentPill(width int, p palette) (string, int) {
+	t := m.remotes.thread
+	if t == nil || !t.loaded || t.composer.browser != nil || t.viewport.AtBottom() || t.viewport.Height() < 3 {
+		return "", 0
+	}
+	label := "↓ Back to present"
+	if t.unseen > 0 {
+		label = fmt.Sprintf("↓ %d new", t.unseen)
+	}
+	pill := actionChip(label, "G", p)
+	return pill, max(0, (width-lipgloss.Width(pill))/2)
 }

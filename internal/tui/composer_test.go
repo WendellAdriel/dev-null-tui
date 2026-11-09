@@ -54,9 +54,10 @@ func TestComposerOwnsTypingPasteAndProtectsDraft(t *testing.T) {
 		t.Fatal("cancel lost draft")
 	}
 	m = pressApp(m, "enter")
-	if m.composer.open || m.composer.confirm != "" || m.composer.input.Value() != want {
-		t.Fatal("confirmation must default to keep")
+	if m.composer.open || m.composer.confirm != "" || m.commitDrafts["commit"].Body != want {
+		t.Fatal("confirmation must default to keep, which saves the draft")
 	}
+	m = pressApp(m, "c")
 	m = pressApp(m, "ctrl+c")
 	if m.composer.confirm != "exit" || m.composer.input.Value() != want {
 		t.Fatal("exit did not protect draft")
@@ -315,7 +316,7 @@ func TestSmallTerminalStillShowsDraftConfirmations(t *testing.T) {
 				t.Fatal("confirmation height overflow")
 			}
 			m = pressApp(m, "enter")
-			if m.composer.input.Value() != "Keep me" || m.composer.confirm != "" {
+			if m.commitDrafts["commit"].Body != "Keep me" || m.composer.confirm != "" {
 				t.Fatal("default confirmation discarded draft")
 			}
 		}

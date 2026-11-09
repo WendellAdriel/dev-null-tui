@@ -29,6 +29,8 @@ func (m *AppModel) commitShortcut(c api.Commit, pressed string) (tea.Cmd, bool) 
 		return m.toggleTranslation(c), true
 	case "x":
 		return m.openLinks(m.commitLinks(c)), true
+	case ".":
+		return m.openCommitMenu(c), true
 	}
 	return nil, false
 }

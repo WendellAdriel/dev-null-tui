@@ -51,7 +51,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if !m.connected || m.accountOpen || !m.images.Enabled || m.account.width < 30 || m.account.height < 10 {
 		return nil
 	}
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	var requests, avatars []graphics.Request
 	var stars []graphics.Request
 	if !m.notificationsOpen || len(m.threads) > 0 || len(m.profiles) > 0 || m.viewer.open {
@@ -138,8 +138,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if m.picker != nil {
 		avatars = append(m.listPickerMedia(p), avatars...)
 	}
+	avatars = append(m.suggestionModalMedia(p), avatars...)
 	if nav, _, _ := m.columns(); nav >= 12 {
-		stars = append(stars, logoRequest(m.account.dark))
+		stars = append(stars, logoRequest(m.account.dark, m.account.event))
 	}
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, liveRing(u.Live, laneColor(u.Lane, p), p, m.now), 4, 2))
 	if _, _, aside := m.columns(); aside > 0 {

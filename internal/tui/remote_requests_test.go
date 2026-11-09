@@ -28,7 +28,7 @@ func requestApp(t *testing.T, answer error) (AppModel, *messaging) {
 
 func TestMergingARequestOpensTheComposer(t *testing.T) {
 	m, state := requestApp(t, nil)
-	if text := threadText(m); !strings.Contains(text, "@ada wants to push to you. Merge to reply, or drop it.") || !strings.Contains(text, " d  Drop    m  Merge") {
+	if text := threadText(m); !strings.Contains(text, "@ada wants to push to you. Merge to reply, or drop it.") || !strings.Contains(text, " Drop  d     Merge  m ") {
 		t.Fatalf("request bar:\n%s", text)
 	}
 	m = settle(t, m, "m")

@@ -180,6 +180,7 @@ func TestTUISettingsTabTogglesUpdateChecks(t *testing.T) {
 	if m.settings.tab != settingsTUI || !strings.Contains(ansi.Strip(m.View().Content), "Check for updates: On") {
 		t.Fatal("the TUI tab must show the update check as on by default")
 	}
+	m = pressApp(m, "j")
 	next, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
 	m = deliver(next.(AppModel), runAll(cmd))
 	if m.account.store.TUISettings().CheckForUpdates || !strings.Contains(ansi.Strip(m.View().Content), "Check for updates: Off") {

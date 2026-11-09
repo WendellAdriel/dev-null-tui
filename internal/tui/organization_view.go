@@ -34,9 +34,9 @@ func (m AppModel) organizationHeader(frame *profileFrame, s *profileState, width
 	var buttons []string
 	var keys []string
 	if page.SettingsURL != nil {
-		buttons, keys = append(buttons, text(p.ink).Render("Settings")+" "+keyChip("S", p)), append(keys, "S")
+		buttons, keys = append(buttons, actionChip("Settings", "S", p)), append(keys, "S")
 	}
-	buttons, keys = append(buttons, text(p.ink).Bold(true).Render(followLabel(page.IsFollowing))+" "+keyChip("f", p)), append(keys, "f")
+	buttons, keys = append(buttons, actionChip(followLabel(page.IsFollowing), "f", p)), append(keys, "f")
 	actions := strings.Join(buttons, "  ")
 	target := func() {
 		x := 2 + inner - lipgloss.Width(actions)
@@ -122,7 +122,7 @@ func (m AppModel) organizationHeader(frame *profileFrame, s *profileState, width
 		}
 	}
 	if page.CanClaim {
-		claim := text(p.ink).Bold(true).Render("Claim") + " " + keyChip("C", p)
+		claim := actionChip("Claim", "C", p)
 		frame.add("", pad+text(p.blue).Render("⚑ ")+text(p.ink).Bold(true).Render(fit("Nobody has claimed @"+safeText(o.Handle)+" yet", inner-2)))
 		about := "This page is waiting for its team. A member of " + safeText(o.Name) + " on GitHub can claim it, then post as the organization and add teammates."
 		for _, line := range strings.Split(ansi.Wrap(about, inner-2, ""), "\n") {
@@ -165,9 +165,9 @@ func (m AppModel) organizationRows(frame *profileFrame, s *profileState, width i
 			rows = append(rows, text(p.muted).Render(fit(strings.ReplaceAll(remoteBody(o.Bio), "\n", " "), inner)))
 		}
 		if i == l.selected {
-			actions := []string{text(p.ink).Render("Open") + " " + keyChip("enter", p)}
+			actions := []string{actionChip("Open", "enter", p)}
 			if o.IsFollowed != nil {
-				actions = append(actions, text(p.ink).Render(followLabel(*o.IsFollowed))+" "+keyChip("f", p))
+				actions = append(actions, actionChip(followLabel(*o.IsFollowed), "f", p))
 			}
 			x := gutter
 			for n, action := range actions {
@@ -185,6 +185,8 @@ func (m AppModel) organizationRows(frame *profileFrame, s *profileState, width i
 					rail = "  " + m.images.Row(m.organizationAvatar(o, p, 4, 2), row) + " "
 					if lipgloss.Width(rail) != gutter {
 						rail = "  " + text(lane).Render("■") + strings.Repeat(" ", gutter-3)
+					} else if row == 0 {
+						frame.avatars = append(frame.avatars, avatarHit{uiRect{2, len(frame.lines), 4, 2}, "@" + safeText(o.Handle), o.AvatarURL})
 					}
 				}
 			}
@@ -198,7 +200,7 @@ func (m AppModel) organizationRows(frame *profileFrame, s *profileState, width i
 		frame.add(text(p.hairline).Render(strings.Repeat("─", width)))
 	}
 	if l.organizationsNext != "" {
-		more := text(p.muted).Render("More organizations ") + keyChip("o", p)
+		more := actionChip("More organizations", "o", p)
 		frame.target((width-lipgloss.Width(more))/2, lipgloss.Width(more), "o")
 		frame.add(lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(more))
 	}
@@ -208,7 +210,7 @@ func (m AppModel) organizationRows(frame *profileFrame, s *profileState, width i
 func (m AppModel) organizationBindings(bind func(string, string) key.Binding) appKeys {
 	s := m.profiles[len(m.profiles)-1]
 	short := []key.Binding{bind("j/k", "move"), bind("tab", "commits / mentions"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
-	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / mentions"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("n", "older commits"), bind("ctrl+r", "reload organization"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
+	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / mentions"), bind("V", "view avatar"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("n", "older commits"), bind("ctrl+r", "reload organization"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open, act, or view image"))
 	if s.page.CanClaim {
 		all = append(all, bind("C", "claim this organization"))
 	}

@@ -20,7 +20,7 @@ func (m *AppModel) renderStarred() {
 		m.renderScheduled()
 		return
 	}
-	f, p := &m.starred, colors(m.account.dark)
+	f, p := &m.starred, m.account.colors()
 	width := max(1, f.viewport.Width())
 	day := ""
 	list := m.commitList(nil, f.commits, f.selected, width, func(_ int, c api.Commit) []string {
@@ -49,7 +49,7 @@ func (m *AppModel) renderStarred() {
 		add("fatal: no starred commits yet")
 		add("Star a commit to find it here.")
 	case f.next != "":
-		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("More ")+keyChip("n", p)), "")
+		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(actionChip("More", "n", p)), "")
 	case f.loaded:
 		add("You've reached the end of your starred commits.")
 	}
@@ -122,7 +122,7 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 		short = append(short, bind("u", "author profile"))
 	}
 	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
-	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"))
+	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"))
 	if m.commitSearch == "" {
 		all = append(all, bind("n", "older starred commits"))
 	}
@@ -148,6 +148,9 @@ func (m AppModel) starredMouse(x, y int) (AppModel, tea.Cmd) {
 	row := y - starredHeaderHeight + f.viewport.YOffset()
 	for _, area := range f.actions {
 		if area.contains(x, row) {
+			if area.action == "avatar" {
+				return m, m.openAuthorAvatar(f.commits[area.index].Author)
+			}
 			return m.mouseKey(area.action)
 		}
 	}

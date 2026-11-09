@@ -79,18 +79,20 @@ func TestQOpensTheQuotedCommitFromThreadsAndProfiles(t *testing.T) {
 	}
 }
 
-func TestEveryCardShowsCopyLink(t *testing.T) {
+func TestEveryCardOffersCopyLinkInItsMoreMenu(t *testing.T) {
 	m := threadApp(t)
 	copied := copiedValues(&m)
 	frame := ansi.Strip(m.View().Content)
-	if !strings.Contains(frame, "Copy link") {
-		t.Fatalf("the log card lacks Copy link:\n%s", frame)
+	if !strings.Contains(frame, "⋯ More") {
+		t.Fatalf("the log card lacks the More chip:\n%s", frame)
 	}
 	m, cmd := m.handleKey("enter")
 	m = deliver(m, runAll(cmd))
+	m, _ = m.handleKey(".")
 	if !strings.Contains(ansi.Strip(m.View().Content), "Copy link") {
-		t.Fatal("the thread card lacks Copy link")
+		t.Fatal("the thread card's menu lacks Copy link")
 	}
+	m = pressApp(m, "esc")
 	next, cmd := m.handleKey("y")
 	m = deliver(next, runAll(cmd))
 	if len(*copied) != 1 || (*copied)[0] != "https://example.test/commit/a" {
@@ -117,9 +119,11 @@ func TestTCopiesTheTextOfOwnAndOrganizationCommits(t *testing.T) {
 	for i, want := range []string{"My own words", "Words from acme"} {
 		m, _ = m.selectCommit(i)
 		m.toast.visible = false
+		m, _ = m.handleKey(".")
 		if !strings.Contains(ansi.Strip(m.View().Content), "Copy text") {
-			t.Fatalf("commit %d lacks Copy text", i)
+			t.Fatalf("commit %d's menu lacks Copy text", i)
 		}
+		m = pressApp(m, "esc")
 		next, cmd := m.handleKey("T")
 		m = deliver(next, runAll(cmd))
 		if got := (*copied)[len(*copied)-1]; got != want {

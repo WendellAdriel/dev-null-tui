@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"context"
+	"errors"
 	"slices"
 	"strings"
 	"testing"
@@ -149,4 +151,23 @@ func TestGroupedNotificationActorsUseTwoRowAvatars(t *testing.T) {
 			t.Fatalf("actor stack row %d lacks the two-row avatar", row)
 		}
 	}
+}
+
+func TestNotificationChipsSitUnderARuleLikeACommits(t *testing.T) {
+	m, _ := profileApp(t)
+	m.fetchNotifications = func(context.Context, string, string) (api.Notifications, error) {
+		return api.Notifications{}, errors.New("fixture unavailable")
+	}
+	m, _ = m.openNotifications()
+	m = inboxPage(m, fixtureNotification("star"))
+	lines := strings.Split(ansi.Strip(m.notificationFeed().viewport.GetContent()), "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "Open  enter") {
+			if i == 0 || !strings.Contains(lines[i-1], "────") {
+				t.Fatalf("the chips lack the rule above them:\n%s", strings.Join(lines, "\n"))
+			}
+			return
+		}
+	}
+	t.Fatalf("no Open chip on the selected notification:\n%s", strings.Join(lines, "\n"))
 }

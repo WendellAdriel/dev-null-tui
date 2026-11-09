@@ -111,7 +111,7 @@ func (s Store) Disconnect() error {
 	if err := os.Remove(filepath.Join(s.Dir, "connection.json")); err != nil && !os.IsNotExist(err) {
 		return errors.New("cannot delete the local device key")
 	}
-	return s.DeleteMessageDrafts()
+	return s.DeleteDrafts()
 }
 
 func writePrivate(path string, data []byte) error {
@@ -180,6 +180,13 @@ type TUISettings struct {
 	PinWarningDismissed bool `json:"pin_warning_dismissed,omitempty"`
 	// RecentSearches keeps each account's last searches, newest first, keyed by user ID like the web's recent-searches.
 	RecentSearches map[string][]string `json:"recent_searches,omitempty"`
+	// Theme names a theme from the TUI's list, and Mode is auto, light, or dark. Empty means Default and auto.
+	Theme string `json:"theme,omitempty"`
+	Mode  string `json:"mode,omitempty"`
+	// EventTheme is auto, default, halloween, christmas, or newyear, like the web's event_theme cookie, which stays in the browser. Empty means default.
+	EventTheme string `json:"event_theme,omitempty"`
+	// HideWhoToFollow hides suggested people, like the web's who_to_follow cookie.
+	HideWhoToFollow bool `json:"hide_who_to_follow,omitempty"`
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.

@@ -165,7 +165,7 @@ func (m AppModel) profileLine(lane, name, handle, bio string, ink lipgloss.Style
 }
 
 func (m AppModel) searchMouse(x, y int) (AppModel, tea.Cmd) {
-	_, _, areas := m.searchModal(colors(m.account.dark))
+	_, _, areas := m.searchModal(m.account.colors())
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue

@@ -68,7 +68,7 @@ func overlay(base, content string, r uiRect, p palette, width, height int) strin
 }
 
 func (m AppModel) overlayToast(base, content string, r uiRect) string {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	bottom := text(p.hairline).Render(strings.Repeat("▀", max(1, r.w-1)))
 	right := text(p.hairline).Render(strings.TrimSuffix(strings.Repeat("▌\n", max(0, r.h-1)), "\n"))
 	result := lipgloss.NewCompositor(lipgloss.NewLayer(base), lipgloss.NewLayer(bottom).X(r.x+1).Y(r.y+r.h), lipgloss.NewLayer(right).X(r.x+r.w).Y(r.y+1), lipgloss.NewLayer(content).X(r.x).Y(r.y)).Render()
@@ -95,7 +95,7 @@ func (m *AppModel) notify(kind, title, detail string) tea.Cmd {
 }
 
 func (m AppModel) toastView() (string, uiRect) {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	background := p.shell
 	w := max(1, min(46, m.account.width-2))
 	inner := max(1, w-4)

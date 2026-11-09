@@ -16,7 +16,8 @@ func TestSettingsExitProtectionOwnsTheVisibleModal(t *testing.T) {
 	m.account.width, m.account.height = 120, 35
 	m.openComposer()
 	m.composer.input.SetValue("retained private draft")
-	m.keepDraft()
+	// A draft can stay in memory, unsaved, while a submission runs or after a reconnect.
+	m.composer.open = false
 	m.openSettings()
 	m.settings.busy = false
 	m.beginSettingsDialog("delete-account", "", "")

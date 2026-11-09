@@ -167,7 +167,7 @@ func (m AppModel) achievementsKey(pressed string) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) achievementsMouse(x, y int) (AppModel, tea.Cmd) {
-	_, r, areas := m.achievementsModal(colors(m.account.dark))
+	_, r, areas := m.achievementsModal(m.account.colors())
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue

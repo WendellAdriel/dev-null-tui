@@ -98,7 +98,7 @@ func (m AppModel) whatsNewLines(p palette) []string {
 
 func (m AppModel) whatsNewMaxScroll() int {
 	r := m.whatsNewBounds()
-	return max(0, len(m.whatsNewLines(colors(m.account.dark)))-max(1, r.h-6))
+	return max(0, len(m.whatsNewLines(m.account.colors()))-max(1, r.h-6))
 }
 
 func (m AppModel) whatsNewModal(p palette) string {

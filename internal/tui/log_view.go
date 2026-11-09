@@ -457,7 +457,7 @@ func (m *AppModel) reflow() {
 
 func (m *AppModel) renderFeed(index int) {
 	f := &m.feeds[index]
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, f.viewport.Width())
 	gutter := 5
 	if m.images.Enabled {
@@ -465,16 +465,49 @@ func (m *AppModel) renderFeed(index int) {
 	}
 	contentWidth := max(1, width-gutter-2)
 	day := ""
-	list := m.commitList(nil, f.commits, f.selected, width, func(_ int, c api.Commit) []string {
+	inLog := m.suggestionsInLog(index)
+	if !inLog {
+		f.person = 0
+	}
+	f.person = min(f.person, len(m.shownPeople()))
+	selected := f.selected
+	if f.person > 0 {
+		selected = -1
+	}
+	var block []string
+	var blockAreas []hitArea
+	var personStarts, personEnds []int
+	dated := 0
+	list := m.commitList(nil, f.commits, selected, width, func(i int, c api.Commit) []string {
+		var heading []string
+		if inLog && i == whoToFollowAfter {
+			block, blockAreas, personStarts, personEnds = m.suggestionLogBlock(width, f.person, p)
+			heading = append(heading, block...)
+		}
 		date := dayLabel(c.CreatedAt, m.now)
 		if index == 2 || date == day {
-			return nil
+			return heading
 		}
 		day = date
-		return []string{"    " + text(p.muted).Render(fit(date, contentWidth)), text(p.hairline).Render(strings.Repeat("─", width))}
+		if i == whoToFollowAfter {
+			dated = 2
+		}
+		return append(heading, "    "+text(p.muted).Render(fit(date, contentWidth)), text(p.hairline).Render(strings.Repeat("─", width)))
 	})
 	lines := list.lines
 	f.starts, f.ends, f.pictures, f.actions = list.starts, list.ends, list.pictures, list.actions
+	f.personStarts, f.personEnds = nil, nil
+	if block != nil {
+		top := f.starts[whoToFollowAfter] - dated - len(block)
+		for _, area := range blockAreas {
+			area.y += top
+			f.actions = append(f.actions, area)
+		}
+		for i := range personStarts {
+			f.personStarts = append(f.personStarts, top+personStarts[i])
+			f.personEnds = append(f.personEnds, top+personEnds[i])
+		}
+	}
 	if len(f.commits) == 0 && f.loaded {
 		lines = append(lines, "", "     "+text(p.ink).Bold(true).Render("A quiet log."), "", "     "+text(p.muted).Render("Tab to explore another log."))
 		if index == 0 && len(f.suggestions) > 0 {
@@ -490,7 +523,7 @@ func (m *AppModel) renderFeed(index int) {
 	if len(f.commits) > 0 {
 		ending := text(p.muted).Render("EOF")
 		if f.next != "" {
-			ending = text(p.muted).Render("Older commits ") + keyChip("n", p)
+			ending = actionChip("Older commits", "n", p)
 		}
 		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(ending), "")
 	}
@@ -506,7 +539,7 @@ type commitList struct {
 
 // commitList appends railed commits to lines, with the selected commit's actions and optional headings above each.
 func (m AppModel) commitList(lines []string, commits []api.Commit, selected, width int, heading func(int, api.Commit) []string) commitList {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	gutter := 5
 	if m.images.Enabled {
 		gutter = 7
@@ -535,6 +568,9 @@ func (m AppModel) commitList(lines []string, commits []api.Commit, selected, wid
 		ring := -1
 		if c.DeletedAt == nil && c.Author != nil && len(rows) > 1 {
 			ring = len(rows) - 1
+		}
+		if m.images.Enabled && c.DeletedAt == nil && c.Author != nil {
+			list.actions = append(list.actions, hitArea{uiRect{0, len(lines), gutter, 2}, "avatar", i})
 		}
 		if i == selected {
 			chips, areas := m.commitActions(c, commitAction{"Thread", "enter"}, contentWidth, p)

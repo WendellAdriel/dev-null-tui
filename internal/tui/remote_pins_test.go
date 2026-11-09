@@ -96,7 +96,7 @@ func TestThePinnedBannerShowsTheLatestPin(t *testing.T) {
 
 func TestPinningWarnsUntilToldNotTo(t *testing.T) {
 	m, state := pinsApp(t, "maintainer")
-	if !strings.Contains(threadText(m), "! pin") {
+	if !strings.Contains(threadText(m), "Pin  !") {
 		t.Fatalf("no pin hint for a maintainer:\n%s", threadText(m))
 	}
 	m = settle(t, m, "k", "!")

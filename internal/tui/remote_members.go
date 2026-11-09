@@ -365,7 +365,7 @@ func (m AppModel) membersModal(pal palette) (string, uiRect, []hitArea) {
 
 func (m AppModel) membersMouse(x, y int) (AppModel, tea.Cmd) {
 	d := m.remotes.members
-	_, rect, areas := m.membersModal(colors(m.account.dark))
+	_, rect, areas := m.membersModal(m.account.colors())
 	if d.sending {
 		return m, nil
 	}

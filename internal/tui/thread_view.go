@@ -40,7 +40,7 @@ func threadParents(entries []threadEntry) []int {
 const relatedHeader = -2
 
 func (m *AppModel) renderThread(t *threadState) {
-	p := colors(m.account.dark)
+	p := m.account.colors()
 	width := max(1, t.viewport.Width())
 	// Each depth puts its node one lane to the right, wide enough for a 4-cell avatar when graphics work.
 	base, step, gap := 2, 3, 3
@@ -57,7 +57,7 @@ func (m *AppModel) renderThread(t *threadState) {
 	addMore := func() {
 		if t.next != "" && more < 0 {
 			more = len(bodies)
-			bodies, owners = append(bodies, text(p.muted).Render("More replies ")+keyChip("n", p)), append(owners, -1)
+			bodies, owners = append(bodies, actionChip("More replies", "n", p)), append(owners, -1)
 		}
 	}
 	for i, entry := range entries {
@@ -198,6 +198,7 @@ func (m *AppModel) renderThread(t *threadState) {
 		if !m.images.Enabled || c.DeletedAt != nil || c.Author == nil {
 			continue
 		}
+		t.actions = append(t.actions, hitArea{uiRect{col - 2, line, 5, 2}, "avatar", i})
 		for row := range 2 {
 			avatar := m.images.Row(m.authorAvatar(c.Author, p, 5, 2), row)
 			if avatar == "" {
@@ -231,13 +232,15 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	if commit.DeletedAt != nil || commit.Author == nil {
 		return []string{text(p.muted).Render(fit("Deleted commits cannot be replied to.", width))}, nil
 	}
-	actions := []commitAction{{"Reply", "r"}, {"Quote", "q"}}
+	// Visible chips follow the Phase 16 order. The rest live in the ⋯ More menu, and their keys still work.
+	var actions []commitAction
+	if navigation.key == "enter" {
+		actions = append(actions, navigation)
+	}
 	if folded(commit, m.statsStyle()) {
-		actions = append([]commitAction{{"Show more", "m"}}, actions...)
+		actions = append(actions, commitAction{"Show more", "m"})
 	}
-	if m.canVote(commit) {
-		actions = append(actions, commitAction{"Vote", "o"})
-	}
+	actions = append(actions, commitAction{"Reply", "r"}, commitAction{"Quote", "q"})
 	if m.canStar(commit) {
 		label := "Toggle star"
 		if commit.Starred != nil {
@@ -251,26 +254,20 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 	if m.canGivePastel(commit) {
 		actions = append(actions, commitAction{"Pastél", "p"})
 	}
-	if navigation.key == "enter" {
-		actions = append([]commitAction{navigation}, actions...)
-	} else if navigation.key != "" {
+	if m.canVote(commit) {
+		actions = append(actions, commitAction{"Vote", "o"})
+	}
+	if len(commit.Images) > 0 {
+		actions = append(actions, commitAction{"View", "v"})
+	}
+	if navigation.key != "" && navigation.key != "enter" {
 		actions = append(actions, navigation)
 	}
 	if hasProfile(commit.Author) && !strings.EqualFold(commit.Author.Handle, m.profileHandle()) {
 		actions = append(actions, commitAction{"Profile", "u"})
 	}
-	if len(commit.Images) > 0 {
-		actions = append(actions, commitAction{"View", "v"})
-	}
 	if commit.QuotedID != nil || commit.Quote != nil {
 		actions = append(actions, commitAction{"Open quote", "Q"})
-	}
-	actions = append(actions, commitAction{"Copy link", "y"})
-	if m.canCopyText(commit) {
-		actions = append(actions, commitAction{"Copy text", "T"})
-	}
-	if len(m.commitLinks(commit)) > 0 {
-		actions = append(actions, commitAction{"Open link", "x"})
 	}
 	if strings.TrimSpace(commit.Body) != "" {
 		label := "Translate"
@@ -279,28 +276,12 @@ func (m AppModel) commitActions(commit api.Commit, navigation commitAction, widt
 		}
 		actions = append(actions, commitAction{label, "t"})
 	}
-	if commit.Stars > 0 && m.ownCommit(commit) && !m.organizationSettingsKey() {
-		actions = append(actions, commitAction{"Starred by", "S"})
-	}
-	if m.canPinCommit(commit) {
-		label := "Pin"
-		if commit.Pinned != nil && *commit.Pinned {
-			label = "Unpin"
-		}
-		actions = append(actions, commitAction{label, "P"})
-	}
-	if m.ownCommit(commit) {
-		actions = append(actions, commitAction{"Delete", "D"})
-	} else if commit.Status == "" || commit.Status == "approved" {
-		actions = append(actions, commitAction{"Report", "!"})
-	}
+	actions = append(actions, commitAction{"⋯ More", "."})
 	return commitChips(actions, width, p)
 }
 
 // commitChips sets a commit's shortcuts apart from its text: a rule above, then each shortcut in its own chip.
 func commitChips(actions []commitAction, width int, p palette) ([]string, []hitArea) {
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.hairline))
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft)).Bold(true)
 	var rows [][]string
 	var row []string
 	used := 0
@@ -309,7 +290,7 @@ func commitChips(actions []commitAction, width int, p palette) ([]string, []hitA
 		if action.key == "s" {
 			label += strings.Repeat(" ", max(0, len("Unstar")-lipgloss.Width(label)))
 		}
-		chip := labelStyle.Render(" "+label+" ") + keyStyle.Render(" "+action.key+" ")
+		chip := actionChip(label, action.key, p)
 		if len(row) > 0 && used+2+lipgloss.Width(chip) > width {
 			rows, row, used = append(rows, row), nil, 0
 		}
@@ -344,11 +325,7 @@ func actionChips(actions []commitAction, width int, p palette) ([]string, []hitA
 	var areas []hitArea
 	line := ""
 	for _, action := range actions {
-		label := text(p.ink).Render(action.label)
-		if action.key == "s" {
-			label += strings.Repeat(" ", max(0, len("Unstar")-lipgloss.Width(label)))
-		}
-		chip := label + " " + keyChip(action.key, p)
+		chip := actionChip(action.label, action.key, p)
 		if line != "" && lipgloss.Width(line)+2+lipgloss.Width(chip) > width {
 			rows, line = append(rows, line), ""
 		}
@@ -386,7 +363,7 @@ func (m *AppModel) sizeThreads() {
 
 func (m AppModel) threadColumn(width int, p palette) string {
 	t := m.threads[len(m.threads)-1]
-	back := keyChip("esc", p) + text(p.muted).Render(" Back")
+	back := actionChip("Back", "esc", p)
 	title := "  " + text(p.ink).Bold(true).Render("Thread")
 	if len(m.threads) > 1 {
 		title += text(p.muted).Render(fmt.Sprintf(" · %d deep", len(m.threads)))
@@ -423,6 +400,9 @@ func (m AppModel) threadMouse(x, y int) (AppModel, tea.Cmd) {
 	row := y - threadHeaderHeight + t.viewport.YOffset()
 	for _, area := range t.actions {
 		if area.contains(x, row) {
+			if area.action == "avatar" {
+				return m, m.openAuthorAvatar(t.entries()[area.index].commit.Author)
+			}
 			return m.mouseKey(area.action)
 		}
 	}
@@ -453,7 +433,7 @@ func (m AppModel) threadMouse(x, y int) (AppModel, tea.Cmd) {
 
 func (m AppModel) threadBackX() int {
 	_, center, _ := m.columns()
-	return center - lipgloss.Width(keyChip("esc", colors(m.account.dark))+" Back") - 1
+	return center - lipgloss.Width(actionChip("Back", "esc", m.account.colors())) - 1
 }
 
 func (m AppModel) deleteModal(p palette) (string, uiRect, []hitArea) {
