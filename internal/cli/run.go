@@ -60,7 +60,7 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 	flags.SetOutput(stderr)
 	server := flags.String("server", auth.DefaultOrigin, "server origin")
 	version := flags.Bool("version", false, "print the version")
-	theme := flags.String("theme", "auto", "appearance: auto, light, or dark")
+	theme := flags.String("theme", "auto", "appearance: auto, light, or dark; defaults to the mode saved in Settings")
 	defaultIcons := os.Getenv("DEVNULL_ICONS")
 	if defaultIcons == "" {
 		defaultIcons = "nerd"
@@ -91,7 +91,14 @@ func runCommands(args []string, stdout, stderr io.Writer, actions commands) erro
 		_, err := fmt.Fprintln(stdout, "devnull", Version)
 		return err
 	}
-	return actions.app(stdout, *theme, *server, *icons)
+	chosen := ""
+	flags.Visit(func(f *flag.Flag) {
+		if f.Name == "theme" {
+			chosen = *theme
+		}
+	})
+	// An empty theme lets the app use the mode saved in tui.json.
+	return actions.app(stdout, chosen, *server, *icons)
 }
 
 func startApp(output io.Writer, theme, origin, icons string) error {

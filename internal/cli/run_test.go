@@ -77,6 +77,18 @@ func TestDefaultStartupPassesAppearanceAndServer(t *testing.T) {
 	}
 }
 
+func TestStartupWithoutThemeLeavesTheSavedModeToTheApp(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	var got = "unset"
+	err := runCommands(nil, &stdout, &stderr, commands{app: func(_ io.Writer, theme, _, _ string) error {
+		got = theme
+		return nil
+	}})
+	if err != nil || got != "" {
+		t.Fatalf("no --theme must pass an empty theme, got %q (error %v)", got, err)
+	}
+}
+
 func TestIconsComeFromTheFlagOrTheEnvironment(t *testing.T) {
 	t.Setenv("DEVNULL_ICONS", "plain")
 	for args, want := range map[string]string{"": "plain", "--icons=nerd": "nerd"} {
