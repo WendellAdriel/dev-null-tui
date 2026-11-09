@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
-	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 type Preview struct {
@@ -79,7 +77,8 @@ func (draft NewCommit) Validate() error {
 	return ValidateBody(draft.Body)
 }
 
-func (draft NewCommit) payload() ([]byte, error) {
+// payload is the JSON request body, with scheduledAt set only for a scheduled commit.
+func (draft NewCommit) payload(scheduledAt string) ([]byte, error) {
 	payload := struct {
 		Body         string    `json:"body"`
 		ParentID     string    `json:"parent_id,omitempty"`
@@ -87,7 +86,8 @@ func (draft NewCommit) payload() ([]byte, error) {
 		Author       string    `json:"author,omitempty"`
 		Poll         *NewPoll  `json:"poll,omitempty"`
 		Descriptions []*string `json:"image_descriptions,omitempty"`
-	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID, Author: draft.Author}
+		ScheduledAt  string    `json:"scheduled_at,omitempty"`
+	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID, Author: draft.Author, ScheduledAt: scheduledAt}
 	if draft.Poll != nil {
 		poll := draft.Poll.trimmed()
 		payload.Poll = &poll
@@ -107,7 +107,7 @@ func (c *Client) CreateCommit(ctx context.Context, draft NewCommit) (Commit, err
 	if err := draft.Validate(); err != nil {
 		return Commit{}, err
 	}
-	payload, err := draft.payload()
+	payload, err := draft.payload("")
 	if err != nil {
 		return Commit{}, err
 	}
@@ -115,11 +115,7 @@ func (c *Client) CreateCommit(ctx context.Context, draft NewCommit) (Commit, err
 		Data Commit `json:"data"`
 	}
 	if len(draft.Images) > 0 {
-		uploads := make([]auth.Upload, len(draft.Images))
-		for i, image := range draft.Images {
-			uploads[i] = image.Upload
-		}
-		err = c.transport.PostMultipart(ctx, "/api/v1/commits", payload, uploads, &result)
+		err = c.transport.PostMultipart(ctx, "/api/v1/commits", payload, draft.uploads(), &result)
 	} else {
 		err = c.transport.PostJSON(ctx, "/api/v1/commits", payload, &result)
 	}

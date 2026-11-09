@@ -52,6 +52,7 @@ type Commit struct {
 	Status       string       `json:"status"`
 	Stars        int          `json:"stars_count"`
 	Starred      *bool        `json:"starred"`
+	Pinned       *bool        `json:"is_pinned"`
 	Pasteis      *int         `json:"pasteis_count"`
 	Replies      int          `json:"replies_count"`
 	Segments     []Segment    `json:"body_segments"`

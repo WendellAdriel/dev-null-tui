@@ -413,7 +413,7 @@ func fieldErrors(all map[string][]string) []string {
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
 		switch name {
-		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role", "author", "url", "hours":
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role", "author", "url", "hours", "scheduled_at", "undo", "language":
 			fields = append(fields, field)
 		}
 	}

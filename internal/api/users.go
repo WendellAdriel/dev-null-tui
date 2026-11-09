@@ -97,6 +97,8 @@ type Profile struct {
 	Streaks         *Streaks      `json:"streaks"`
 	Achievements    *Achievements `json:"achievements"`
 	Pinned          *Commit       `json:"pinned_commit"`
+	// BioProfiles maps each lowercase handle the bio or company mentions to its dev/null profile handle.
+	BioProfiles map[string]string `json:"bio_profiles"`
 }
 
 type People struct {
@@ -152,29 +154,7 @@ func (c *Client) Connections(ctx context.Context, handle string, list Connection
 	if list != Followers && list != FollowingList {
 		return People{}, errors.New("unknown connection list")
 	}
-	path += "/" + string(list)
-	if cursor != "" {
-		path += "?" + url.Values{"cursor": {cursor}}.Encode()
-	}
-	var people People
-	if err := c.transport.GetJSON(ctx, path, &people); err != nil {
-		return People{}, err
-	}
-	if people.Data == nil {
-		return People{}, errors.New("server returned an invalid connection page")
-	}
-	for _, person := range people.Data {
-		if person.ID == "" || !handlePattern.MatchString(person.Handle) {
-			return People{}, errors.New("server returned an invalid person")
-		}
-	}
-	if people.Meta.NextCursor != nil {
-		people.Next = *people.Meta.NextCursor
-	}
-	if people.Next != "" && people.Next == cursor {
-		return People{}, errors.New("server repeated a pagination cursor")
-	}
-	return people, nil
+	return c.people(ctx, path+"/"+string(list), cursor)
 }
 
 func (c *Client) SetFollow(ctx context.Context, handle string, follow bool) error {
