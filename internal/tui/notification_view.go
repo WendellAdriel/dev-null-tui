@@ -17,12 +17,11 @@ func (m AppModel) notificationHeader(width int, p palette) (string, []hitArea) {
 	row := "  "
 	var areas []hitArea
 	for i, label := range notificationLabels {
-		label = fmt.Sprintf("%d %s", i+1, label)
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(p.muted)).Background(lipgloss.Color(p.wash))
+		ink := p.muted
 		if m.notificationMask&(1<<i) != 0 {
-			style = style.Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft))
+			ink = p.ink
 		}
-		chip := style.Render(" " + label + " ")
+		chip := chipStyled(label, fmt.Sprint(i+1), ink, p)
 		if ansi.StringWidth(row)+ansi.StringWidth(chip) > width-1 && ansi.StringWidth(row) > 2 {
 			lines = append(lines, row)
 			row = "  "

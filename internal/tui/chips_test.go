@@ -98,6 +98,16 @@ func TestGMenuListsDestinationsAsChips(t *testing.T) {
 	}
 }
 
+func TestNotificationFiltersAreActionChips(t *testing.T) {
+	m := inboxPage(inboxFixture(t), fixtureNotification("a"))
+	m.notificationMask &^= 1 << 1
+	p := colors(true)
+	header, _ := m.notificationHeader(200, p)
+	if !strings.Contains(header, actionChip("Replies", "1", p)) || !strings.Contains(header, chipStyled("Quotes", "2", p.muted, p)) {
+		t.Fatalf("filters must be action chips with a muted label when off:\n%s", ansi.Strip(header))
+	}
+}
+
 func TestRemotesRowAndStatusChipsAcceptClicks(t *testing.T) {
 	m, state := messagingApp(t)
 	m = openOrg(t, m)
