@@ -57,7 +57,7 @@ func TestFirstReleaseVersion(t *testing.T) {
 	if err := runCommands([]string{"--version"}, &output, io.Discard, commands{}); err != nil {
 		t.Fatal(err)
 	}
-	if output.String() != "devnull v0.8.0\n" {
+	if output.String() != "devnull v0.9.0\n" {
 		t.Fatalf("unexpected version %q", &output)
 	}
 }
