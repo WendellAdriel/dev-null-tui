@@ -286,3 +286,40 @@ func TestAsideActionsAndShortcutsSitOnConsecutiveRows(t *testing.T) {
 		t.Fatalf("action and shortcut chips must sit on consecutive rows: %+v", rows)
 	}
 }
+
+func TestF2OpensTheThemePickerFromAnyView(t *testing.T) {
+	press := func(m AppModel) AppModel {
+		next, _ := m.Update(tea.KeyPressMsg{Code: tea.KeyF2})
+		return next.(AppModel)
+	}
+	inSettings := func(t *testing.T) AppModel {
+		m := pressApp(pressApp(fixtureApp(t), "g"), ",")
+		m.settings.busy = false
+		return m
+	}
+	for name, c := range map[string]struct {
+		open  func(*testing.T) AppModel
+		opens bool
+	}{
+		"log":           {func(t *testing.T) AppModel { return fixtureApp(t) }, true},
+		"settings":      {inSettings, true},
+		"notifications": {func(t *testing.T) AppModel { return pressApp(pressApp(fixtureApp(t), "g"), "n") }, true},
+		"remotes":       {func(t *testing.T) AppModel { m, _ := messagingApp(t); return openOrg(t, m) }, true},
+		"composer":      {func(t *testing.T) AppModel { return pressApp(fixtureApp(t), "c") }, false},
+		"help":          {func(t *testing.T) AppModel { return pressApp(fixtureApp(t), "?") }, false},
+		"achievements": {func(t *testing.T) AppModel {
+			m, _ := achievementsApp(t).handleKey("A")
+			return m
+		}, false},
+		"settings dialog": {func(t *testing.T) AppModel {
+			m := inSettings(t)
+			m.beginSettingsDialog("timezone", "", "")
+			return m
+		}, false},
+	} {
+		m := c.open(t)
+		if m = press(m); (m.picker != nil && m.picker.kind == "theme") != c.opens {
+			t.Fatalf("%s: f2 opened the theme picker = %v, want %v", name, m.picker != nil, c.opens)
+		}
+	}
+}

@@ -370,7 +370,7 @@ func TestRefreshReportsProgressAndOutcomeInToasts(t *testing.T) {
 func TestToastInteriorHasOneBackground(t *testing.T) {
 	for _, dark := range []bool{true, false} {
 		m := fixtureApp(t)
-		m.account.dark = dark
+		m.account.themeName, m.account.dark = "default", dark
 		m.notify("info", "Refreshing log", "Checking Following for the latest commits.")
 		view, r := m.toastView()
 		buffer := uv.NewScreenBuffer(r.w, r.h)
@@ -424,6 +424,7 @@ func TestToastsAutoDismissAfterThreeSeconds(t *testing.T) {
 
 func TestToastKindsUseDistinctColors(t *testing.T) {
 	m := fixtureApp(t)
+	m.account.themeName = "default"
 	for _, dark := range []bool{true, false} {
 		m.account.dark = dark
 		p := colors(dark)

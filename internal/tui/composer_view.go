@@ -164,7 +164,7 @@ func (m *AppModel) sizeComposer() {
 	c.input.SetWidth(width)
 	c.input.SetHeight(max(1, m.composerHeight()-m.composerContextRows()-m.composerStatusRows()-m.composerStripRows()))
 	p := m.account.colors()
-	styles := textarea.DefaultStyles(m.account.dark)
+	styles := textarea.DefaultStyles(m.account.isDark())
 	for _, state := range []*textarea.StyleState{&styles.Focused, &styles.Blurred} {
 		state.Base = lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell))
 		state.Text, state.CursorLine = lipgloss.NewStyle(), lipgloss.NewStyle()

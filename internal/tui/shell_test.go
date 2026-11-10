@@ -144,10 +144,11 @@ func TestRelocatedButtonsAndShortcutsAcceptMouse(t *testing.T) {
 			if cmd == nil || !m.feeds[m.active].loading {
 				t.Fatal("relocated refresh button missed")
 			}
-			m, _ = clickText(t, m, "light theme")
-			if m.account.dark {
-				t.Fatal("sidebar theme shortcut missed")
+			next, cmd := clickText(t, m, "choose a theme")
+			if m = settleCmd(next, cmd); m.picker == nil || m.picker.kind != "theme" {
+				t.Fatal("aside theme shortcut missed")
 			}
+			m = pressApp(m, "esc")
 			m, _ = clickText(t, m, "help")
 			if !m.help {
 				t.Fatal("sidebar help shortcut missed")

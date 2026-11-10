@@ -132,7 +132,7 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 	} else {
 		all = append(all, bind("g s", "Starred"))
 	}
-	all = append(all, bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", m.account.nextTheme()+" theme"))
+	all = append(all, bind("g l / g e", "Log / Trending"), bind("g n", "notifications"), bind("g p", "your profile"), bind("c", "compose"), bind("a", "account"), bind("f2", "choose a theme"))
 	all = append(all, m.engagementBindings()...)
 	return appKeys{short, all}
 }

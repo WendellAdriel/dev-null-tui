@@ -180,7 +180,8 @@ type TUISettings struct {
 	PinWarningDismissed bool `json:"pin_warning_dismissed,omitempty"`
 	// RecentSearches keeps each account's last searches, newest first, keyed by user ID like the web's recent-searches.
 	RecentSearches map[string][]string `json:"recent_searches,omitempty"`
-	// Theme names a theme from the TUI's list, and Mode is auto, light, or dark. Empty means Default and auto.
+	// Theme names a theme from the TUI's list. Empty means Auto. Mode is v0.8.0's auto, light, or dark, read once to
+	// pick a one-mode theme and then cleared.
 	Theme string `json:"theme,omitempty"`
 	Mode  string `json:"mode,omitempty"`
 	// EventTheme is auto, default, halloween, christmas, or newyear, like the web's event_theme cookie, which stays in the browser. Empty means default.

@@ -26,7 +26,7 @@ The Region tab loads your timezone and translation settings when you open it.
 
 ## Appearance
 
-The Appearance tab and `F2` switch between light and dark for the current session. No preferences file is written. Startup still follows `--theme`.
+The Appearance tab sets the event theme and whether Who to follow shows. Its event theme shows dark or light colors to match your theme. Pick the theme itself in the TUI tab, or press `F2` in the workspace, outside popups and the composer. Both are saved in `tui.json`, and `--theme` overrides the theme for one run.
 
 ## Safety
 

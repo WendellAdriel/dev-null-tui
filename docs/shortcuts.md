@@ -55,7 +55,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
-| `F2` | Switch between light and dark for the current session |
+| `F2` | Choose a theme. **Theme** in the aside's Actions does the same |
 
 `q` quotes. It never quits.
 
@@ -262,7 +262,7 @@ Open **Settings** from the sidebar or press `g ,`. `g s` remains Starred.
 | `Enter`, `Space` | Activate the selected control |
 | `Ctrl+R` | Refresh the account without reading notifications |
 | `Esc` | Return to the underlying screen |
-| `F2` | Switch light and dark for this session |
+| `F2` | Choose a theme |
 
 In a dialog, `Up` and `Down` choose a color or report reason. `Tab` switches between Cancel and Confirm. `Enter` activates the focused action. It starts on Save in the timezone and translation language dialogs, and on Cancel everywhere else. Dialogs for destructive actions have a red border. These are account deletion, device revocation, blocking, commit deletion, and discarding a draft. Muting and reporting have a yellow border. `Ctrl+S` explicitly confirms. `Esc` cancels. Account deletion also requires your exact handle, without `@`. Forms need at least 60×18 terminal cells and own typing and paste events.
 
@@ -299,7 +299,6 @@ Login appears when needed. Press `a` from the workspace to manage the connection
 | `Esc` | Leave input or an overlay first, cancel an attempt, dismiss disconnection confirmation, or return from a connected account to the workspace |
 | `?` | Open or close contextual help when not typing |
 | `Ctrl+C` | Exit, clean up temporary return handling, and restore the terminal |
-| `F2` | Switch between light and dark |
 
 Typing and paste belong to the callback field. They do not invoke account shortcuts. Disconnection confirmation defaults to keeping the key. Select the delete action explicitly before pressing `Enter`. Deleting the local connection does not revoke the device on the server.
 

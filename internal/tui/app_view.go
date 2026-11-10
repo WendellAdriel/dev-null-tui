@@ -64,7 +64,7 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("ctrl+r", "reload thread"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", m.account.nextTheme()+" theme"), bind("click", "select, open selected, act, or view image"))
+		all = append(all, bind("enter", "open selected thread"), bind("space", "show or hide replies"), bind("n", "more replies"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("ctrl+r", "reload thread"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("home / G / end", "first or last entry"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"), bind("f2", "choose a theme"), bind("click", "select, open selected, act, or view image"))
 		all = append(all, m.engagementBindings()...)
 		return appKeys{short, all}
 	}
@@ -75,7 +75,7 @@ func (m AppModel) screenBindings() appKeys {
 		}
 		short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 		all := append([]key.Binding(nil), short...)
-		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind(".", "more commit actions"), bind("v", "view commit images"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", m.account.nextTheme()+" theme"))
+		all = append(all, bind("1–6", "toggle category"), bind("n", "older group members or notifications"), bind("r / q", "reply / quote commit"), bind("y", "copy commit link"), bind(".", "more commit actions"), bind("v", "view commit images"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("c", "compose"), bind("a", "account"), bind("g n", "notifications"), bind("g l / g e", "Log / Trending"), bind("g p", "your profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", "choose a theme"))
 		return appKeys{short, all}
 	}
 	if m.starredOnTop() {
@@ -83,7 +83,7 @@ func (m AppModel) screenBindings() appKeys {
 	}
 	if m.draftsOnTop() {
 		short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open draft"), bind("D", "delete draft"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
-		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", m.account.nextTheme()+" theme"))
+		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", "choose a theme"))
 		return appKeys{short, all}
 	}
 	if m.remotesOnTop() {
@@ -93,7 +93,7 @@ func (m AppModel) screenBindings() appKeys {
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
 	}
-	short = append(short, bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit"))
+	short = append(short, bind("f2", "choose a theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
 	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("L", "go live / end your stream"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind(".", "more commit actions"), bind("a", "account"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("1/2/3", "choose log"), bind("w", "Who to follow"), bind("f / X / R", "on a suggested person: follow, not interested, others"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
@@ -349,7 +349,7 @@ func (m AppModel) workspaceView() tea.View {
 	v := tea.NewView(page)
 	v.AltScreen, v.ReportFocus = true, true
 	v.MouseMode = tea.MouseModeCellMotion
-	if m.account.profile >= colorprofile.ANSI && (m.account.theme != "auto" || m.account.backgroundKnown) {
+	if m.account.profile >= colorprofile.ANSI && m.account.paintsBackground() {
 		v.BackgroundColor = lipgloss.Color(p.shell)
 		v.ForegroundColor = lipgloss.Color(p.ink)
 	}
@@ -372,7 +372,7 @@ func logoRequest(dark bool, event string) graphics.Request {
 }
 
 func (m AppModel) brand(p palette) string {
-	req := logoRequest(m.account.dark, m.account.event)
+	req := logoRequest(m.account.isDark(), m.account.event)
 	if top, bottom := m.images.Row(req, 0), m.images.Row(req, 1); top != "" && bottom != "" {
 		return top + "\n" + bottom
 	}

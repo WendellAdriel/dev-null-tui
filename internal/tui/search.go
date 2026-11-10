@@ -149,8 +149,13 @@ func searchActions(term string, live bool) []string {
 
 // searchBlocked keeps Ctrl+K and / away from dialogs and text inputs that own the keyboard.
 func (m AppModel) searchBlocked() bool {
+	return m.searchCalls.profiles == nil || m.popupOpen()
+}
+
+// popupOpen reports anything that owns the keyboard above the open view, so global popups like search stay closed.
+func (m AppModel) popupOpen() bool {
 	r := m.remotes
-	return !m.connected || m.accountOpen || m.search != nil || m.searchCalls.profiles == nil || m.manualLink != "" ||
+	return !m.connected || m.accountOpen || m.search != nil || m.achievements != nil || m.manualLink != "" ||
 		m.whatsNew.open || m.upgradeVisible() || m.viewer.open || m.vote.commitID != "" || m.help ||
 		m.composer.open || m.composer.confirm != "" || m.live != nil || m.deleting.id != "" || m.ask != nil || m.picker != nil || m.whoToFollow.open || m.sharingCommit() ||
 		m.settings.dialog != "" || m.settings.busy || m.activeReactions() != nil ||

@@ -35,14 +35,113 @@ var defaultLight = palette{
 	lanes: [6]string{"#d9480f", "#2f9e44", "#9c36b5", "#0c8599", "#c2255c", "#b7791f"},
 }
 
-// theme is a named look with a dark palette, a light palette, or both. F2 switches between them when both exist.
+// theme is a named look with one palette, or a dark and a light one that follow the terminal's background (Auto and
+// the event themes).
 type theme struct {
-	name, label string
-	dark, light *palette
+	name, label, note string
+	dark, light       *palette
 }
 
-// themes are the ones Settings lists. TUI-only themes such as Dracula or Catppuccin are added here.
-var themes = []theme{{name: "default", label: "Default", dark: &defaultDark, light: &defaultLight}}
+// themes are the ones the picker lists: Auto, Dark and Light, then the TUI-only themes by name.
+var themes = []theme{
+	{name: "default", label: "Auto", note: "Dark or Light, like your terminal", dark: &defaultDark, light: &defaultLight},
+	{name: "dark", label: "Dark", dark: &defaultDark},
+	{name: "light", label: "Light", light: &defaultLight},
+	{name: "catppuccin-latte", label: "Catppuccin Latte", light: &catppuccinLatte},
+	{name: "catppuccin-mocha", label: "Catppuccin Mocha", dark: &catppuccinMocha},
+	{name: "dracula", label: "Dracula", dark: &dracula},
+	{name: "solarized-light", label: "Solarized Light", light: &solarizedLight},
+	{name: "synthwave84", label: "Synthwave '84", dark: &synthwave84},
+	{name: "tokyonight-night", label: "Tokyo Night", dark: &tokyoNight},
+	{name: "tokyonight-day", label: "Tokyo Night Day", light: &tokyoNightDay},
+}
+
+// pairedThemes are v0.8.0's themes with both modes, kept under their old names. A saved light or dark mode picks one
+// of their halves at start, and a saved auto mode keeps following the terminal.
+var pairedThemes = []theme{
+	{name: "catppuccin", label: "Catppuccin (follows terminal)", dark: &catppuccinMocha, light: &catppuccinLatte},
+	{name: "tokyonight", label: "Tokyo Night (follows terminal)", dark: &tokyoNight, light: &tokyoNightDay},
+}
+
+// singleTheme names the one-mode theme a v0.8.0 theme and saved mode become, or "" when the saved name stays.
+func singleTheme(name, mode string) string {
+	if mode != "light" && mode != "dark" {
+		return ""
+	}
+	halves := map[string][2]string{
+		"":           {"dark", "light"},
+		"default":    {"dark", "light"},
+		"catppuccin": {"catppuccin-mocha", "catppuccin-latte"},
+		"tokyonight": {"tokyonight-night", "tokyonight-day"},
+	}
+	pair, ok := halves[name]
+	if !ok {
+		return ""
+	}
+	if mode == "light" {
+		return pair[1]
+	}
+	return pair[0]
+}
+
+// TUI-only palettes use each theme's published colors. Colors too faint on the background are blended toward ink,
+// white or black just enough to pass the contrast checks in theme_test.go.
+var dracula = palette{
+	shell: "#282a36", ink: "#f8f8f2", muted: "#8692b7",
+	hairline: "#343746", blue: "#bd93f9", wash: "#44475a",
+	soft: "#21222c", code: "#f1fa8c", danger: "#ff5555",
+	success: "#50fa7b", warning: "#ffb86c", brand: "#ff2d20",
+	lanes: [6]string{"#ffb86c", "#50fa7b", "#bd93f9", "#8be9fd", "#ff79c6", "#f1fa8c"},
+}
+
+var catppuccinMocha = palette{
+	shell: "#1e1e2e", ink: "#cdd6f4", muted: "#a6adc8",
+	hairline: "#313244", blue: "#89b4fa", wash: "#45475a",
+	soft: "#181825", code: "#f9e2af", danger: "#f38ba8",
+	success: "#a6e3a1", warning: "#fab387", brand: "#ff2d20",
+	lanes: [6]string{"#fab387", "#a6e3a1", "#cba6f7", "#89dceb", "#f5c2e7", "#f9e2af"},
+}
+
+var catppuccinLatte = palette{
+	shell: "#eff1f5", ink: "#4c4f69", muted: "#5c5f77",
+	hairline: "#dce0e8", blue: "#1e66f5", wash: "#e6e9ef",
+	soft: "#ccd0da", code: "#986114", danger: "#d20f39",
+	success: "#327d22", warning: "#bc4a08", brand: "#ff2d20",
+	lanes: [6]string{"#ec5d0a", "#3f9e2b", "#8839ef", "#1e97ac", "#cc67b1", "#c07a19"},
+}
+
+var tokyoNight = palette{
+	shell: "#1a1b26", ink: "#c0caf5", muted: "#a9b1d6",
+	hairline: "#292e42", blue: "#7aa2f7", wash: "#283457",
+	soft: "#16161e", code: "#e0af68", danger: "#f7768e",
+	success: "#9ece6a", warning: "#ff9e64", brand: "#ff2d20",
+	lanes: [6]string{"#ff9e64", "#9ece6a", "#bb9af7", "#7dcfff", "#f7768e", "#e0af68"},
+}
+
+var tokyoNightDay = palette{
+	shell: "#e1e2e7", ink: "#28458a", muted: "#5a6186",
+	hairline: "#d0d5e3", blue: "#286dcb", wash: "#c4c8da",
+	soft: "#c1c9df", code: "#7d6037", danger: "#b23c3c",
+	success: "#526d35", warning: "#9c5100", brand: "#ff2d20",
+	lanes: [6]string{"#b15c00", "#587539", "#9854f1", "#007197", "#d20065", "#8c6c3e"},
+}
+
+var synthwave84 = palette{
+	shell: "#262335", ink: "#ffffff", muted: "#848bbd",
+	hairline: "#444251", blue: "#36f9f6", wash: "#37294d",
+	soft: "#171520", code: "#fede5d", danger: "#fe4652",
+	success: "#72f1b8", warning: "#ff8b39", brand: "#ff2d20",
+	lanes: [6]string{"#f97e72", "#72f1b8", "#ff7edb", "#2ee2fa", "#fede5d", "#ff8b39"},
+}
+
+// solarizedLight's hairline is base2 mixed a quarter toward base1, because Solarized has one highlight tone.
+var solarizedLight = palette{
+	shell: "#fdf6e3", ink: "#073642", muted: "#586e75",
+	hairline: "#d7d6c8", blue: "#268bd2", wash: "#eee8d5",
+	soft: "#eee8d5", code: "#8f6c00", danger: "#d5302e",
+	success: "#687700", warning: "#c34815", brand: "#ff2d20",
+	lanes: [6]string{"#cb4b16", "#849700", "#6c71c4", "#299e95", "#d33682", "#b38800"},
+}
 
 // eventThemes mirror the web's resources/css/app.css: the surface colors change, and lanes and status colors stay.
 var eventThemes = []theme{
@@ -71,7 +170,7 @@ func surface(name, label string, dark, light [7]string, darkGraph, lightGraph st
 }
 
 func themeNamed(name string) theme {
-	for _, th := range append(append([]theme(nil), themes...), eventThemes...) {
+	for _, th := range append(append(append([]theme(nil), themes...), pairedThemes...), eventThemes...) {
 		if th.name == name {
 			return th
 		}
@@ -92,12 +191,31 @@ func (t theme) bothModes() bool { return t.dark != nil && t.light != nil }
 // colors is the Default palette, for code that draws before an account exists.
 func colors(dark bool) palette { return themes[0].palette(dark) }
 
-// colors is the palette on screen: the event theme while one is active, otherwise the chosen theme.
+// colors is the palette on screen: the event theme while one is active, otherwise the chosen theme. An event theme
+// shows its dark or light half to match the chosen theme.
 func (m AccountModel) colors() palette {
+	return m.shownTheme().palette(m.isDark())
+}
+
+func (m AccountModel) shownTheme() theme {
 	if m.event != "" {
-		return themeNamed(m.event).palette(m.dark)
+		return themeNamed(m.event)
 	}
-	return themeNamed(m.themeName).palette(m.dark)
+	return themeNamed(m.themeName)
+}
+
+// paintsBackground reports that the terminal's background and foreground can be set: the colors no longer depend on
+// a background reply still to come.
+func (m AccountModel) paintsBackground() bool {
+	return m.theme != "auto" || m.backgroundKnown || !themeNamed(m.themeName).bothModes()
+}
+
+// isDark is the chosen theme's mode. Auto and the other two-mode themes follow the terminal or --theme.
+func (m AccountModel) isDark() bool {
+	if th := themeNamed(m.themeName); !th.bothModes() {
+		return th.dark != nil
+	}
+	return m.dark
 }
 
 // eventFor picks the event theme like the web's EventTheme::current: a fixed choice always shows, and Auto follows the
@@ -140,54 +258,10 @@ func text(color string) lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
 }
 
-func (m AccountModel) nextTheme() string {
-	if m.dark {
-		return "light"
-	}
-	return "dark"
-}
-
-// toggleTheme switches dark and light, and reports false for a theme with only one mode.
-func (m *AccountModel) toggleTheme() bool {
-	if !themeNamed(m.themeName).bothModes() {
-		return false
-	}
-	m.theme = m.nextTheme()
-	m.dark = !m.dark
-	return true
-}
-
 // canvas paints every cell so screens never depend on the terminal honouring OSC 11.
 func canvas(page string, p palette, width, height int) string {
 	frame := lipgloss.NewStyle().Foreground(lipgloss.Color(p.ink)).Background(lipgloss.Color(p.shell)).Width(width).Height(height).MaxWidth(width).MaxHeight(height)
 	return withBackground(frame.Render(page), p.shell)
-}
-
-// toggleTheme is F2 everywhere in the app: it switches dark and light and saves the mode.
-func (m *AppModel) toggleTheme() tea.Cmd {
-	if !m.account.toggleTheme() {
-		return m.notify("info", "One mode only", themeNamed(m.account.themeName).label+" has no "+m.account.nextTheme()+" mode.")
-	}
-	m.resetSequence()
-	m.reflow()
-	m.tuiSettings.Mode = m.account.theme
-	return m.saveTUISettings(false)
-}
-
-// cycleMode is Settings' Mode row: Auto, then Light, then Dark.
-func (m *AppModel) cycleMode() tea.Cmd {
-	next := map[string]string{"auto": "light", "light": "dark", "dark": "auto"}[m.account.theme]
-	m.account.theme, m.tuiSettings.Mode = next, next
-	var cmd tea.Cmd
-	if next == "auto" {
-		// Auto follows the terminal background again, so ask for it.
-		m.account.backgroundKnown = false
-		cmd = tea.RequestBackgroundColor
-	} else {
-		m.account.dark = next == "dark"
-	}
-	m.reflow()
-	return tea.Batch(cmd, m.saveTUISettings(false))
 }
 
 var eventChoices = []string{"auto", "default", "halloween", "christmas", "newyear"}
@@ -229,10 +303,17 @@ func (m *AppModel) setEventTheme(choice string) tea.Cmd {
 // openThemes is the TUI tab's Theme row: the TUI's themes, then the event themes, which an active event overrides.
 func (m *AppModel) openThemes() {
 	d := &picker{kind: "theme", title: "/dev/null · THEME", intro: "An active event theme overrides this choice."}
+	listed := themes
+	for _, pair := range pairedThemes {
+		if pair.name == m.account.themeName {
+			// A v0.8.0 pair isn't offered, but it stays the current row until something else is picked.
+			listed = append([]theme{pair}, themes...)
+		}
+	}
 	groups := []struct {
 		label string
 		list  []theme
-	}{{"TUI themes", themes}, {"Event themes", eventThemes}}
+	}{{"TUI themes", listed}, {"Event themes", eventThemes}}
 	for g, group := range groups {
 		if g > 0 {
 			d.rows = append(d.rows, pickerRow{heading: true})
@@ -242,7 +323,7 @@ func (m *AppModel) openThemes() {
 			if th.name == m.account.themeName {
 				d.selected = len(d.rows)
 			}
-			d.rows = append(d.rows, pickerRow{label: th.label, value: th.name})
+			d.rows = append(d.rows, pickerRow{label: th.label, note: th.note, value: th.name})
 		}
 	}
 	if d.rows[d.selected].heading {
@@ -254,10 +335,7 @@ func (m *AppModel) openThemes() {
 // setTheme applies and saves a theme choice.
 func (m *AppModel) setTheme(name string) tea.Cmd {
 	next := themeNamed(name)
-	m.account.themeName, m.tuiSettings.Theme = next.name, next.name
-	if !next.bothModes() {
-		m.account.dark = next.dark != nil
-	}
+	m.account.themeName, m.tuiSettings.Theme, m.tuiSettings.Mode = next.name, next.name, ""
 	m.reflow()
 	return m.saveTUISettings(false)
 }

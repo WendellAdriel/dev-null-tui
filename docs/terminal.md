@@ -17,14 +17,14 @@ Below 100 columns, the sidebar becomes an icon strip. The account aside appears 
 
 ## Theme and icons
 
-The default `auto` theme follows the terminal's background when the terminal reports it. Choose an explicit theme when starting the app:
+Without `--theme`, the app starts with the theme saved in Settings. A new install starts on **Auto**, which shows Dark or Light to match the terminal's background when the terminal reports it. `--theme` picks Auto, Light or Dark for one run without saving it:
 
 ```shell
 devnull --theme light
 devnull --theme dark
 ```
 
-Press `F2` to switch between light and dark during the session. This overrides automatic appearance without saving a preference.
+Press `F2` in the workspace, outside popups and the composer, to open the theme list: Auto, Dark, Light, Catppuccin Latte, Catppuccin Mocha, Dracula, Solarized Light, Synthwave '84, Tokyo Night and Tokyo Night Day. Each theme except Auto has one look. The choice is saved in `tui.json`. Event themes (Halloween, Christmas and New Year) show their dark or light colors to match the chosen theme.
 
 Navigation and profile details use Nerd Font icons by default. If your font is missing glyphs, choose plain Unicode symbols:
 
@@ -70,7 +70,7 @@ The app never changes your terminal configuration. Where modifier keys are unava
 
 | Option | Values or effect |
 | --- | --- |
-| `--theme` | `auto`, `light`, or `dark`. Default: `auto` |
+| `--theme` | `auto`, `light`, or `dark` for this run. Default: the theme saved in Settings |
 | `--icons` | `nerd` or `plain`. Default: `DEVNULL_ICONS`, or `nerd` when unset |
 | `--server` | Server origin. Default: `https://dev-null.sh`. HTTPS is required except on loopback |
 | `--help` | Print usage |

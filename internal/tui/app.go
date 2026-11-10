@@ -176,16 +176,20 @@ type AppModel struct {
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
 	settings := store.TUISettings()
+	name := settings.Theme
 	if theme == "" {
-		// Without --theme, the saved mode applies.
-		theme = settings.Mode
-		if theme != "light" && theme != "dark" {
-			theme = "auto"
+		// Without --theme, the saved theme applies. A v0.8.0 theme and mode become one theme, saved with the next change.
+		if single := singleTheme(settings.Theme, settings.Mode); single != "" {
+			name = single
 		}
+		settings.Theme, settings.Mode, theme = themeNamed(name).name, "", "auto"
+	} else {
+		// --theme picks Auto, Dark or Light for this run without saving it.
+		name = map[string]string{"auto": "default", "light": "light", "dark": "dark"}[theme]
 	}
 	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, openURL: auth.OpenBrowser, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
 	m.tuiSettings = settings
-	m.account.themeName = themeNamed(settings.Theme).name
+	m.account.themeName = themeNamed(name).name
 	m.applyEventTheme()
 	m.images = graphics.New(origin)
 	images := m.images
@@ -685,9 +689,6 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case tea.KeyPressMsg:
-		if msg.String() == "f2" {
-			return m, m.toggleTheme()
-		}
 		if (m.connected && m.composer.open) || m.composer.confirm != "" {
 			wasExit := m.composer.confirm == "exit"
 			cmd := m.composerKey(msg)
@@ -708,6 +709,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.String() == "ctrl+k" && !m.searchBlocked() {
 			cmd := m.openSearch("")
 			return m, cmd
+		}
+		if msg.String() == "f2" && !m.popupOpen() {
+			m.openThemes()
+			return m, nil
 		}
 		if m.connected && m.live != nil && msg.String() != "ctrl+c" {
 			cmd := m.liveKey(msg)

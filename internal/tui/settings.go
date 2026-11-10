@@ -797,8 +797,6 @@ func (m *AppModel) activateSetting(action, value string) tea.Cmd {
 	case "theme-name":
 		m.openThemes()
 		return nil
-	case "theme-mode":
-		return m.cycleMode()
 	case "event-theme":
 		m.openEventThemes()
 		return nil

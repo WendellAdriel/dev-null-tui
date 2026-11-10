@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
-	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 func chord(m AppModel, code rune, mod tea.KeyMod) (AppModel, tea.Cmd) {
@@ -51,31 +50,12 @@ func TestComposerPreviewAndSubmitShortcutsAreVisibleAndWork(t *testing.T) {
 	}
 }
 
-func TestThemeTogglePreservesDraftAndOverridesLateBackground(t *testing.T) {
-	m := fixtureApp(t)
-	m.account.theme = "auto"
-	m = pressApp(m, "c")
+func TestF2LeavesTheComposerAndItsDraftAlone(t *testing.T) {
+	m := pressApp(fixtureApp(t), "c")
 	m.composer.input.SetValue("Draft :roc")
-	before := m.composer.input.Value()
 	m, _ = chord(m, tea.KeyF2, 0)
-	if m.account.dark || m.account.theme != "light" || m.composer.input.Value() != before || !m.composer.open {
-		t.Fatal("theme toggle lost draft or did not apply")
-	}
-	next, _ := m.Update(tea.BackgroundColorMsg{})
-	m = next.(AppModel)
-	if m.account.dark {
-		t.Fatal("late background detection overwrote explicit theme")
-	}
-	m, _ = chord(m, tea.KeyF2, 0)
-	if !m.account.dark || m.account.theme != "dark" {
-		t.Fatal("second toggle did not return to dark")
-	}
-	account := NewAccount("dark", auth.Store{Dir: t.TempDir()}, "https://example.test", t.Context())
-	defer func() { _ = account.Close() }()
-	updated, _ := account.Update(tea.KeyPressMsg{Code: tea.KeyF2})
-	account = updated.(AccountModel)
-	if account.dark || !strings.Contains(ansi.Strip(account.View().Content), "f2") {
-		t.Fatal("login theme control missing")
+	if m.picker != nil || m.composer.input.Value() != "Draft :roc" || !m.composer.open {
+		t.Fatal("f2 must not open the theme picker over the composer or touch the draft")
 	}
 }
 

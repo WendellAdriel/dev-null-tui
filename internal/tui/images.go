@@ -140,7 +140,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	}
 	avatars = append(m.suggestionModalMedia(p), avatars...)
 	if nav, _, _ := m.columns(); nav >= 12 {
-		stars = append(stars, logoRequest(m.account.dark, m.account.event))
+		stars = append(stars, logoRequest(m.account.isDark(), m.account.event))
 	}
 	avatars = append(avatars, m.avatarRequest(u.AvatarURL, liveRing(u.Live, laneColor(u.Lane, p), p, m.now), 4, 2))
 	if _, _, aside := m.columns(); aside > 0 {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	tea "charm.land/bubbletea/v2"
+	"github.com/charmbracelet/colorprofile"
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
@@ -77,6 +78,22 @@ func TestEveryThemeFillsEveryPaletteSlotWithReadableColors(t *testing.T) {
 			}
 		}
 	}
+	// Event themes keep Default's status colors and lanes, like the web, so only TUI themes are held to these.
+	for _, th := range themes {
+		for _, dark := range []bool{false, true} {
+			p := th.palette(dark)
+			for name, color := range map[string]string{"code": p.code, "danger": p.danger, "success": p.success, "warning": p.warning} {
+				if c := contrast(color, p.shell); c < 4.5 {
+					t.Errorf("%s dark=%v: %s contrast %.2f", th.name, dark, name, c)
+				}
+			}
+			for i, lane := range p.lanes {
+				if c := contrast(lane, p.shell); c < 3 {
+					t.Errorf("%s dark=%v: lane %d contrast %.2f", th.name, dark, i, c)
+				}
+			}
+		}
+	}
 	if !reflect.DeepEqual(themeNamed("default").palette(true), colors(true)) || !reflect.DeepEqual(themeNamed("missing").palette(false), colors(false)) {
 		t.Fatal("Default must keep today's palettes, and an unknown name must fall back to it")
 	}
@@ -90,10 +107,11 @@ func TestEventThemeReplacesTheSurfaceColorsAndKeepsLanes(t *testing.T) {
 	if p.shell != "#120c14" || p.blue != "#ff8a4c" || p.lanes != colors(true).lanes {
 		t.Fatalf("dark Halloween palette not applied: %+v", p)
 	}
-	m.account.dark = false
+	m.account.themeName = "solarized-light"
 	if m.account.colors().shell != "#fbf5ee" {
-		t.Fatal("light Halloween palette not applied")
+		t.Fatal("a light theme must show the light Halloween palette")
 	}
+	m.account.themeName, m.account.dark = "default", false
 	m.tuiSettings.EventTheme = "default"
 	m.applyEventTheme()
 	if !reflect.DeepEqual(m.account.colors(), colors(false)) {
@@ -101,41 +119,50 @@ func TestEventThemeReplacesTheSurfaceColorsAndKeepsLanes(t *testing.T) {
 	}
 }
 
-func TestThemeModeIsSavedAndRestoredUnlessTheFlagOverridesIt(t *testing.T) {
+func TestSavedThemeStartsUnlessTheFlagOverridesIt(t *testing.T) {
 	store := auth.Store{Dir: t.TempDir()}
-	m := NewApp("", store, "https://example.test", t.Context())
-	t.Cleanup(func() { _ = m.Close() })
-	if m.account.theme != "auto" {
-		t.Fatalf("no saved mode must start in auto, got %q", m.account.theme)
+	if m := NewApp("", store, "https://example.test", t.Context()); m.account.themeName != "default" || m.account.theme != "auto" {
+		t.Fatalf("no saved theme must start on Auto, got %q", m.account.themeName)
 	}
-	updated, cmd := m.Update(tea.KeyPressMsg{Code: tea.KeyF2})
-	m = updated.(AppModel)
-	if cmd == nil {
-		t.Fatal("F2 must save the mode")
+	settings := store.TUISettings()
+	settings.Theme = "dracula"
+	if err := store.SaveTUISettings(settings); err != nil {
+		t.Fatal(err)
 	}
-	m.Update(cmd())
-	if got := store.TUISettings().Mode; got != m.account.theme || (got != "light" && got != "dark") {
-		t.Fatalf("saved mode %q, session %q", got, m.account.theme)
+	if m := NewApp("", store, "https://example.test", t.Context()); m.account.themeName != "dracula" {
+		t.Fatalf("the saved theme must start, got %q", m.account.themeName)
 	}
-	saved := store.TUISettings().Mode
-	again := NewApp("", store, "https://example.test", t.Context())
-	t.Cleanup(func() { _ = again.Close() })
-	if again.account.theme != saved || again.account.dark != (saved == "dark") {
-		t.Fatalf("saved mode not restored: %q", again.account.theme)
-	}
-	flagged := NewApp("auto", store, "https://example.test", t.Context())
-	t.Cleanup(func() { _ = flagged.Close() })
-	if flagged.account.theme != "auto" {
-		t.Fatal("--theme must override the saved mode")
+	for flag, name := range map[string]string{"light": "light", "dark": "dark", "auto": "default"} {
+		m := NewApp(flag, store, "https://example.test", t.Context())
+		if m.account.themeName != name || m.tuiSettings.Theme != "dracula" {
+			t.Fatalf("--theme %s must show %s for this run without saving it, got %q", flag, name, m.account.themeName)
+		}
 	}
 }
 
-func TestAppearanceSettingsCycleModePickEventThemeAndSaveThem(t *testing.T) {
+func TestV080ThemeAndModeBecomeOneTheme(t *testing.T) {
+	for _, c := range []struct{ theme, mode, want string }{
+		{"", "dark", "dark"}, {"default", "light", "light"}, {"default", "auto", "default"},
+		{"catppuccin", "light", "catppuccin-latte"}, {"catppuccin", "dark", "catppuccin-mocha"}, {"catppuccin", "", "catppuccin"},
+		{"tokyonight", "light", "tokyonight-day"}, {"tokyonight", "dark", "tokyonight-night"}, {"tokyonight", "auto", "tokyonight"}, {"tokyonight", "", "tokyonight"},
+		{"dracula", "light", "dracula"},
+	} {
+		store := auth.Store{Dir: t.TempDir()}
+		if err := store.SaveTUISettings(auth.TUISettings{Theme: c.theme, Mode: c.mode}); err != nil {
+			t.Fatal(err)
+		}
+		m := NewApp("", store, "https://example.test", t.Context())
+		if m.account.themeName != c.want || m.tuiSettings.Theme != c.want || m.tuiSettings.Mode != "" {
+			t.Fatalf("%s + %s became %q (saved %q, mode %q)", c.theme, c.mode, m.account.themeName, m.tuiSettings.Theme, m.tuiSettings.Mode)
+		}
+	}
+}
+
+func TestAppearanceSettingsPickTheEventThemeAndSaveIt(t *testing.T) {
 	m := fixtureApp(t)
 	m.now = time.Date(2026, 12, 24, 12, 0, 0, 0, time.Local)
 	m.tuiSettings.EventTheme = "auto"
 	m.applyEventTheme()
-	m.account.theme, m.account.dark = "dark", true
 	m.settings.tab = settingsAppearance
 	titles := func() []string {
 		var out []string
@@ -144,7 +171,7 @@ func TestAppearanceSettingsCycleModePickEventThemeAndSaveThem(t *testing.T) {
 		}
 		return out
 	}
-	if got := titles(); !reflect.DeepEqual(got[:2], []string{"Mode: Dark", "Event theme: Auto (Christmas now)"}) {
+	if got := titles(); got[0] != "Event theme: Auto (Christmas now)" {
 		t.Fatalf("unexpected rows: %q", got)
 	}
 	run := func(action string) {
@@ -154,10 +181,6 @@ func TestAppearanceSettingsCycleModePickEventThemeAndSaveThem(t *testing.T) {
 				m = updated.(AppModel)
 			}
 		}
-	}
-	run("theme-mode")
-	if m.account.theme != "auto" {
-		t.Fatalf("Dark must cycle to Auto, got %q", m.account.theme)
 	}
 	run("event-theme")
 	if m.picker == nil || m.picker.kind != "event-theme" || m.picker.rows[m.picker.selected].value != "auto" || !strings.Contains(frameText(m), "Christmas now") {
@@ -189,7 +212,7 @@ func TestAppearanceSettingsCycleModePickEventThemeAndSaveThem(t *testing.T) {
 		t.Fatal("choosing Halloween must apply it")
 	}
 	saved := m.account.store.TUISettings()
-	if saved.EventTheme != "halloween" || saved.Mode != "auto" {
+	if saved.EventTheme != "halloween" || saved.Mode != "" {
 		t.Fatalf("choices not saved: %+v", saved)
 	}
 }
@@ -315,7 +338,8 @@ func TestThemeLivesInTheTUITabAndPicksEventThemesTooWithATag(t *testing.T) {
 	m.now = time.Date(2026, 6, 1, 12, 0, 0, 0, time.Local)
 	m.applyEventTheme()
 	m.settings.tab = settingsTUI
-	if got := m.settingsRows()[0].title; got != "Theme: Default" {
+	m.account.themeName = "default"
+	if got := m.settingsRows()[0].title; got != "Theme: Auto" {
 		t.Fatalf("the TUI tab must start with Theme, got %q", got)
 	}
 	m.activateSetting("theme-name", "")
@@ -323,17 +347,22 @@ func TestThemeLivesInTheTUITabAndPicksEventThemesTooWithATag(t *testing.T) {
 	for _, row := range m.picker.rows {
 		labels = append(labels, row.label)
 	}
-	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Default||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
+	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Auto|Dark|Light|Catppuccin Latte|Catppuccin Mocha|Dracula|Solarized Light|Synthwave '84|Tokyo Night|Tokyo Night Day||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
 		t.Fatalf("the picker must group TUI themes, then event themes, on the current choice: %q", labels)
 	}
-	if text := frameText(m); !strings.Contains(text, "Event themes") || !strings.Contains(text, "overrides") {
+	if text := frameText(m); !strings.Contains(text, "TUI themes") || !strings.Contains(text, "overrides") {
 		t.Fatalf("the picker must show its groups and say an event overrides it:\n%s", text)
 	}
 	m = pressApp(m, "k")
 	if m.picker.rows[m.picker.selected].value != "default" {
 		t.Fatal("k must not select a heading")
 	}
-	m = pressApp(m, "j")
+	for m.picker.rows[m.picker.selected].value != "halloween" {
+		m = pressApp(m, "j")
+	}
+	if !strings.Contains(frameText(m), "Event themes") {
+		t.Fatalf("the picker must scroll to the event themes:\n%s", frameText(m))
+	}
 	next, cmd := m.Update(keyMsg("enter"))
 	m = next.(AppModel)
 	for _, msg := range collect(cmd) {
@@ -348,5 +377,87 @@ func TestThemeLivesInTheTUITabAndPicksEventThemesTooWithATag(t *testing.T) {
 	m.applyEventTheme()
 	if m.account.colors().shell != themeNamed("christmas").palette(m.account.dark).shell || !strings.Contains(m.settingsRows()[0].title, "Christmas event theme on now") {
 		t.Fatal("an active event theme must override the chosen theme and say so")
+	}
+}
+
+func TestEveryListedThemeButAutoHasOneMode(t *testing.T) {
+	for _, th := range themes {
+		if th.bothModes() != (th.name == "default") {
+			t.Fatalf("%s: only Auto may follow the terminal", th.name)
+		}
+	}
+	for _, name := range []string{"catppuccin", "tokyonight"} {
+		if !themeNamed(name).bothModes() {
+			t.Fatalf("v0.8.0's %s must keep both modes for Auto", name)
+		}
+	}
+}
+
+func TestAOneModeThemeAlwaysShowsItsOnlyMode(t *testing.T) {
+	m := fixtureApp(t)
+	m.account.theme, m.account.dark = "dark", true
+	cmd := m.setTheme("solarized-light")
+	m = deliver(m, collect(cmd))
+	if m.account.colors().shell != "#fdf6e3" || m.account.isDark() || logoRequest(m.account.isDark(), "").Icon != "logo-light" {
+		t.Fatalf("Solarized Light must stay light in dark mode: %+v", m.account.colors())
+	}
+	cmd = m.setTheme("default")
+	m = deliver(m, collect(cmd))
+	if !m.account.isDark() {
+		t.Fatal("Auto must follow the terminal's dark background")
+	}
+}
+
+func TestAnEventThemeFollowsTheChosenThemesMode(t *testing.T) {
+	m := fixtureApp(t)
+	m.tuiSettings.EventTheme = "halloween"
+	m.applyEventTheme()
+	for name, dark := range map[string]bool{"dracula": true, "catppuccin-latte": false, "tokyonight-night": true, "light": false} {
+		m = deliver(m, collect(m.setTheme(name)))
+		if m.account.colors().shell != themeNamed("halloween").palette(dark).shell {
+			t.Fatalf("Halloween over %s must show its dark=%v colors", name, dark)
+		}
+	}
+}
+
+func TestEveryPickedThemeComesBackAfterARestart(t *testing.T) {
+	for _, flag := range []string{"", "auto"} {
+		for _, th := range append(append([]theme(nil), themes...), eventThemes...) {
+			store := auth.Store{Dir: t.TempDir()}
+			// A v0.8.0 mode left in the file must not change what was picked, even in a --theme run.
+			if err := store.SaveTUISettings(auth.TUISettings{Theme: "default", Mode: "light"}); err != nil {
+				t.Fatal(err)
+			}
+			m := NewApp(flag, store, "https://example.test", t.Context())
+			deliver(m, collect(m.setTheme(th.name)))
+			if again := NewApp("", store, "https://example.test", t.Context()); again.account.themeName != th.name {
+				t.Fatalf("--theme %q: picked %s, restarted on %s", flag, th.name, again.account.themeName)
+			}
+		}
+	}
+}
+
+func TestAOneModeThemePaintsTheTerminalWithoutWaitingForItsBackground(t *testing.T) {
+	store := auth.Store{Dir: t.TempDir()}
+	if err := store.SaveTUISettings(auth.TUISettings{Theme: "dark"}); err != nil {
+		t.Fatal(err)
+	}
+	m := NewApp("", store, "https://example.test", t.Context())
+	m.account.profile = colorprofile.TrueColor
+	if m.account.backgroundKnown || m.View().BackgroundColor == nil || m.account.View().BackgroundColor == nil {
+		t.Fatal("Dark must paint the terminal before the background reply")
+	}
+	m.account.themeName = "default"
+	if m.View().BackgroundColor != nil {
+		t.Fatal("Auto must wait for the background reply")
+	}
+}
+
+func TestTheSavedPairStaysSelectedInThePicker(t *testing.T) {
+	m := fixtureApp(t)
+	m.account.themeName = "tokyonight"
+	m.openThemes()
+	if row := m.picker.rows[m.picker.selected]; row.value != "tokyonight" || row.label != "Tokyo Night (follows terminal)" {
+		t.Fatalf("the picker must keep the saved pair selected, got %+v", row)
 	}
 }

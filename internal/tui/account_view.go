@@ -51,7 +51,7 @@ func (m AccountModel) View() tea.View {
 	page, _ := m.accountScreen(p)
 	view := tea.NewView(canvas(page, p, max(0, m.width), max(0, m.height)))
 	view.AltScreen = true
-	if m.profile >= colorprofile.ANSI && (m.theme != "auto" || m.backgroundKnown) {
+	if m.profile >= colorprofile.ANSI && m.paintsBackground() {
 		view.BackgroundColor = lipgloss.Color(p.shell)
 		view.ForegroundColor = lipgloss.Color(p.ink)
 	}
@@ -106,7 +106,7 @@ func (m AccountModel) accountScreen(p palette) (string, []hitArea) {
 		}
 		page = lipgloss.NewStyle().MarginLeft((m.width - width) / 2).MarginTop(top).Render(page)
 	} else if m.width > 0 && m.height > 0 {
-		page = "ACCOUNT\nResize to at least 60x18.\nf2 " + m.nextTheme() + " theme · Ctrl+C to quit."
+		page = "ACCOUNT\nResize to at least 60x18.\nCtrl+C to quit."
 	}
 	return page, areas
 }
@@ -228,7 +228,7 @@ func (m AccountModel) accountBodyLayout(width int, p palette) (string, []hitArea
 	}
 	if m.pasting {
 		input := m.input
-		input.SetStyles(textinput.DefaultStyles(m.dark))
+		input.SetStyles(textinput.DefaultStyles(m.isDark()))
 		input.SetWidth(max(1, width-4))
 		return text(p.ink).Bold(true).Render("Paste callback link") + "\n\n" + text(p.muted).Render("Use the full link from the browser address bar.") + "\n\n" + input.View() + "\n\n" + text(p.muted).Render("Masked input. Nothing is logged."), nil
 	}
@@ -320,7 +320,7 @@ func (m AccountModel) accountFooterLayout(width int, p palette) (string, []hitAr
 	var hints []struct{ label, action string }
 	for _, binding := range m.bindings().bindings {
 		hint := binding.Help()
-		if hint.Key == "tab" || hint.Key == "enter" || hint.Key == "esc" || hint.Key == "?" || hint.Key == "ctrl+c" || hint.Key == "f2" || (hint.Key == "d" && m.state == "failed") {
+		if hint.Key == "tab" || hint.Key == "enter" || hint.Key == "esc" || hint.Key == "?" || hint.Key == "ctrl+c" || (hint.Key == "d" && m.state == "failed") {
 			hints = append(hints, struct{ label, action string }{hint.Key + " " + hint.Desc, hint.Key})
 		}
 	}
