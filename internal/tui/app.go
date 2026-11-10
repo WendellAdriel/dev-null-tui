@@ -244,6 +244,13 @@ func (m AppModel) Close() error {
 
 func (m *AppModel) resetSequence() { m.pendingG = false; m.generation++ }
 
+func (m *AppModel) startSequence() tea.Cmd {
+	m.pendingG = true
+	m.generation++
+	generation := m.generation
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return gExpired{generation} })
+}
+
 func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	next, cmd := m.update(msg)
 	app := next.(AppModel)
@@ -1085,8 +1092,16 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if m.settings.open {
-		cmd := m.settingsKey(pressed)
-		return m, cmd
+		if pressed == "g" && !m.pendingG && !m.settings.busy {
+			return m, m.startSequence()
+		}
+		// A go-to sequence leaves Settings unless a write is in flight; anything else stays inside it.
+		if m.settings.busy || !m.pendingG || !strings.Contains("lenpstdr", pressed) || len(pressed) != 1 {
+			m.resetSequence()
+			cmd := m.settingsKey(pressed)
+			return m, cmd
+		}
+		m.settings.open = false
 	}
 	if m.draftsOnTop() && !m.pendingG {
 		if next, cmd, ok := m.draftsKey(pressed); ok {
@@ -1227,10 +1242,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		}
 		return m, m.openThread(selected)
 	case "g":
-		m.pendingG = true
-		m.generation++
-		generation := m.generation
-		return m, tea.Tick(time.Second, func(time.Time) tea.Msg { return gExpired{generation} })
+		return m, m.startSequence()
 	case "tab", "right", "]", "l":
 		return m.switchLog((m.active + 1) % 3)
 	case "shift+tab", "left", "[":

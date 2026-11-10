@@ -238,3 +238,27 @@ func TestSettingsViewsStayWithinTerminalAndShowOnlySupportedTabs(t *testing.T) {
 		}
 	}
 }
+
+func TestGoKeysLeaveSettings(t *testing.T) {
+	for key, opened := range map[string]func(AppModel) bool{
+		"s": func(m AppModel) bool { return m.starredOpen },
+		"n": func(m AppModel) bool { return m.notificationsOpen },
+		"d": func(m AppModel) bool { return m.drafts.open },
+	} {
+		m := pressApp(pressApp(fixtureApp(t), "g"), ",")
+		m.settings.busy = false
+		m = pressApp(pressApp(m, "g"), key)
+		if m.settings.open || !opened(m) {
+			t.Fatalf("g %s did not leave Settings", key)
+		}
+	}
+	m := pressApp(pressApp(fixtureApp(t), "g"), ",")
+	m.settings.busy = false
+	if m = pressApp(pressApp(m, "g"), "j"); !m.settings.open || m.pendingG {
+		t.Fatal("an unknown g sequence must keep Settings open")
+	}
+	m.settings.busy = true
+	if m = pressApp(pressApp(m, "g"), "s"); !m.settings.open || m.starredOpen {
+		t.Fatal("g s must wait while a Settings write is in flight, like esc")
+	}
+}
