@@ -680,7 +680,7 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 	if !m.suggestionsHidden() && m.suggestCalls.list != nil {
 		buttons = append(buttons, struct{ label, key string }{"Who to follow", "w"})
 	}
-	buttons = append(buttons, struct{ label, key string }{"Refresh", "ctrl+r"})
+	buttons = append(buttons, struct{ label, key string }{"Theme", "f2"}, struct{ label, key string }{"Refresh", "ctrl+r"})
 	for i, action := range buttons {
 		if i > 0 {
 			controls += "\n"
@@ -692,7 +692,7 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 	workspace.composer.open = false
 	var shortcuts []key.Binding
 	for _, binding := range workspace.bindings().short {
-		if h := binding.Help(); h.Key != "c" && h.Key != "ctrl+r" && h.Key != "a" {
+		if h := binding.Help(); h.Key != "c" && h.Key != "ctrl+r" && h.Key != "a" && h.Key != "f2" {
 			shortcuts = append(shortcuts, binding)
 		}
 	}

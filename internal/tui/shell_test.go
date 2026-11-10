@@ -112,7 +112,10 @@ func TestWorkspaceActionsAndShortcutsHaveOneHome(t *testing.T) {
 			t.Fatalf("duplicate shortcut %q", removed)
 		}
 	}
-	for _, key := range []string{"↑/↓", "tab", "y", "f2", "?", "ctrl+c"} {
+	if !strings.Contains(sections[0], "Theme") || strings.Contains(sections[1], "f2") {
+		t.Fatal("the theme picker belongs in Actions, not Shortcuts")
+	}
+	for _, key := range []string{"↑/↓", "tab", "y", "?", "ctrl+c"} {
 		if !strings.Contains(sections[1], key) {
 			t.Fatalf("missing sidebar shortcut %q", key)
 		}
@@ -144,9 +147,9 @@ func TestRelocatedButtonsAndShortcutsAcceptMouse(t *testing.T) {
 			if cmd == nil || !m.feeds[m.active].loading {
 				t.Fatal("relocated refresh button missed")
 			}
-			next, cmd := clickText(t, m, "choose a theme")
+			next, cmd := clickText(t, m, "Theme")
 			if m = settleCmd(next, cmd); m.picker == nil || m.picker.kind != "theme" {
-				t.Fatal("aside theme shortcut missed")
+				t.Fatal("aside Theme button missed")
 			}
 			m = pressApp(m, "esc")
 			m, _ = clickText(t, m, "help")

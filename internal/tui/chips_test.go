@@ -282,7 +282,7 @@ func TestAsideActionsAndShortcutsSitOnConsecutiveRows(t *testing.T) {
 	for _, area := range areas {
 		rows[area.action] = area.y
 	}
-	if rows["L"]-rows["a"] != 1 || rows["?"]-rows["f2"] != 1 || rows["tab"]-rows["down"] != 1 {
+	if rows["L"]-rows["a"] != 1 || rows["ctrl+r"]-rows["f2"] != 1 || rows["tab"]-rows["down"] != 1 {
 		t.Fatalf("action and shortcut chips must sit on consecutive rows: %+v", rows)
 	}
 }
@@ -321,5 +321,16 @@ func TestF2OpensTheThemePickerFromAnyView(t *testing.T) {
 		if m = press(m); (m.picker != nil && m.picker.kind == "theme") != c.opens {
 			t.Fatalf("%s: f2 opened the theme picker = %v, want %v", name, m.picker != nil, c.opens)
 		}
+	}
+	m := fixtureApp(t)
+	m.account.width, m.account.height = 124, 35
+	aside := ansi.Strip(m.aside(40, m.mainHeight(), m.account.colors()))
+	actions := strings.SplitN(aside, "Shortcuts", 2)[0]
+	if !strings.Contains(actions, "Theme") || !strings.Contains(actions, "f2") {
+		t.Fatalf("Actions lack the Theme chip:\n%s", aside)
+	}
+	next, cmd := clickText(t, m, "Theme")
+	if m = settleCmd(next, cmd); m.picker == nil || m.picker.kind != "theme" {
+		t.Fatal("the Theme chip did not open the theme picker")
 	}
 }
