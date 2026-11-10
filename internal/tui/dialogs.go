@@ -128,7 +128,7 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	case "event-theme", "theme":
 		verb = "Apply"
 	}
-	hints := []statusPart{hintChip("Choose", "j/k", "j"), statusChip(verb, "enter")}
+	hints := []statusPart{hintChip("Choose", "↑/↓", "down"), statusChip(verb, "enter")}
 	if d.next != "" && verb == "Open" {
 		hints = append(hints, statusChip("More", "n"))
 	}

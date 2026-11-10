@@ -117,7 +117,7 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 	if m.scheduled != nil {
 		return m.scheduledBindings(bind)
 	}
-	short := []key.Binding{bind("j/k", "move"), bind("enter", "open thread")}
+	short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open thread")}
 	if c, ok := m.focusedEngagementCommit(); ok && hasProfile(c.Author) {
 		short = append(short, bind("u", "author profile"))
 	}

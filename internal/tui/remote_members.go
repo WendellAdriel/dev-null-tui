@@ -346,7 +346,7 @@ func (m AppModel) membersModal(pal palette) (string, uiRect, []hitArea) {
 	case d.renaming:
 		hints = []statusPart{statusChip("Save", "enter"), closeChip("Cancel")}
 	case d.menu:
-		hints = []statusPart{hintChip("Choose", "j/k", "j"), statusChip("Run", "enter"), closeChip("Back")}
+		hints = []statusPart{hintChip("Choose", "↑/↓", "down"), statusChip("Run", "enter"), closeChip("Back")}
 	}
 	footer, footerAreas := hintRow(hints, width, pal)
 	footerAreas = panelFooterAreas(footerAreas, footer, rect)

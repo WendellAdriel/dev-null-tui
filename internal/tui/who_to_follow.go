@@ -461,7 +461,7 @@ func (m *AppModel) openWhoToFollow() tea.Cmd {
 func (m AppModel) suggestionModal(p palette) (string, uiRect, []hitArea) {
 	width := modalWidth(m.account.width)
 	body, areas := m.suggestionModalBody(max(1, width-4), m.modalCompact(), p)
-	footer, footerAreas := hintRow([]statusPart{hintChip("Choose", "j/k", "j"), statusChip("Profile", "enter"), closeChip("Close")}, max(1, width-4), p)
+	footer, footerAreas := hintRow([]statusPart{hintChip("Choose", "↑/↓", "down"), statusChip("Profile", "enter"), closeChip("Close")}, max(1, width-4), p)
 	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width, lipgloss.Height(body)+6)
 	for i := range areas {
 		areas[i].x += r.x + 2

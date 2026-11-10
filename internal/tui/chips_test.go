@@ -70,7 +70,7 @@ func TestRemotesThreadStatusBarIsChipsWithPing(t *testing.T) {
 	if !strings.HasSuffix(parts[0].text, "messages") {
 		t.Fatalf("the count must stay plain text: %+v", parts[0])
 	}
-	for key, label := range map[string]string{"j/k": "Select", "I": "Members", "p": "Ping everyone in the org", "esc": "Back"} {
+	for key, label := range map[string]string{"↑/↓": "Select", "I": "Members", "p": "Ping everyone in the org", "esc": "Back"} {
 		if chip, ok := chipFor(parts, key); !ok || chip.label != label {
 			t.Fatalf("status is missing the %s chip: %+v", label, parts)
 		}

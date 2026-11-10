@@ -395,7 +395,7 @@ func (m AppModel) scheduledMouse(x, y int) (AppModel, tea.Cmd) {
 }
 
 func (m AppModel) scheduledBindings(bind func(string, string) key.Binding) appKeys {
-	short := []key.Binding{bind("j/k", "move"), bind("enter", "commit now"), bind("D", "cancel"), bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
+	short := []key.Binding{bind("↑/↓", "move"), bind("enter", "commit now"), bind("D", "cancel"), bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
 	all := append(append([]key.Binding(nil), short...), bind("n", "next page"), bind("home / G / end", "first / last"), bind("g t", "reopen Scheduled"), bind("g l / g e", "Log / Trending"), bind("g s", "Starred"), bind("c", "compose (ctrl+t schedules)"), bind("a", "account"))
 	return appKeys{short, all}
 }

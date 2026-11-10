@@ -46,19 +46,19 @@ func (m AppModel) screenBindings() appKeys {
 	if m.composer.open {
 		keys := []key.Binding{bind("ctrl+enter", "submit"), bind("ctrl+s", "submit fallback"), bind("ctrl+p", "preview / edit"), bind("ctrl+t", "schedule for later"), bind("ctrl+a", "post as"), bind("tab / shift+tab", "focus control"), bind("enter", "new line or activate control"), bind("esc", "back or cancel"), bind("ctrl+c", "request exit")}
 		if m.composer.previewing {
-			keys = append(keys, bind("up/down / pgup/pgdown", "scroll preview"))
+			keys = append(keys, bind("↑/↓ / pgup/pgdown", "scroll preview"))
 		}
 		return appKeys{keys, keys}
 	}
 	if m.viewer.open {
-		keys := []key.Binding{bind("left/right", "previous or next image"), bind("j/k / wheel", "scroll panel"), bind("n", "more replies"), bind("p", "show or hide panel"), bind("y", "copy image link"), bind("esc", "close viewer"), bind("ctrl+c", "quit")}
+		keys := []key.Binding{bind("←/→", "previous or next image"), bind("↑/↓ / wheel", "scroll panel"), bind("n", "more replies"), bind("p", "show or hide panel"), bind("y", "copy image link"), bind("esc", "close viewer"), bind("ctrl+c", "quit")}
 		return appKeys{keys, keys}
 	}
 	if m.profileOnTop() {
 		return m.profileBindings(bind)
 	}
 	if len(m.threads) > 0 {
-		short := []key.Binding{bind("j/k", "move"), bind("r", "reply"), bind("q", "quote")}
+		short := []key.Binding{bind("↑/↓", "move"), bind("r", "reply"), bind("q", "quote")}
 		if c, ok := m.focusedEngagementCommit(); ok && hasProfile(c.Author) {
 			short = append(short, bind("u", "profile"))
 		}
@@ -69,7 +69,7 @@ func (m AppModel) screenBindings() appKeys {
 		return appKeys{short, all}
 	}
 	if m.notificationsOpen {
-		short := []key.Binding{bind("j/k", "move"), bind("space", "expand / collapse group"), bind("enter", "open commit or follower")}
+		short := []key.Binding{bind("↑/↓", "move"), bind("space", "expand / collapse group"), bind("enter", "open commit or follower")}
 		if entries, selected := m.notificationEntries(), m.notificationFeed().selected; selected < len(entries) && hasProfile(entries[selected].notification.Actor) {
 			short = append(short, bind("u", "profile"))
 		}
@@ -82,14 +82,14 @@ func (m AppModel) screenBindings() appKeys {
 		return m.starredBindings(bind)
 	}
 	if m.draftsOnTop() {
-		short := []key.Binding{bind("j/k", "move"), bind("enter", "open draft"), bind("D", "delete draft"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open draft"), bind("D", "delete draft"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
 		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", m.account.nextTheme()+" theme"))
 		return appKeys{short, all}
 	}
 	if m.remotesOnTop() {
 		return m.remotesBindings(bind)
 	}
-	short := []key.Binding{bind("j/k", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
+	short := []key.Binding{bind("↑/↓", "move"), bind("tab", "log"), bind("c", "compose"), bind("ctrl+r", "refresh")}
 	if len(m.feeds[m.active].commits) > 0 && m.account.width >= 100 {
 		short = append(short, bind("y", "copy link"))
 	}
@@ -706,9 +706,10 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 	controls += "\n"
 	for _, binding := range shown {
 		h := binding.Help()
-		action := h.Key
-		if action == "j/k" {
-			action = "down"
+		// A pair of arrows moves down or forward, like the other pair chips.
+		action := map[string]string{"↑/↓": "down", "←/→": "right"}[h.Key]
+		if action == "" {
+			action = h.Key
 		}
 		areas = append(areas, hitArea{uiRect{2, strings.Count(controls, "\n"), inner, 1}, action, 0})
 		controls += wideChip(h.Desc, h.Key, inner, p) + "\n"

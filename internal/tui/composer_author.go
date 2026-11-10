@@ -215,7 +215,7 @@ func (m AppModel) authorPickerView(width, height int, p palette) (string, []hitA
 		}
 		rows = append(rows, row)
 	}
-	hint, areas := hintRow([]statusPart{hintChip("Move", "j/k", "j"), statusChip("Choose", "enter"), closeChip("Back")}, width, p)
+	hint, areas := hintRow([]statusPart{hintChip("Move", "↑/↓", "down"), statusChip("Choose", "enter"), closeChip("Back")}, width, p)
 	for i := range areas {
 		areas[i].y = len(rows) + 1
 	}

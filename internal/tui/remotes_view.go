@@ -1033,10 +1033,10 @@ func (m *AppModel) threadClick(line, x int) tea.Cmd {
 }
 
 func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys {
-	short := []key.Binding{bind("j/k", "move"), bind("enter", "open"), bind("tab", "inbox tab"), bind("/", "search"), bind(".", "actions"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
+	short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open"), bind("tab", "inbox tab"), bind("/", "search"), bind(".", "actions"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	thread := m.remotes.thread != nil && m.remotes.focusThread
 	if thread {
-		short = []key.Binding{bind("j/k", "select"), bind("w", "write"), bind("ctrl+t", "voice"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short = []key.Binding{bind("↑/↓", "select"), bind("w", "write"), bind("ctrl+t", "voice"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
 	}
 	all := append([]key.Binding(nil), short...)
 	if thread {

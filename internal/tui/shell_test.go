@@ -112,7 +112,7 @@ func TestWorkspaceActionsAndShortcutsHaveOneHome(t *testing.T) {
 			t.Fatalf("duplicate shortcut %q", removed)
 		}
 	}
-	for _, key := range []string{"j/k", "tab", "y", "f2", "?", "ctrl+c"} {
+	for _, key := range []string{"↑/↓", "tab", "y", "f2", "?", "ctrl+c"} {
 		if !strings.Contains(sections[1], key) {
 			t.Fatalf("missing sidebar shortcut %q", key)
 		}

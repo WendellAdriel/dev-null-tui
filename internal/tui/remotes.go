@@ -980,7 +980,7 @@ func (m AppModel) remotesStatus() []statusPart {
 		if voice := m.voiceStatus(); voice != nil {
 			return append(voice, back)
 		}
-		parts := []statusPart{plainStatus(fmt.Sprintf("%d messages", len(t.messages))), hintChip("Select", "j/k", "j")}
+		parts := []statusPart{plainStatus(fmt.Sprintf("%d messages", len(t.messages))), hintChip("Select", "↑/↓", "down")}
 		if t.conversation.Kind == "org" {
 			parts = append(parts, statusChip("Members", "I"))
 		}

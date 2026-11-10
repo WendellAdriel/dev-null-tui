@@ -281,7 +281,7 @@ func (m AppModel) viewerPanel(width, height int, p palette) ([]string, []hitArea
 	start := max(0, min(m.viewer.offset, len(lines)-height))
 	var areas []hitArea
 	if start+height < len(lines) && height > 1 {
-		more, moreAreas := hintRow([]statusPart{hintText("↓ more"), hintChip("Scroll", "j/k", "j")}, max(1, width-2), p)
+		more, moreAreas := hintRow([]statusPart{hintText("↓ more"), hintChip("Scroll", "↑/↓", "down")}, max(1, width-2), p)
 		for _, area := range moreAreas {
 			area.x += 2
 			area.y = height - 1

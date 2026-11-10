@@ -405,9 +405,9 @@ func (m AppModel) settingsLanePicker(p palette, width int) (string, []hitArea) {
 
 func (m AppModel) settingsHelp() appKeys {
 	bind := func(k, label string) key.Binding { return key.NewBinding(key.WithKeys(k), key.WithHelp(k, label)) }
-	bindings := []key.Binding{bind("left/right", "settings tab"), bind("j/k", "choose control"), bind("enter", "activate"), bind("ctrl+r", "refresh account"), bind("a", "account connection"), bind("esc", "back"), bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit")}
+	bindings := []key.Binding{bind("←/→", "settings tab"), bind("↑/↓", "choose control"), bind("enter", "activate"), bind("ctrl+r", "refresh account"), bind("a", "account connection"), bind("esc", "back"), bind("f2", m.account.nextTheme()+" theme"), bind("?", "help"), bind("ctrl+c", "quit")}
 	if m.settings.dialog != "" {
-		bindings = []key.Binding{bind("up/down", "choose option"), bind("tab", "Cancel / Confirm"), bind("ctrl+s", "confirm"), bind("esc", "cancel"), bind("f2", m.account.nextTheme()+" theme")}
+		bindings = []key.Binding{bind("↑/↓", "choose option"), bind("tab", "Cancel / Confirm"), bind("ctrl+s", "confirm"), bind("esc", "cancel"), bind("f2", m.account.nextTheme()+" theme")}
 		if m.settings.dialog == "lane" {
 			bindings[0] = bind("arrows / click", "choose color")
 		}

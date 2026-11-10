@@ -585,7 +585,7 @@ func TestANewestVoiceNoteNobodySelectedKeepsTheMessageKeys(t *testing.T) {
 	m, f := voiceApp(t)
 	// No selection follows new messages, and nothing is highlighted, so the newest note is not picked.
 	m.remotes.thread.selected = ""
-	if got := statusText(m) + composerText(m); strings.Contains(got, "Play  space") || !strings.Contains(got, "Select  j/k") || !strings.Contains(got, "Voice  ctrl+t") {
+	if got := statusText(m) + composerText(m); strings.Contains(got, "Play  space") || !strings.Contains(got, "Select  ↑/↓") || !strings.Contains(got, "Voice  ctrl+t") {
 		t.Fatalf("an unselected voice note must leave the message keys:\n%s", got)
 	}
 	m = voiceKeys(t, m, "space")
