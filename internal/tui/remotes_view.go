@@ -108,7 +108,13 @@ func (m AppModel) inboxLayout(width, height int, p palette) (string, []hitArea) 
 	case r.searching:
 		search = text(p.ink).Render("/ "+safeText(r.query)) + text(p.blue).Render("▏")
 	case r.term != "":
-		search = split(text(p.ink).Render("/ "+safeText(r.term)), text(p.muted).Render("esc clear"), width-2)
+		clear, clearAreas := hintRow([]statusPart{closeChip("Clear")}, width-2, p)
+		for _, area := range clearAreas {
+			area.x += 1 + width - 2 - lipgloss.Width(clear)
+			area.y = 1
+			areas = append(areas, area)
+		}
+		search = split(text(p.ink).Render("/ "+safeText(r.term)), clear, width-2)
 	}
 	areas = append(areas, hitArea{uiRect{1, 1, width - 2, 1}, "/", 0})
 	lines := []string{" " + fit(tabs, width-2), " " + fit(search, width-2), text(p.hairline).Render(strings.Repeat("─", width))}
@@ -381,7 +387,8 @@ func (m AppModel) remoteThreadPane(width, height int, p palette) string {
 	footer := " " + text(p.muted).Italic(true).Render(fit(typingText(typing), width-2))
 	messages := t.viewport.View()
 	if t.composer.browser != nil {
-		messages = indent(m.browserView(max(1, width-2), t.viewport.Height(), p))
+		browser, _ := m.browserView(max(1, width-2), t.viewport.Height(), p)
+		messages = indent(browser)
 	}
 	if pill, at := m.presentPill(width, p); pill != "" {
 		rows := strings.Split(messages, "\n")
@@ -806,7 +813,9 @@ func (m AppModel) remotesModal(p palette) (string, uiRect, []hitArea) {
 			body += style.Render(line) + "\n"
 			areas = append(areas, hitArea{uiRect{rect.x + 2, rect.y + 3 + offset + i, width, 1}, "focus", i})
 		}
-		footer = text(p.muted).Render(fit("enter choose · esc close", width))
+		var footerAreas []hitArea
+		footer, footerAreas = hintRow([]statusPart{statusChip("Choose", "enter"), closeChip("Close")}, width, p)
+		areas = append(areas, panelFooterAreas(footerAreas, footer, rect)...)
 		heading := title
 		if r.dialog == "mute" {
 			heading = "Mute " + title
@@ -838,6 +847,9 @@ func (m AppModel) remotesDialogMouse(x, y int) (AppModel, tea.Cmd) {
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.mouseKey(pressed)
 		}
 		switch area.action {
 		case "esc":
@@ -871,6 +883,10 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		for _, area := range areas {
 			if !area.contains(x, row) {
 				continue
+			}
+			if pressed, ok := keyAction(area.action); ok {
+				m.remotes.focusThread = false
+				return m.mouseKey(pressed)
 			}
 			switch area.action {
 			case "tab":
@@ -920,11 +936,20 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		}
 		return m, nil
 	}
-	if t == nil || t.composer.browser != nil {
+	if t == nil {
 		return m, nil
 	}
 	x -= left
 	banner := m.bannerRows()
+	if t.composer.browser != nil {
+		_, areas := m.browserView(max(1, m.threadPaneWidth()-2), t.viewport.Height(), p)
+		for _, area := range areas {
+			if pressed, ok := keyAction(area.action); ok && area.contains(x-1, row-2-banner) {
+				return m.mouseKey(pressed)
+			}
+		}
+		return m, nil
+	}
 	if row == 2 && banner > 0 {
 		m.openPinList()
 		return m, nil
@@ -955,7 +980,7 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 			}
 			return m, m.chooseReaction(quick[area.index])
 		}
-		if pressed, ok := strings.CutPrefix(area.action, "key:"); ok {
+		if pressed, ok := keyAction(area.action); ok {
 			return m.mouseKey(pressed)
 		}
 	}

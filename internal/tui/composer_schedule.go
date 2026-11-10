@@ -112,7 +112,8 @@ func zoneLabel(at time.Time) string {
 	return name
 }
 
-func (m AppModel) scheduleView(width, height int, p palette) string {
+// scheduleView draws the schedule picker. Its hit areas are the hint chips.
+func (m AppModel) scheduleView(width, height int, p palette) (string, []hitArea) {
 	s := m.composer.schedule
 	now := time.Now()
 	at, _ := s.at(now)
@@ -133,16 +134,20 @@ func (m AppModel) scheduleView(width, height int, p palette) string {
 	if s.status != "" {
 		rows = append(rows, text(p.warning).Render(fit(s.status, width)))
 	}
-	hint := "←/→ field · ↑/↓ change · Enter to set · Esc back"
+	hints := []statusPart{hintChip("Field", "←/→", "right"), hintChip("Earlier", "↓", "down"), hintChip("Later", "↑", "up"), statusChip("Set", "enter")}
 	if m.composer.scheduleAt != nil {
-		hint += " · Ctrl+D don't schedule"
+		hints = append(hints, statusChip("Don't schedule", "ctrl+d"))
 	}
-	rows = append(rows, text(p.muted).Render(fit(hint, width)), "")
+	hint, areas := hintRow(append(hints, closeChip("Back")), width, p)
+	for i := range areas {
+		areas[i].y = len(rows)
+	}
+	rows = append(rows, hint, "")
 	help := zoneLabel(at) + ". Within " + fmt.Sprint(api.MaxScheduleDays) + " days. Private until submitted, then submitted for review, not published automatically."
 	for _, line := range strings.Split(ansi.Wrap(help, width, ""), "\n") {
 		rows = append(rows, text(p.muted).Render(line))
 	}
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n"))
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n")), areas
 }
 
 // scheduleNotice is the composer's line about a chosen time, above its status.

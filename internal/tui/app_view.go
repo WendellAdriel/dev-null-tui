@@ -751,7 +751,13 @@ func (m AppModel) helpLines(width int, p palette) []string {
 		label := fit(h.Desc, max(1, width-lipgloss.Width(chip)-1))
 		lines = append(lines, label+strings.Repeat(" ", max(1, width-lipgloss.Width(chip)-lipgloss.Width(label)))+chip)
 	}
-	return append(lines, "", text(p.muted).Render("↑/↓ scroll · esc close"))
+	return lines
+}
+
+// scrollFooter is the Scroll and Close chips of a scrolling panel such as help, with their hit areas on screen.
+func scrollFooter(r uiRect, p palette) (string, []hitArea) {
+	footer, areas := hintRow([]statusPart{hintChip("Scroll", "↑/↓", "down"), closeChip("Close")}, max(1, r.w-4), p)
+	return footer, panelFooterAreas(areas, footer, r)
 }
 
 func (m AppModel) helpMaxScroll() int {
@@ -766,7 +772,8 @@ func (m AppModel) helpModal(p palette) string {
 	lines := m.helpLines(max(1, r.w-4), p)
 	start := min(m.helpScroll, m.helpMaxScroll())
 	content := strings.Join(lines[start:min(len(lines), start+max(1, r.h-6))], "\n")
-	return panel("Keyboard shortcuts", content, "↑/↓ scroll · esc close", r, p, p.blue)
+	footer, _ := scrollFooter(r, p)
+	return panel("Keyboard shortcuts", content, footer, r, p, p.blue)
 }
 
 func countBadge(count int) string {

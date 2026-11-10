@@ -351,7 +351,12 @@ func (m AppModel) reactionRow(width int, p palette) (string, []hitArea) {
 		line += chip + " "
 		x += lipgloss.Width(chip) + 1
 	}
-	return split(line, text(p.muted).Render("esc cancel "), width), areas
+	cancel, cancelAreas := hintRow([]statusPart{closeChip("Cancel")}, width, p)
+	for _, area := range cancelAreas {
+		area.x += width - lipgloss.Width(cancel) - 1
+		areas = append(areas, area)
+	}
+	return split(line, cancel+" ", width), areas
 }
 
 func (m AppModel) reactionModal(p palette) (string, uiRect, []hitArea) {
@@ -385,8 +390,8 @@ func (m AppModel) reactionModal(p palette) (string, uiRect, []hitArea) {
 	if len(choices) == 0 {
 		lines = append(lines, text(p.muted).Render(" fatal: no emoji matches"))
 	}
-	footer := text(p.muted).Render(fit("type to search · enter react · esc close", width))
-	areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
+	footer, footerAreas := hintRow([]statusPart{hintText("Type to search"), statusChip("React", "enter"), closeChip("Close")}, width, p)
+	areas = append(append(areas, panelFooterAreas(footerAreas, footer, rect)...), hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
 	return panel("React", strings.Join(lines, "\n"), footer, rect, p, p.blue), rect, areas
 }
 
@@ -400,6 +405,9 @@ func (m AppModel) reactionModalMouse(x, y int) (AppModel, tea.Cmd) {
 		if area.action == "esc" {
 			m.closeReactions()
 			return m, nil
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.mouseKey(pressed)
 		}
 		choices := m.pickerChoices(menu.query)
 		cmd := m.chooseReaction(choices[area.index].value)

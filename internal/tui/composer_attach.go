@@ -279,28 +279,34 @@ func (m AppModel) composerStripRows() int {
 	return 2
 }
 
-func (m AppModel) stripView(width int, p palette) string {
+// stripView draws the attachment strip. Its hit areas are the header's chips.
+func (m AppModel) stripView(width int, p palette) (string, []hitArea) {
 	c := m.composer
 	rows := m.composerStripRows()
 	if rows == 0 {
-		return ""
+		return "", nil
 	}
 	focused := c.focus == composerStrip
 	if c.attachmentCount() == 0 {
-		hint := "Ctrl+O or drop images · Ctrl+L poll"
+		if c.browser != nil || c.picker != nil || c.schedule != nil {
+			return "", nil
+		}
+		hints := []statusPart{statusChip("Images (or drop)", "ctrl+o"), statusChip("Poll", "ctrl+l")}
 		if reason := c.pollBlocked(); reason != "" {
-			hint = "Ctrl+O or drop images · Poll unavailable: " + strings.TrimSuffix(reason, ".")
+			hints[1] = hintText("Poll unavailable: " + strings.TrimSuffix(reason, "."))
 		}
 		if c.mode == "" && m.commitCalls.schedule != nil {
-			hint += " · Ctrl+T schedule"
+			hints = append(hints, statusChip("Schedule", "ctrl+t"))
 		}
-		return text(p.muted).Render(fit(hint, width))
+		return hintRow(hints, width, p)
 	}
 	thumbnails := rows == stripThumbRows+2 && m.stripThumbnails()
-	var header string
+	var title string
+	var keys []statusPart
 	var items []string
 	if c.poll != nil {
-		header = "Poll · ‹ " + pollDurationLabels[c.poll.duration] + " › · Enter edit · Ctrl+N add · Del remove · Ctrl+X drop poll"
+		title = "Poll · ‹ " + pollDurationLabels[c.poll.duration] + " ›"
+		keys = []statusPart{statusChip("Edit", "enter"), statusChip("Add", "ctrl+n"), hintChip("Remove", "del", "delete"), statusChip("Drop poll", "ctrl+x")}
 		for i, option := range c.poll.options {
 			label := safeText(option)
 			if strings.TrimSpace(label) == "" {
@@ -309,7 +315,8 @@ func (m AppModel) stripView(width int, p palette) string {
 			items = append(items, fmt.Sprintf("%d. %s", i+1, label))
 		}
 	} else {
-		header = fmt.Sprintf("Images %d/%d · Enter describe · Del remove · Alt+↑/↓ move", len(c.images), api.MaxImages)
+		title = fmt.Sprintf("Images %d/%d", len(c.images), api.MaxImages)
+		keys = []statusPart{statusChip("Describe", "enter"), hintChip("Remove", "del", "delete"), hintChip("Move", "alt+↑/↓", "alt+down")}
 		for i, image := range c.images {
 			description := "No description"
 			if strings.TrimSpace(image.Description) != "" {
@@ -322,8 +329,19 @@ func (m AppModel) stripView(width int, p palette) string {
 			items = append(items, fmt.Sprintf("%s · %d×%d · %s", name, image.Width, image.Height, description))
 		}
 	}
-	if !focused {
-		header = strings.SplitN(header, " · Enter", 2)[0] + " · Tab to edit"
+	switch {
+	case c.browser != nil || c.picker != nil || c.schedule != nil:
+		// The open panel owns the keys, so the strip offers none.
+		keys = nil
+	case c.editing != "":
+		keys = []statusPart{statusChip("Save", "enter"), closeChip("Cancel")}
+	case !focused:
+		keys = []statusPart{statusChip("Edit", "tab")}
+	}
+	header := func(more string) (string, []hitArea) {
+		lead := hintText(more + title)
+		lead.pinned = true
+		return hintRow(append([]statusPart{lead}, keys...), width, p)
 	}
 
 	line := func(i int) string {
@@ -345,17 +363,22 @@ func (m AppModel) stripView(width int, p palette) string {
 		return style.Render(fit(marker+items[i], width))
 	}
 	if thumbnails {
-		return strings.Join(append(append([]string{text(p.muted).Render(fit(header, width))}, m.thumbnailRows(c.images, c.strip, focused, width, p)...), line(c.strip)), "\n")
+		head, areas := header("")
+		return strings.Join(append(append([]string{head}, m.thumbnailRows(c.images, c.strip, focused, width, p)...), line(c.strip)), "\n"), areas
 	}
 	if rows < len(items)+1 {
-		more := fmt.Sprintf("%d more · %s", len(items)-1, header)
-		return line(c.strip) + "\n" + text(p.muted).Render(fit(more, width))
+		head, areas := header(fmt.Sprintf("%d more · ", len(items)-1))
+		for i := range areas {
+			areas[i].y = 1
+		}
+		return line(c.strip) + "\n" + head, areas
 	}
-	out := []string{text(p.muted).Render(fit(header, width))}
+	head, areas := header("")
+	out := []string{head}
 	for i := range items {
 		out = append(out, line(i))
 	}
-	return strings.Join(out, "\n")
+	return strings.Join(out, "\n"), areas
 }
 
 // Attachment strip thumbnails fit this many cells, so three images and their gaps fit a narrow composer.

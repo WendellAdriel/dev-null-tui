@@ -474,7 +474,7 @@ func TestScheduledOpensFromTheSidebarAndTheComposerHintsCtrlT(t *testing.T) {
 	m.closeStarred()
 	m, cmd = m.handleKey("c")
 	m = deliver(m, runAll(cmd))
-	if !strings.Contains(ansi.Strip(m.View().Content), "Ctrl+T schedule") {
+	if !strings.Contains(ansi.Strip(m.View().Content), "Schedule  ctrl+t") {
 		t.Fatalf("the composer should hint Ctrl+T:\n%s", ansi.Strip(m.View().Content))
 	}
 }

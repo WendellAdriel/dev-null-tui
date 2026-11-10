@@ -461,12 +461,13 @@ func (m *AppModel) openWhoToFollow() tea.Cmd {
 func (m AppModel) suggestionModal(p palette) (string, uiRect, []hitArea) {
 	width := modalWidth(m.account.width)
 	body, areas := m.suggestionModalBody(max(1, width-4), m.modalCompact(), p)
-	footer := text(p.muted).Render(fit("j/k choose  enter profile  esc close", max(1, width-4)))
+	footer, footerAreas := hintRow([]statusPart{hintChip("Choose", "j/k", "j"), statusChip("Profile", "enter"), closeChip("Close")}, max(1, width-4), p)
 	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width, lipgloss.Height(body)+6)
 	for i := range areas {
 		areas[i].x += r.x + 2
 		areas[i].y += r.y + 3
 	}
+	areas = append(areas, panelFooterAreas(footerAreas, footer, r)...)
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "wtf-close", 0})
 	return panel("/dev/null · WHO TO FOLLOW", body, footer, r, p, p.blue), r, areas
 }
@@ -618,9 +619,13 @@ func (m AppModel) modalCompact() int {
 func (m AppModel) suggestionModalMouse(x, y int) (AppModel, tea.Cmd) {
 	_, r, areas := m.suggestionModal(m.account.colors())
 	for i := len(areas) - 1; i >= 0; i-- {
-		if areas[i].contains(x, y) {
-			return m.suggestionAction(areas[i].action, areas[i].index)
+		if !areas[i].contains(x, y) {
+			continue
 		}
+		if pressed, ok := keyAction(areas[i].action); ok {
+			return m.mouseKey(pressed)
+		}
+		return m.suggestionAction(areas[i].action, areas[i].index)
 	}
 	if !r.contains(x, y) {
 		m.whoToFollow.open = false

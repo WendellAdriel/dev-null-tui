@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"strings"
+
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -10,36 +12,53 @@ type statusPart struct {
 	text, label, key, action string
 	// pinned parts stay when a narrow terminal drops the others from the end.
 	pinned bool
+	// muted draws plain text in the muted color, as overlay and composer hints do.
+	muted bool
 }
 
 func plainStatus(text string) statusPart { return statusPart{text: text, pinned: true} }
 
 func statusChip(label, key string) statusPart { return statusPart{label: label, key: key} }
 
+// hintText is muted plain text in a hint row. It drops with the chips when the row is narrow.
+func hintText(text string) statusPart { return statusPart{text: text, muted: true} }
+
 // hintChip is a chip whose click sends action rather than the key it shows, such as "down" for "↑/↓".
 func hintChip(label, key, action string) statusPart {
 	return statusPart{label: label, key: key, action: action}
 }
 
-// closeChip is the pinned Esc chip that ends most status lines.
+// closeChip is the pinned Esc chip that ends most hint rows.
 func closeChip(label string) statusPart { return statusPart{label: label, key: "esc", pinned: true} }
 
 func plainStatusLine(text string) []statusPart { return []statusPart{plainStatus(text)} }
 
 func (s statusPart) view(p palette) string {
 	if s.label == "" {
+		if s.muted {
+			return text(p.muted).Render(s.text)
+		}
 		return text(p.ink).Render(s.text)
 	}
 	return actionChip(s.label, s.key, p)
 }
 
-// statusLine draws the bottom status bar after a leading space. Its hit areas carry the key a click sends.
+// statusLine draws the bottom status bar after a leading space. Its hit areas carry the bare key.
 func statusLine(parts []statusPart, width int, p palette) (string, []hitArea) {
 	line, areas := chipRow(parts, max(0, width-1), p)
 	for i := range areas {
 		areas[i].x++
 	}
 	return ansi.Truncate(" "+line, max(0, width), "…"), areas
+}
+
+// hintRow draws an overlay or composer hint row. Its hit areas carry "key:" and the key a click sends.
+func hintRow(parts []statusPart, width int, p palette) (string, []hitArea) {
+	line, areas := chipRow(parts, width, p)
+	for i := range areas {
+		areas[i].action = "key:" + areas[i].action
+	}
+	return line, areas
 }
 
 // chipRow draws the parts two cells apart. Unpinned parts drop from the end until the rest fits.
@@ -88,4 +107,19 @@ func rowWidth(parts []statusPart, p palette) int {
 		width += lipgloss.Width(part.view(p))
 	}
 	return width
+}
+
+// keyAction is the key a "key:" hit area sends, or false for any other area.
+func keyAction(action string) (string, bool) {
+	return strings.CutPrefix(action, "key:")
+}
+
+// panelFooterAreas moves hit areas from a panel footer's own cells to the screen cells panel draws it at.
+func panelFooterAreas(areas []hitArea, footer string, r uiRect) []hitArea {
+	top := r.y + r.h - 1 - lipgloss.Height(footer)
+	for i := range areas {
+		areas[i].x += r.x + 2
+		areas[i].y += top
+	}
+	return areas
 }

@@ -281,15 +281,16 @@ func (m AppModel) pinListModal(p palette) (string, uiRect, []hitArea) {
 	case list.err != "":
 		lines = append(lines, "", text(p.danger).Render(fit(list.err, width)))
 	}
-	hints := "enter jump · esc close"
+	hints := []statusPart{statusChip("Jump", "enter"), closeChip("Close")}
 	switch {
 	case list.loading:
-		hints = "esc cancel"
+		hints = []statusPart{closeChip("Cancel")}
 	case m.canPin():
-		hints = "enter jump · ! unpin · esc close"
+		hints = []statusPart{statusChip("Jump", "enter"), statusChip("Unpin", "!"), closeChip("Close")}
 	}
-	areas = append(areas, hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
-	return panel(fmt.Sprintf("Pinned · %d", len(pinned)), strings.Join(lines, "\n"), text(p.muted).Render(fit(hints, width)), rect, p, p.blue), rect, areas
+	footer, footerAreas := hintRow(hints, width, p)
+	areas = append(append(areas, panelFooterAreas(footerAreas, footer, rect)...), hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
+	return panel(fmt.Sprintf("Pinned · %d", len(pinned)), strings.Join(lines, "\n"), footer, rect, p, p.blue), rect, areas
 }
 
 func (m AppModel) pinModalMouse(x, y int) (AppModel, tea.Cmd) {
@@ -310,6 +311,9 @@ func (m AppModel) pinModalMouse(x, y int) (AppModel, tea.Cmd) {
 			}
 			m.remotes.pinList.index = area.index
 			return m.remotesKey("enter")
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.remotesKey(pressed)
 		}
 		return m.remotesKey(area.action)
 	}

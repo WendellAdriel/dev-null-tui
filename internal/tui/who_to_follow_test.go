@@ -111,7 +111,7 @@ func TestWhoToFollowIsAnAsideActionThatOpensAModalLikeTheWeb(t *testing.T) {
 	}
 	m = pressApp(m, "w")
 	text := frameText(m)
-	for _, want := range []string{"WHO TO FOLLOW", "● @grace", "# Compilers and COBOL", "Followed by 2 you follow", "Not interested", "Suggest others", "esc close"} {
+	for _, want := range []string{"WHO TO FOLLOW", "● @grace", "# Compilers and COBOL", "Followed by 2 you follow", "Not interested", "Suggest others", "Close  esc"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("the modal lacks %q:\n%s", want, text)
 		}
@@ -170,7 +170,7 @@ func TestWhoToFollowModalGetsCompactToFitTheTerminal(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 18})
 	m = next.(AppModel)
 	text := frameText(m)
-	if strings.Contains(text, "# Compilers") || !strings.Contains(text, "Grace Hopper") || !strings.Contains(text, "esc close") {
+	if strings.Contains(text, "# Compilers") || !strings.Contains(text, "Grace Hopper") || !strings.Contains(text, "Close  esc") {
 		t.Fatalf("a small terminal must get a compact modal that still fits:\n%s", text)
 	}
 }

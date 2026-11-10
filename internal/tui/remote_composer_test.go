@@ -521,7 +521,7 @@ func TestCompactMessageComposerKeepsEditorAndActionsVisible(t *testing.T) {
 				t.Fatalf("compact composer lost thumbnails at %v:\n%s", size, view)
 			}
 			paneHeight := m.mainHeight() - remotesHeaderHeight
-			if lipgloss.Height(view)+m.remotes.thread.viewport.Height()+3 > paneHeight || !strings.Contains(threadText(m), "enter push") || !strings.Contains(threadText(m), "five :rock") {
+			if lipgloss.Height(view)+m.remotes.thread.viewport.Height()+3 > paneHeight || !strings.Contains(threadText(m), "Push  enter") || !strings.Contains(threadText(m), "five :rock") {
 				t.Fatalf("composer clipped at %v:\n%s", size, threadText(m))
 			}
 		})
@@ -537,7 +537,7 @@ func TestMessageAttachmentsShowThumbnailsAndFocusHints(t *testing.T) {
 	paths := []string{pngFile(t, dir, "first.png"), pngFile(t, dir, "second.png")}
 	m.attachMessageImages(paths)
 	view, _ := m.messageComposerView(m.threadPaneWidth(), colors(true))
-	if strings.Contains(view, "first.png") || !strings.Contains(view, "Image 1 ·") || !strings.Contains(view, "tab edit images") {
+	if strings.Contains(view, "first.png") || !strings.Contains(view, "Image 1 ·") || !strings.Contains(ansi.Strip(view), "Edit images  tab") {
 		t.Fatalf("missing thumbnails, details, or write hint:\n%s", view)
 	}
 	var locals []string
@@ -569,12 +569,12 @@ func TestMessageAttachmentsShowThumbnailsAndFocusHints(t *testing.T) {
 	}
 	m = send(m, tea.KeyPressMsg{Code: tea.KeyTab}, tea.KeyPressMsg{Code: tea.KeyRight})
 	view, _ = m.messageComposerView(m.threadPaneWidth(), colors(true))
-	if !strings.Contains(view, "Image 2 ·") || !strings.Contains(view, "tab write") {
+	if !strings.Contains(view, "Image 2 ·") || !strings.Contains(ansi.Strip(view), "Write  tab") {
 		t.Fatalf("selected image or return hint missing:\n%s", view)
 	}
 	m = send(m, enterKey)
 	view, _ = m.messageComposerView(m.threadPaneWidth(), colors(true))
-	if !strings.Contains(view, "enter save") || strings.Contains(view, "tab write") || strings.Contains(view, "enter push") {
+	if plain := ansi.Strip(view); !strings.Contains(plain, "Save  enter") || strings.Contains(plain, "Write  tab") || strings.Contains(plain, "Push  enter") {
 		t.Fatalf("description field has misleading hints:\n%s", view)
 	}
 	m = send(m, typed("second image")...)

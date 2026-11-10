@@ -491,10 +491,13 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 	var footer string
 	var footerAreas []hitArea
 	switch p.mode {
-	case "remote":
-		footer = text(pal.muted).Render(fit("type to search · ↑/↓ choose · enter open · esc close", width))
-	case "share":
-		footer = text(pal.muted).Render(fit("type to search · ↑/↓ choose · enter send · esc close", width))
+	case "remote", "share":
+		verb := "Open"
+		if p.mode == "share" {
+			verb = "Send"
+		}
+		footer, footerAreas = hintRow([]statusPart{hintText("Type to search"), hintChip("Choose", "↑/↓", "down"), statusChip(verb, "enter"), closeChip("Close")}, width, pal)
+		footerAreas = panelFooterAreas(footerAreas, footer, rect)
 	default:
 		verb := "Create org"
 		if p.mode == "add" {
@@ -507,11 +510,20 @@ func (m AppModel) peopleModal(pal palette) (string, uiRect, []hitArea) {
 			verb = "Saving…"
 		}
 		footer, footerAreas = modalFooter([]modalAction{{"Cancel", "esc", "esc"}, {verb, "ctrl+s", "confirm"}}, width, 0, pal)
-		footer = text(pal.muted).Render(fit("space pick · tab next field", width)) + "\n" + footer
+		var hints []statusPart
+		switch p.field {
+		case peopleList:
+			hints = append(hints, statusChip("Pick", "space"))
+		case peopleShare:
+			hints = append(hints, statusChip("Share", "space"))
+		}
+		hint, hintAreas := hintRow(append(hints, statusChip("Next field", "tab")), width, pal)
+		footer = hint + "\n" + footer
 		for i := range footerAreas {
 			footerAreas[i].x += rect.x + 2
 			footerAreas[i].y += rect.y + rect.h - lipgloss.Height(footer)
 		}
+		footerAreas = append(footerAreas, panelFooterAreas(hintAreas, footer, rect)...)
 	}
 	areas = append(append(areas, footerAreas...), hitArea{uiRect{rect.x + rect.w - 3, rect.y + 1, 1, 1}, "esc", 0})
 	return panel(title, strings.Join(lines, "\n"), footer, rect, pal, pal.blue), rect, areas
@@ -526,6 +538,9 @@ func (m AppModel) peopleMouse(x, y int) (AppModel, tea.Cmd) {
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.mouseKey(pressed)
 		}
 		switch area.action {
 		case "esc":

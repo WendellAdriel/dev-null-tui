@@ -258,11 +258,23 @@ func (m AppModel) browserPreview(p palette) []string {
 	return append(lines, text(p.muted).Render(fmt.Sprintf("%d×%d", b.picture.width, b.picture.height)))
 }
 
-func (m AppModel) browserView(width, height int, p palette) string {
+// browserView draws the image browser. Its hit areas are the hint chips on row 1.
+func (m AppModel) browserView(width, height int, p palette) (string, []hitArea) {
 	b := m.activeBrowser()
+	filter := hintText("Filter: " + safeText(b.filter) + "▏")
+	filter.pinned = true
+	hints := []statusPart{filter, hintChip("Move", "↑/↓", "down"), statusChip("Open", "enter")}
+	// Backspace deletes from a typed filter first, so Up shows only when it goes up a folder.
+	if b.filter == "" {
+		hints = append(hints, statusChip("Up", "backspace"))
+	}
+	hint, areas := hintRow(append(hints, closeChip("Close")), width, p)
+	for i := range areas {
+		areas[i].y = 1
+	}
 	rows := []string{
 		text(p.ink).Bold(true).Render(fit("Add an image · "+safeText(b.dir), width)),
-		text(p.muted).Render(fit("Filter: "+safeText(b.filter)+"▏  ↑/↓ move · Enter open · Backspace up · Esc close", width)),
+		hint,
 	}
 	if b.reason != "" {
 		rows = append(rows, text(p.danger).Render(fit(safeText(b.reason), width)))
@@ -294,5 +306,5 @@ func (m AppModel) browserView(width, height int, p palette) string {
 		}
 		rows[head+i] = lipgloss.NewStyle().Width(list).Render(rows[head+i]) + "  " + line
 	}
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n"))
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n")), areas
 }

@@ -283,7 +283,7 @@ Reports use `!` on a selected published commit by someone else. Profile headers 
 
 ## Account connection
 
-Login appears when needed. Press `a` from the workspace to manage the connection. Help and footer hints reflect the current state.
+Login appears when needed. Press `a` from the workspace to manage the connection. Help and footer hints reflect the current state. In popups, the composers, and the image browser, the hints are chips you can click to press their key. A chip for a pair of keys, such as `↑/↓` or `j/k`, moves down or forward.
 
 | Keys | Action |
 | --- | --- |

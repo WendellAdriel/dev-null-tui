@@ -208,19 +208,35 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		hint := ""
 		if mc.focused {
-			hint = text(p.muted).Render("esc cancel")
+			var hintAreas []hitArea
+			hint, hintAreas = hintRow([]statusPart{closeChip("Cancel")}, inner, p)
+			for _, area := range hintAreas {
+				area.x += 1 + inner - lipgloss.Width(hint)
+				area.y = len(lines)
+				areas = append(areas, area)
+			}
 		}
 		lines = append(lines, " "+split(text(p.muted).Render(fit(label, inner-12)), hint, inner))
 	}
 	if len(mc.images) > 0 {
-		header := fmt.Sprintf("Images %d/%d · tab edit images", len(mc.images), api.MaxImages)
+		parts := []statusPart{plainStatus(fmt.Sprintf("Images %d/%d", len(mc.images), api.MaxImages))}
+		if mc.focused {
+			parts = append(parts, statusChip("Edit images", "tab"))
+		}
 		if mc.stripFocus {
-			header = fmt.Sprintf("Images %d/%d · tab write · enter describe · del remove", len(mc.images), api.MaxImages)
+			parts = append(parts[:1], statusChip("Write", "tab"), statusChip("Describe", "enter"), hintChip("Remove", "del", "delete"))
 		}
 		if mc.editing {
-			header = fmt.Sprintf("Images %d/%d · enter save · esc cancel", len(mc.images), api.MaxImages)
+			parts = append(parts[:1], statusChip("Save", "enter"), closeChip("Cancel"))
 		}
-		lines = append(lines, " "+text(p.muted).Render(fit(header, inner)))
+		parts[0].muted = true
+		header, headerAreas := hintRow(parts, inner, p)
+		for _, area := range headerAreas {
+			area.x++
+			area.y = len(lines)
+			areas = append(areas, area)
+		}
+		lines = append(lines, " "+header)
 		thumbnails := m.messageThumbnails()
 		if thumbnails {
 			for _, row := range m.thumbnailRows(mc.images, mc.strip, mc.stripFocus, inner, p) {
@@ -287,52 +303,49 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		right += "  " + style.Render(groupDigits(length)+"/"+groupDigits(api.MaxMessageLength))
 	}
-	hint := ""
-	if voice != nil {
-		var keys []string
-		for _, part := range voice[1:] {
-			keys = append(keys, part.key+" "+strings.ToLower(part.label))
-		}
-		hint = text(p.muted).Render(strings.Join(keys, " · "))
-	} else if idle {
-		actions := []commitAction{{"Reply", "r"}, {"React", "e"}, {"Voice", "ctrl+t"}}
+	room := inner - lipgloss.Width(right) - 1
+	var hints []statusPart
+	switch {
+	case voice != nil:
+		hints = voice
+		hints[0].muted = true
+	case idle:
+		hints = []statusPart{statusChip("Reply", "r"), statusChip("React", "e"), statusChip("Voice", "ctrl+t")}
 		if m.canPin() {
-			actions = append(actions, commitAction{"Pin", "!"})
-		}
-		var chipAreas []hitArea
-		hint, chipAreas = chipLine(actions, inner-lipgloss.Width(right)-1, p)
-		for _, area := range chipAreas {
-			area.x++
-			area.y = len(lines)
-			areas = append(areas, area)
+			hints = append(hints, statusChip("Pin", "!"))
 		}
 	}
+	prefix := ""
 	switch {
 	case mc.voiceConfirm:
-		hint = text(p.warning).Render("Recording replaces the draft · enter record · esc keep writing")
+		prefix = text(p.warning).Render("Recording replaces the draft") + "  "
+		hints = []statusPart{statusChip("Record", "enter"), closeChip("Keep writing")}
 	case mc.recording != nil && mc.recording.recorder != nil:
-		hint = text(p.muted).Render("recording · enter stop · esc discard")
+		hints = []statusPart{hintText("Recording"), statusChip("Stop", "enter"), closeChip("Discard")}
 	case mc.status != "":
-		hint = text(p.danger).Render(safeText(mc.status))
+		prefix, hints = text(p.danger).Render(safeText(mc.status)), nil
 	case mc.recording != nil:
-		hint = text(p.muted).Render("space listen · enter push · d discard · esc messages")
+		hints = []statusPart{statusChip("Listen", "space"), statusChip("Push", "enter"), statusChip("Discard", "d"), closeChip("Messages")}
 	case mc.editing:
-		hint = text(p.muted).Render("enter save · esc cancel")
+		hints = []statusPart{statusChip("Save", "enter"), closeChip("Cancel")}
 	case mc.stripFocus:
-		hint = text(p.muted).Render("←/→ choose image · tab write")
+		hints = []statusPart{hintChip("Previous", "←", "left"), hintChip("Next", "→", "right"), statusChip("Write", "tab")}
 	case mc.focused:
-		hint = text(p.muted).Render(fitting(inner-lipgloss.Width(right)-1,
-			"enter push · ctrl+t voice (max. 1 min) · shift+enter new line · ctrl+o image · esc messages",
-			"enter push · ctrl+t voice · ctrl+o image · esc messages",
-			"enter push · ctrl+t voice",
-			"enter push, ctrl+t voice"))
+		hints = []statusPart{statusChip("Push", "enter"), statusChip("Voice", "ctrl+t"), statusChip("Image", "ctrl+o"), statusChip("New line", "shift+enter"), closeChip("Messages")}
 	}
+	hint, hintAreas := hintRow(hints, max(0, room-lipgloss.Width(prefix)), p)
+	for _, area := range hintAreas {
+		area.x += 1 + lipgloss.Width(prefix)
+		area.y = len(lines)
+		areas = append(areas, area)
+	}
+	hint = prefix + hint
 	for _, area := range rightAreas {
 		area.x += 1 + inner - lipgloss.Width(right)
 		area.y = len(lines)
 		areas = append(areas, area)
 	}
-	lines = append(lines, " "+split(fit(hint, inner-lipgloss.Width(right)-1), right, inner))
+	lines = append(lines, " "+split(fit(hint, room), right, inner))
 	return strings.Join(lines, "\n"), areas
 }
 
@@ -373,16 +386,6 @@ func indent(block string) string {
 
 // pendingLines draws a push the server hasn't stored: a soft bubble on the right with its state, and how to retry or
 // discard it once it was rejected.
-// fitting is the first hint that fits the width, so the keys users can't guess stay visible on narrow panes.
-func fitting(width int, hints ...string) string {
-	for _, hint := range hints {
-		if lipgloss.Width(hint) <= width {
-			return hint
-		}
-	}
-	return hints[len(hints)-1]
-}
-
 func (m AppModel) pendingLines(pending pendingMessage, width, bubble int, p palette) []string {
 	align := func(line string) string { return lipgloss.PlaceHorizontal(width-1, lipgloss.Right, line) }
 	var lines []string

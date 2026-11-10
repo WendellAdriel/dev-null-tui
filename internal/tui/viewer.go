@@ -254,7 +254,12 @@ func (m AppModel) viewerLayout(p palette) (string, []hitArea) {
 	}
 
 	panelWidth := m.viewerPanelWidth()
-	panel := m.viewerPanel(panelWidth, r.h, p)
+	panel, panelAreas := m.viewerPanel(panelWidth, r.h, p)
+	for _, area := range panelAreas {
+		area.x += r.w + 1
+		area.y += r.y
+		areas = append(areas, area)
+	}
 	rail := text(p.hairline).Render("│")
 	for row := range picture {
 		line := picture[row]
@@ -267,14 +272,22 @@ func (m AppModel) viewerLayout(p palette) (string, []hitArea) {
 	return page, areas
 }
 
-func (m AppModel) viewerPanel(width, height int, p palette) []string {
+// viewerPanel draws the reply panel's rows. Its hit areas are the scroll chip on the last row, in the panel's cells.
+func (m AppModel) viewerPanel(width, height int, p palette) ([]string, []hitArea) {
 	if width <= 0 {
-		return nil
+		return nil, nil
 	}
 	lines := m.viewerPanelLines(width, p)
 	start := max(0, min(m.viewer.offset, len(lines)-height))
+	var areas []hitArea
 	if start+height < len(lines) && height > 1 {
-		lines = append(lines[start:start+height-1:start+height-1], text(p.muted).Render("↓ more · j/k scroll"))
+		more, moreAreas := hintRow([]statusPart{hintText("↓ more"), hintChip("Scroll", "j/k", "j")}, max(1, width-2), p)
+		for _, area := range moreAreas {
+			area.x += 2
+			area.y = height - 1
+			areas = append(areas, area)
+		}
+		lines = append(lines[start:start+height-1:start+height-1], more)
 	} else {
 		lines = lines[start:]
 	}
@@ -286,7 +299,7 @@ func (m AppModel) viewerPanel(width, height int, p palette) []string {
 		}
 		rows[i] = lipgloss.NewStyle().Width(width).MaxWidth(width).PaddingLeft(2).Render(line)
 	}
-	return rows
+	return rows, areas
 }
 
 func (m AppModel) viewerPanelLines(width int, p palette) []string {
@@ -349,7 +362,8 @@ func (m AppModel) viewerMouse(x, y int) (AppModel, tea.Cmd) {
 	_, areas := m.viewerLayout(m.account.colors())
 	for _, area := range areas {
 		if area.contains(x, y) {
-			return m.mouseKey(area.action)
+			pressed, _ := keyAction(area.action)
+			return m.mouseKey(pressed)
 		}
 	}
 	return m, nil

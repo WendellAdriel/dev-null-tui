@@ -131,16 +131,16 @@ func (m AppModel) achievementsModal(p palette) (string, uiRect, []hitArea) {
 		lines = append(lines, row[:]...)
 	}
 	body := strings.Join(lines, "\n") + "\n\n" + text(p.hairline).Render(strings.Repeat("─", width)) + "\n" + strings.Join(details, "\n")
-	hint := "←/→ choose  esc close"
+	hints := []statusPart{hintChip("Choose", "←/→", "right")}
 	if first > 0 {
-		hint += "  ↑ more"
+		hints = append(hints, hintText("↑ more"))
 	}
 	if first+shown < len(rows) {
-		hint += "  ↓ more"
+		hints = append(hints, hintText("↓ more"))
 	}
-	footer := text(p.muted).Render(fit(hint, width))
+	footer, footerAreas := hintRow(append(hints, closeChip("Close")), width, p)
 	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width+4, lipgloss.Height(body)+6)
-	areas := []hitArea{{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0}}
+	areas := append([]hitArea{{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0}}, panelFooterAreas(footerAreas, footer, r)...)
 	for i, cell := range cells {
 		if cell.y >= first && cell.y < first+shown {
 			areas = append(areas, hitArea{uiRect{r.x + 2 + cell.x, r.y + 3 + (cell.y-first)*cell.h, cell.w, cell.h}, "badge", i})
@@ -171,6 +171,9 @@ func (m AppModel) achievementsMouse(x, y int) (AppModel, tea.Cmd) {
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.achievementsKey(pressed)
 		}
 		if area.action == "esc" {
 			m.achievements = nil

@@ -215,6 +215,49 @@ func TestRemotesSearchStatusBarIsChips(t *testing.T) {
 	}
 }
 
+func TestOverlayAndComposerHintsAreClickableChips(t *testing.T) {
+	click := func(t *testing.T, m AppModel, label string) AppModel {
+		t.Helper()
+		next, cmd := clickText(t, m, label)
+		return settleCmd(next, cmd)
+	}
+	t.Run("help", func(t *testing.T) {
+		if m := click(t, pressApp(fixtureApp(t), "?"), "Close  esc"); m.help {
+			t.Fatal("the Close chip did not close help")
+		}
+	})
+	t.Run("who to follow", func(t *testing.T) {
+		m, _ := suggestionApp(t, 140)
+		if m = click(t, pressApp(m, "w"), "Close  esc"); m.whoToFollow.open {
+			t.Fatal("the Close chip did not close Who to follow")
+		}
+	})
+	t.Run("commit composer", func(t *testing.T) {
+		m := click(t, composerApp(t), "Images (or drop)  ctrl+o")
+		if m.composer.browser == nil {
+			t.Fatal("the Images chip did not open the browser")
+		}
+		if m = click(t, m, "Close  esc"); m.composer.browser != nil {
+			t.Fatal("the browser's Close chip did not close it")
+		}
+	})
+	t.Run("remotes composer", func(t *testing.T) {
+		m, _ := messagingApp(t)
+		m = settle(t, openOrg(t, m), "w")
+		if m = click(t, m, "Messages  esc"); m.remotes.thread.composer.focused {
+			t.Fatal("the Messages chip did not leave the composer")
+		}
+	})
+	t.Run("members", func(t *testing.T) {
+		m, _ := messagingApp(t)
+		m = openOrg(t, m)
+		m.openMembers()
+		if m = click(t, m, "Close  esc"); m.remotes.members != nil {
+			t.Fatal("the Close chip did not close Members")
+		}
+	})
+}
+
 func TestRemotesWritingStatusBarIsChips(t *testing.T) {
 	m, _ := messagingApp(t)
 	m = settle(t, openOrg(t, m), "w")

@@ -135,7 +135,7 @@ func TestFileBrowserListsFoldersAndImagesAndAttachesAPick(t *testing.T) {
 
 func TestDroppedPathsAttachImagesAndRejectOthersWithAReason(t *testing.T) {
 	m := composerApp(t)
-	if !strings.Contains(frameText(m), "Ctrl+O or drop images") {
+	if !strings.Contains(frameText(m), "Images (or drop)  ctrl+o") {
 		t.Fatalf("composer hides the drop hint:\n%s", frameText(m))
 	}
 	dir := attachDir(t)

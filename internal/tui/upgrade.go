@@ -219,22 +219,36 @@ func (m AppModel) upgradeBody(p palette) (string, int) {
 	return strings.Join(lines, "\n"), start
 }
 
+// upgradeFooter is the modal's hint chips, with their hit areas on screen.
+func (m AppModel) upgradeFooter(p palette) (string, []hitArea) {
+	r := m.upgradeBounds()
+	hints := []statusPart{hintChip("Choose", "↑/↓", "down"), statusChip("Confirm", "enter"), closeChip("Later")}
+	if m.upgrade.installing {
+		hints = []statusPart{hintText("Downloading and checking the release")}
+	} else if m.upgrade.installed {
+		hints = []statusPart{statusChip("Close", "enter")}
+	}
+	footer, areas := hintRow(hints, max(1, r.w-4), p)
+	return footer, panelFooterAreas(areas, footer, r)
+}
+
 func (m AppModel) upgradeModal(p palette) string {
 	r := m.upgradeBounds()
-	footer := "↑/↓ choose · enter confirm · esc later"
-	if m.upgrade.installing {
-		footer = "downloading and checking the release"
-	} else if m.upgrade.installed {
-		footer = "enter close"
-	}
 	body, _ := m.upgradeBody(p)
-	return panel("Update available", body, text(p.muted).Render(fit(footer, max(1, r.w-4))), r, p, p.blue)
+	footer, _ := m.upgradeFooter(p)
+	return panel("Update available", body, footer, r, p, p.blue)
 }
 
 func (m AppModel) upgradeClick(x, y int) (AppModel, tea.Cmd) {
 	r := m.upgradeBounds()
 	if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(x, y) {
 		return m.mouseKey("esc")
+	}
+	_, footerAreas := m.upgradeFooter(m.account.colors())
+	for _, area := range footerAreas {
+		if pressed, ok := keyAction(area.action); ok && area.contains(x, y) {
+			return m.mouseKey(pressed)
+		}
 	}
 	_, start := m.upgradeBody(m.account.colors())
 	choice := y - r.y - 3 - start

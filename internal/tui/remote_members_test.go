@@ -57,7 +57,7 @@ func TestContributorsSeeTheMembersAndCanOnlyLeave(t *testing.T) {
 	if m.remotes.members == nil || !strings.Contains(frame, "Members · 3") || !strings.Contains(frame, "Grace Hopper") || !strings.Contains(frame, "contributor") {
 		t.Fatalf("members:\n%s", frame)
 	}
-	if strings.Contains(frame, "rename") || strings.Contains(frame, "a add") {
+	if strings.Contains(frame, "Rename  r") || strings.Contains(frame, "Add  a") {
 		t.Fatalf("a contributor sees maintainer controls:\n%s", frame)
 	}
 	m = settle(t, m, "j", "enter", "r", "a")
@@ -183,7 +183,7 @@ func TestUOpensAMembersProfile(t *testing.T) {
 	if len(m.profiles) != 0 || m.remotes.members == nil || m.remotes.members.index != 1 {
 		t.Fatal("closing the profile did not return to Members")
 	}
-	if !strings.Contains(frameText(m), "u profile") {
+	if !strings.Contains(frameText(m), "Profile  u") {
 		t.Fatalf("no u hint:\n%s", frameText(m))
 	}
 }

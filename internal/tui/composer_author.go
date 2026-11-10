@@ -176,7 +176,8 @@ func (m AppModel) composerIdentity(p palette) string {
 	return text(p.muted).Render("@" + safeText(m.account.user.Handle))
 }
 
-func (m AppModel) authorPickerView(width, height int, p palette) string {
+// authorPickerView draws Post as. Its hit areas are the hint chips.
+func (m AppModel) authorPickerView(width, height int, p palette) (string, []hitArea) {
 	picker := m.composer.picker
 	rows := []string{text(p.ink).Bold(true).Render("Post as"), ""}
 	if picker.typed {
@@ -187,8 +188,12 @@ func (m AppModel) authorPickerView(width, height int, p palette) string {
 		if picker.status != "" {
 			rows = append(rows, "", text(p.warning).Render(fit(picker.status, width)))
 		}
-		rows = append(rows, "", text(p.muted).Render("Enter to choose · Esc to go back"))
-		return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n"))
+		hint, areas := hintRow([]statusPart{statusChip("Choose", "enter"), closeChip("Back")}, width, p)
+		for i := range areas {
+			areas[i].y = len(rows) + 1
+		}
+		rows = append(rows, "", hint)
+		return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n")), areas
 	}
 	u := m.account.user
 	choices := []string{text(laneColor(u.Lane, p)).Render("●") + " " + text(p.ink).Render(safeText(u.Name)) + " " + text(p.muted).Render("@"+safeText(u.Handle))}
@@ -210,6 +215,10 @@ func (m AppModel) authorPickerView(width, height int, p palette) string {
 		}
 		rows = append(rows, row)
 	}
-	rows = append(rows, "", text(p.muted).Render("j/k to move · Enter to choose · Esc to go back"))
-	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n"))
+	hint, areas := hintRow([]statusPart{hintChip("Move", "j/k", "j"), statusChip("Choose", "enter"), closeChip("Back")}, width, p)
+	for i := range areas {
+		areas[i].y = len(rows) + 1
+	}
+	rows = append(rows, "", hint)
+	return lipgloss.NewStyle().Width(width).Height(height).MaxHeight(height).Render(strings.Join(rows, "\n")), areas
 }

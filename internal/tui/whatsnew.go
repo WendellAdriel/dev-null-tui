@@ -106,7 +106,8 @@ func (m AppModel) whatsNewModal(p palette) string {
 	lines := m.whatsNewLines(p)
 	start := min(m.whatsNew.scroll, m.whatsNewMaxScroll())
 	content := strings.Join(lines[start:min(len(lines), start+max(1, r.h-6))], "\n")
-	return panel("What's new in "+safeText(m.whatsNew.version), content, "↑/↓ scroll · esc close", r, p, p.blue)
+	footer, _ := scrollFooter(r, p)
+	return panel("What's new in "+safeText(m.whatsNew.version), content, footer, r, p, p.blue)
 }
 
 var summaryInline = regexp.MustCompile("\\*\\*([^*]+)\\*\\*|`([^`]+)`")

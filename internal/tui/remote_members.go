@@ -338,15 +338,18 @@ func (m AppModel) membersModal(pal palette) (string, uiRect, []hitArea) {
 		add("", "", 0)
 		add(text(pal.danger).Render(fit(d.err, width)), "", 0)
 	}
-	hints := "u profile · enter on you: leave · esc close"
+	hints := []statusPart{statusChip("Profile", "u"), statusChip("Leave (you)", "enter"), closeChip("Close")}
 	if m.maintaining() {
-		hints = "enter manage · u profile · r rename · a add · esc close"
+		hints = []statusPart{statusChip("Manage", "enter"), statusChip("Profile", "u"), statusChip("Rename", "r"), statusChip("Add", "a"), closeChip("Close")}
 	}
-	if d.renaming {
-		hints = "enter save · esc cancel"
+	switch {
+	case d.renaming:
+		hints = []statusPart{statusChip("Save", "enter"), closeChip("Cancel")}
+	case d.menu:
+		hints = []statusPart{hintChip("Choose", "j/k", "j"), statusChip("Run", "enter"), closeChip("Back")}
 	}
-	footer := text(pal.muted).Render(fit(hints, width))
-	var footerAreas []hitArea
+	footer, footerAreas := hintRow(hints, width, pal)
+	footerAreas = panelFooterAreas(footerAreas, footer, rect)
 	if d.removing {
 		member := list[d.index]
 		question := text(pal.ink).Bold(true).Render(fit("Remove @"+safeText(member.User.Handle)+" from "+m.conversationTitle(m.remotes.thread.conversation)+"?", width))
@@ -372,6 +375,10 @@ func (m AppModel) membersMouse(x, y int) (AppModel, tea.Cmd) {
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			cmd := m.membersKey(pressed)
+			return m, cmd
 		}
 		switch area.action {
 		case "esc":

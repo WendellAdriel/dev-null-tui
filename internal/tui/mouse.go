@@ -25,31 +25,33 @@ func (m AppModel) mouseKey(name string) (AppModel, tea.Cmd) {
 		key.Code = tea.KeyEscape
 	case "f2":
 		key.Code = tea.KeyF2
-	case "ctrl+r":
-		key.Code = 'r'
-		key.Mod = tea.ModCtrl
-	case "ctrl+c":
-		key.Code = 'c'
-		key.Mod = tea.ModCtrl
-	case "ctrl+p":
-		key.Code = 'p'
-		key.Mod = tea.ModCtrl
-	case "ctrl+k":
-		key.Code = 'k'
-		key.Mod = tea.ModCtrl
-	case "ctrl+l":
-		key.Code = 'l'
-		key.Mod = tea.ModCtrl
-	case "ctrl+d":
-		key.Code = 'd'
-		key.Mod = tea.ModCtrl
-	case "ctrl+s":
-		key.Code = 's'
-		key.Mod = tea.ModCtrl
+	case "up":
+		key.Code = tea.KeyUp
+	case "backspace":
+		key.Code = tea.KeyBackspace
+	case "delete":
+		key.Code = tea.KeyDelete
+	case "shift+tab":
+		key.Code = tea.KeyTab
+		key.Mod = tea.ModShift
+	case "shift+enter":
+		key.Code = tea.KeyEnter
+		key.Mod = tea.ModShift
+	case "alt+up":
+		key.Code = tea.KeyUp
+		key.Mod = tea.ModAlt
+	case "alt+down":
+		key.Code = tea.KeyDown
+		key.Mod = tea.ModAlt
 	case "ctrl+enter":
 		key.Code = tea.KeyEnter
 		key.Mod = tea.ModCtrl
 	default:
+		if letter, ok := strings.CutPrefix(name, "ctrl+"); ok && len([]rune(letter)) == 1 {
+			key.Code = []rune(letter)[0]
+			key.Mod = tea.ModCtrl
+			break
+		}
 		if len([]rune(name)) != 1 {
 			return m, nil
 		}
@@ -189,21 +191,13 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if m.whatsNew.open {
-		r := m.whatsNewBounds()
-		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
-			return m.mouseKey("esc")
-		}
-		return m, nil
+		return m.scrollPanelMouse(m.whatsNewBounds(), msg)
 	}
 	if m.upgradeVisible() {
 		return m.upgradeClick(msg.X, msg.Y)
 	}
 	if m.help {
-		r := m.helpBounds()
-		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
-			return m.mouseKey("esc")
-		}
-		return m, nil
+		return m.scrollPanelMouse(m.helpBounds(), msg)
 	}
 	if m.account.width < 30 || m.account.height < 10 {
 		return m, nil
@@ -335,6 +329,20 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	return m.handleFeedMouse(msg)
 }
 
+// scrollPanelMouse handles a click on help or What's new: the × and the footer chips.
+func (m AppModel) scrollPanelMouse(r uiRect, msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
+	if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
+		return m.mouseKey("esc")
+	}
+	_, areas := scrollFooter(r, m.account.colors())
+	for _, area := range areas {
+		if pressed, ok := keyAction(area.action); ok && area.contains(msg.X, msg.Y) {
+			return m.mouseKey(pressed)
+		}
+	}
+	return m, nil
+}
+
 func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	r := m.composerBounds()
 	if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
@@ -345,7 +353,15 @@ func (m AppModel) composerMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		cmd := m.requestDraftAction("discard")
 		return m, cmd
 	}
-	// The browser, the attachment field, and Post as own the keyboard until Enter or Esc, so clicks wait for them to close.
+	if m.composerUsable() && !m.composer.sending {
+		for _, area := range m.composerHintAreas() {
+			if pressed, ok := keyAction(area.action); ok && area.contains(msg.X, msg.Y) {
+				return m.mouseKey(pressed)
+			}
+		}
+	}
+	// Apart from their hint chips, the browser, the attachment field, and Post as own the keyboard until Enter or Esc,
+	// so other clicks wait for them to close.
 	if !m.composerUsable() || m.composer.browser != nil || m.composer.editing != "" || m.composer.picker != nil {
 		return m, nil
 	}

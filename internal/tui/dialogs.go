@@ -121,20 +121,24 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 		lines = append(lines, "", text(pal.danger).Render(fit(d.status, width)))
 	}
 	body := strings.Join(lines, "\n")
-	hint := "j/k choose  enter open  esc close"
-	if d.kind == "commit-menu" {
-		hint = "j/k choose  enter run  esc close"
-	} else if d.kind == "event-theme" || d.kind == "theme" {
-		hint = "j/k choose  enter apply  esc close"
-	} else if d.next != "" {
-		hint = "j/k choose  enter open  n more  esc close"
+	verb := "Open"
+	switch d.kind {
+	case "commit-menu":
+		verb = "Run"
+	case "event-theme", "theme":
+		verb = "Apply"
 	}
-	footer := text(pal.muted).Render(fit(hint, width))
+	hints := []statusPart{hintChip("Choose", "j/k", "j"), statusChip(verb, "enter")}
+	if d.next != "" && verb == "Open" {
+		hints = append(hints, statusChip("More", "n"))
+	}
+	footer, footerAreas := hintRow(append(hints, closeChip("Close")), width, pal)
 	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width+4, lipgloss.Height(body)+6)
 	for i := range areas {
 		areas[i].x += r.x + 2
 		areas[i].y += r.y + 3
 	}
+	areas = append(areas, panelFooterAreas(footerAreas, footer, r)...)
 	areas = append(areas, hitArea{uiRect{r.x + r.w - 3, r.y + 1, 1, 1}, "esc", 0})
 	return panel(d.title, body, footer, r, pal, pal.blue), r, areas
 }
@@ -209,6 +213,9 @@ func (m AppModel) listPickerMouse(x, y int) (AppModel, tea.Cmd) {
 	for _, area := range areas {
 		if !area.contains(x, y) {
 			continue
+		}
+		if pressed, ok := keyAction(area.action); ok {
+			return m.listPickerKey(pressed)
 		}
 		if area.action == "esc" {
 			m.picker = nil

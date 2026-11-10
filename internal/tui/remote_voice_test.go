@@ -342,7 +342,7 @@ func TestCtrlTRecordsWithAClockAndStopsAtAMinute(t *testing.T) {
 	}
 	recorder.elapsed = 12 * time.Second
 	m = recordTick(m)
-	if text := composerText(m); !strings.Contains(text, "0:12/1:00") || !strings.Contains(text, "enter stop") {
+	if text := composerText(m); !strings.Contains(text, "0:12/1:00") || !strings.Contains(text, "Stop  enter") {
 		t.Fatalf("recording shows its clock and keys:\n%s", text)
 	}
 	if m.upgradeVisible() && m.upgrade.open {
@@ -353,7 +353,7 @@ func TestCtrlTRecordsWithAClockAndStopsAtAMinute(t *testing.T) {
 	if !recorder.stopped || m.remotes.thread.composer.recording.samples == nil {
 		t.Fatal("a recording stops by itself at a minute")
 	}
-	if text := composerText(m); !strings.Contains(text, "space listen") || !strings.Contains(text, "enter push") {
+	if text := composerText(m); !strings.Contains(text, "Listen  space") || !strings.Contains(text, "Push  enter") {
 		t.Fatalf("a stopped recording waits for review:\n%s", text)
 	}
 }
@@ -621,7 +621,7 @@ func TestRecordingIsDiscoverableFromTheMessages(t *testing.T) {
 	}
 	recorder.elapsed = time.Second
 	m = send(m, enterKey, tea.KeyPressMsg{Code: 'd', Text: "d"})
-	if got := composerText(m); !m.remotes.thread.composer.focused || !strings.Contains(got, "ctrl+t voice") {
+	if got := composerText(m); !m.remotes.thread.composer.focused || !strings.Contains(got, "Voice  ctrl+t") {
 		t.Fatalf("the writing hint must offer recording:\n%s", got)
 	}
 }
@@ -630,7 +630,7 @@ func TestWritingHintKeepsVoiceVisibleWhenNarrow(t *testing.T) {
 	m, _, _, _ := recordingApp(t)
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 60, Height: 18})
 	m = next.(AppModel)
-	if got := composerText(m); !strings.Contains(got, "ctrl+t voice") {
+	if got := composerText(m); !strings.Contains(got, "Voice  ctrl+t") {
 		t.Fatalf("at 60 columns the writing hint must still show ctrl+t:\n%s", got)
 	}
 }

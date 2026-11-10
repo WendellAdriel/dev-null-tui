@@ -92,6 +92,39 @@ func (m AppModel) composerFooter() (string, []hitArea) {
 	return foot, areas
 }
 
+// composerHintAreas places the composer's hint chips on screen: those of the browser, Post as, or the schedule picker
+// where the editor sits, then the attachment strip's below the status rows.
+func (m AppModel) composerHintAreas() []hitArea {
+	c := m.composer
+	p := m.account.colors()
+	r := m.composerBounds()
+	inner := max(1, r.w-4)
+	top, height := r.y+3+m.composerContextRows(), c.input.Height()+m.composerStatusRows()
+	var areas []hitArea
+	place := func(found []hitArea, y, rows int) {
+		for _, area := range found {
+			if area.y < rows {
+				area.x += r.x + 2
+				area.y += y
+				areas = append(areas, area)
+			}
+		}
+	}
+	var found []hitArea
+	switch {
+	case c.browser != nil:
+		_, found = m.browserView(inner, height, p)
+	case c.picker != nil:
+		_, found = m.authorPickerView(inner, height, p)
+	case c.schedule != nil:
+		_, found = m.scheduleView(inner, height, p)
+	}
+	place(found, top, height)
+	_, found = m.stripView(inner, p)
+	place(found, top+height, m.composerStripRows())
+	return areas
+}
+
 func (m AppModel) composerModal(p palette) (string, uiRect) {
 	r := m.composerBounds()
 	body := m.composerView(max(1, r.w-4), p)
@@ -192,15 +225,15 @@ func (m AppModel) composerView(width int, p palette) string {
 		statusView = strings.Join(suggestions, "\n")
 	}
 	if c.browser != nil {
-		rows[len(rows)-1] = m.browserView(inner, c.input.Height()+m.composerStatusRows(), p)
+		rows[len(rows)-1], _ = m.browserView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if c.picker != nil {
-		rows[len(rows)-1] = m.authorPickerView(inner, c.input.Height()+m.composerStatusRows(), p)
+		rows[len(rows)-1], _ = m.authorPickerView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if c.schedule != nil {
-		rows[len(rows)-1] = m.scheduleView(inner, c.input.Height()+m.composerStatusRows(), p)
+		rows[len(rows)-1], _ = m.scheduleView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if height := m.composerStatusRows(); height > 0 {
 		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
 	}
-	if strip := m.stripView(inner, p); strip != "" {
+	if strip, _ := m.stripView(inner, p); strip != "" {
 		rows = append(rows, strip)
 	}
 	return lipgloss.NewStyle().Width(width).Height(m.composerHeight()).MaxHeight(m.composerHeight()).Render(strings.Join(rows, "\n"))
