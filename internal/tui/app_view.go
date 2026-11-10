@@ -161,9 +161,23 @@ func dangerChip(label, key string, p palette) string {
 }
 
 func chipStyled(label, key, ink string, p palette) string {
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ink)).Background(lipgloss.Color(p.hairline))
-	keyStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft)).Bold(true)
+	labelStyle, keyStyle := chipStyles(ink, p)
 	return labelStyle.Render(" "+label+" ") + keyStyle.Render(" "+key+" ")
+}
+
+// wideChip is actionChip stretched to width, with the label on the left and the key at the right edge.
+func wideChip(label, key string, width int, p palette) string {
+	labelStyle, keyStyle := chipStyles(p.ink, p)
+	keyPart := keyStyle.Render(" " + key + " ")
+	room := max(1, width-lipgloss.Width(keyPart))
+	label = " " + fit(label, max(0, room-2))
+	return labelStyle.Render(label+strings.Repeat(" ", max(0, room-ansi.StringWidth(label)))) + keyPart
+}
+
+func chipStyles(ink string, p palette) (label, key lipgloss.Style) {
+	label = lipgloss.NewStyle().Foreground(lipgloss.Color(ink)).Background(lipgloss.Color(p.hairline))
+	key = lipgloss.NewStyle().Foreground(lipgloss.Color(p.blue)).Background(lipgloss.Color(p.soft)).Bold(true)
+	return label, key
 }
 
 // keyChip names a key in shortcut lists and hints. Actions use actionChip.
@@ -669,12 +683,10 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 	buttons = append(buttons, struct{ label, key string }{"Refresh", "ctrl+r"})
 	for i, action := range buttons {
 		if i > 0 {
-			controls += "\n\n"
+			controls += "\n"
 		}
-		button := filledButton(action.label, action.key, inner-2, p.wash, p.ink)
-		x := (inner - lipgloss.Width(button)) / 2
-		areas = append(areas, hitArea{uiRect{2 + x, strings.Count(controls, "\n"), lipgloss.Width(button), lipgloss.Height(button)}, action.key, 0})
-		controls += lipgloss.PlaceHorizontal(inner, lipgloss.Center, button)
+		areas = append(areas, hitArea{uiRect{2, strings.Count(controls, "\n"), inner, 1}, action.key, 0})
+		controls += wideChip(action.label, action.key, inner, p)
 	}
 	workspace := m
 	workspace.composer.open = false
@@ -689,7 +701,7 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 		shown = shortcuts[:min(layout.shortcuts, len(shortcuts))]
 	}
 	if len(shown) > 0 {
-		controls += "\n" + line + "\n" + text(p.ink).Bold(true).Render("Shortcuts")
+		controls += "\n" + line + "\n" + text(p.ink).Bold(true).Width(inner).Align(lipgloss.Center).Render("Shortcuts")
 	}
 	controls += "\n"
 	for _, binding := range shown {
@@ -699,9 +711,7 @@ func (m AppModel) asideAt(width int, layout asideFit, p palette) (string, []hitA
 			action = "down"
 		}
 		areas = append(areas, hitArea{uiRect{2, strings.Count(controls, "\n"), inner, 1}, action, 0})
-		chip := keyChip(h.Key, p)
-		label := fit(h.Desc, max(1, inner-lipgloss.Width(chip)-1))
-		controls += text(p.muted).Render(label) + strings.Repeat(" ", max(1, inner-lipgloss.Width(label)-lipgloss.Width(chip))) + chip + "\n"
+		controls += wideChip(h.Desc, h.Key, inner, p) + "\n"
 	}
 	version := m.version
 	if version == "" {

@@ -30,6 +30,39 @@ func clickFooter(t *testing.T, m AppModel, action string) AppModel {
 	return m
 }
 
+func TestAsideActionsAndShortcutsAreFullWidthChips(t *testing.T) {
+	m := fixtureApp(t)
+	p := colors(true)
+	aside, areas := m.asideLayout(40, 34, p)
+	lines := strings.Split(aside, "\n")
+	labels := map[string]string{"a": "Account", "ctrl+r": "Refresh", "f2": "f2", "?": "?"}
+	for _, area := range areas {
+		label, ok := labels[area.action]
+		if !ok {
+			continue
+		}
+		row := ansi.Strip(ansi.Cut(lines[area.y], area.x, area.x+area.w))
+		if area.w != 37 || !strings.HasSuffix(row, " "+area.action+" ") || !strings.Contains(row, label) {
+			t.Fatalf("%s chip is %q, %d wide", area.action, row, area.w)
+		}
+		if !strings.Contains(lines[area.y], "48;2;") {
+			t.Fatalf("%s chip has no background", area.action)
+		}
+	}
+	for _, line := range lines {
+		plain := ansi.Strip(line)
+		if strings.TrimSpace(plain) != "Shortcuts" {
+			continue
+		}
+		inner := strings.TrimRight(plain[2:], " ")
+		if left := len(inner) - len(strings.TrimLeft(inner, " ")); left < 10 {
+			t.Fatalf("Shortcuts heading is not centered: %q", plain)
+		}
+		return
+	}
+	t.Fatal("Shortcuts heading missing")
+}
+
 func TestRemotesThreadStatusBarIsChipsWithPing(t *testing.T) {
 	m, _ := messagingApp(t)
 	m = openOrg(t, m)
@@ -196,5 +229,17 @@ func TestRemotesWritingStatusBarIsChips(t *testing.T) {
 	}
 	if m = clickFooter(t, m, "esc"); m.remotes.thread.composer.focused {
 		t.Fatal("the Messages chip did not leave the composer")
+	}
+}
+
+func TestAsideActionsAndShortcutsSitOnConsecutiveRows(t *testing.T) {
+	m := fixtureApp(t)
+	_, areas := m.asideLayout(40, 60, colors(true))
+	rows := map[string]int{}
+	for _, area := range areas {
+		rows[area.action] = area.y
+	}
+	if rows["L"]-rows["a"] != 1 || rows["?"]-rows["f2"] != 1 || rows["tab"]-rows["down"] != 1 {
+		t.Fatalf("action and shortcut chips must sit on consecutive rows: %+v", rows)
 	}
 }

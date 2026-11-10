@@ -221,7 +221,7 @@ func TestTheAsideFitsItsHeightByDroppingTheVersionThenShortcuts(t *testing.T) {
 			t.Fatalf("the aside must be exactly %d rows, got %d", height, lines)
 		}
 	}
-	if short := view(24); strings.Contains(short, "/dev/null TUI") {
+	if short := view(18); strings.Contains(short, "/dev/null TUI") {
 		t.Fatalf("a short aside must drop the version:\n%s", short)
 	}
 }
