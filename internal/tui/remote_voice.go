@@ -138,24 +138,27 @@ func (m *AppModel) playerKey(note *api.Message, pressed string) (tea.Cmd, bool) 
 	return nil, false
 }
 
-// voiceKeysHint names the player keys for the selected voice note, or is empty for any other message.
-func (m AppModel) voiceKeysHint() string {
+// voiceStatus is the player chips for the selected voice note, or nil for any other message.
+func (m AppModel) voiceStatus() []statusPart {
 	note, ok := m.selectedVoice()
-	switch {
-	case !ok:
-		return ""
-	case m.voice.unavailable:
-		return "space copy the web link"
+	if !ok {
+		return nil
+	}
+	parts := []statusPart{plainStatus("Voice note")}
+	if m.voice.unavailable {
+		return append(parts, statusChip("Copy the web link", "space"))
 	}
 	p := m.voice.playback
 	if p.messageID != note.ID || (p.state != "playing" && p.state != "paused") {
-		return "space play · -/+ volume"
+		return append(parts, statusChip("Play", "space"), statusChip("Quieter", "-"), statusChip("Louder", "+"))
 	}
-	action := "space play"
+	play := statusChip("Play", "space")
 	if p.state == "playing" {
-		action = "space pause"
+		play.label = "Pause"
 	}
-	return action + " · ←/→ seek · x speed · -/+ volume"
+	return append(parts, play,
+		hintChip("Rewind", "←", "left"), hintChip("Forward", "→", "right"),
+		statusChip("Speed", "x"), statusChip("Quieter", "-"), statusChip("Louder", "+"))
 }
 
 func (m *AppModel) toggleVoice(note *api.Message) tea.Cmd {

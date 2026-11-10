@@ -559,21 +559,24 @@ func TestAPausedNoteSeeksUpToItsEndAndReplaysFromThere(t *testing.T) {
 	}
 }
 
-func statusText(m AppModel) string { return ansi.Strip(m.remotesStatus()) }
+func statusText(m AppModel) string {
+	line, _ := statusLine(m.remotesStatus(), 400, colors(true))
+	return ansi.Strip(line)
+}
 
 func TestASelectedVoiceNoteShowsItsKeys(t *testing.T) {
 	m, _ := voiceApp(t)
-	if got := statusText(m) + composerText(m); !strings.Contains(got, "space play") {
+	if got := statusText(m) + composerText(m); !strings.Contains(got, "Play  space") {
 		t.Fatalf("a selected voice note must say how to play it:\n%s", got)
 	}
 	m = voiceKeys(t, m, "space")
-	for _, hint := range []string{"space pause", "←/→ seek", "x speed", "-/+ volume"} {
+	for _, hint := range []string{"Pause  space", "Rewind  ←", "Speed  x", "Louder  +"} {
 		if got := statusText(m) + composerText(m); !strings.Contains(got, hint) {
 			t.Fatalf("a playing note must show %q:\n%s", hint, got)
 		}
 	}
 	m.remotes.thread.selected = "m:8"
-	if got := statusText(m); strings.Contains(got, "space play") {
+	if got := statusText(m); strings.Contains(got, "Play  space") {
 		t.Fatalf("a text message must not show the player keys: %s", got)
 	}
 }
@@ -582,7 +585,7 @@ func TestANewestVoiceNoteNobodySelectedKeepsTheMessageKeys(t *testing.T) {
 	m, f := voiceApp(t)
 	// No selection follows new messages, and nothing is highlighted, so the newest note is not picked.
 	m.remotes.thread.selected = ""
-	if got := statusText(m) + composerText(m); strings.Contains(got, "space play") || !strings.Contains(got, "j/k select") || !strings.Contains(got, "Voice  ctrl+t") {
+	if got := statusText(m) + composerText(m); strings.Contains(got, "Play  space") || !strings.Contains(got, "Select  j/k") || !strings.Contains(got, "Voice  ctrl+t") {
 		t.Fatalf("an unselected voice note must leave the message keys:\n%s", got)
 	}
 	m = voiceKeys(t, m, "space")
@@ -597,7 +600,7 @@ func TestANotePlayingAfterTheSelectionReturnsToNewMessagesKeepsItsKeys(t *testin
 	m = voiceKeys(t, m, "space")
 	// G, j past the newest message, and pushing all return the selection to following new messages.
 	m.remotes.thread.selected = ""
-	if got := statusText(m); !strings.Contains(got, "space pause") {
+	if got := statusText(m); !strings.Contains(got, "Pause  space") {
 		t.Fatalf("a note still playing must keep its keys: %s", got)
 	}
 	m = voiceKeys(t, m, "space")

@@ -318,7 +318,8 @@ func (m AppModel) workspaceView() tea.View {
 		if aside > 0 && !m.remotesWide() {
 			main = lipgloss.JoinHorizontal(lipgloss.Top, main, m.aside(aside, m.mainHeight(), p))
 		}
-		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + m.workspaceFooter(w)
+		footer, _ := m.workspaceFooter(w, p)
+		page = lipgloss.NewStyle().MarginLeft((w-total)/2).Render(main) + "\n" + footer
 	}
 	page = canvas(page, p, w, h)
 	if m.help && w >= 30 && h >= 10 {
@@ -365,8 +366,8 @@ func (m AppModel) brand(p palette) string {
 }
 
 // workspaceFooter is the open screen's status. Refresh lives in the aside's Actions, so the footer doesn't repeat it.
-func (m AppModel) workspaceFooter(width int) string {
-	return fit(" "+m.feedStatus(), width)
+func (m AppModel) workspaceFooter(width int, p palette) (string, []hitArea) {
+	return statusLine(m.statusParts(), width, p)
 }
 
 func (m AppModel) feedTabs(width int, p palette) string {

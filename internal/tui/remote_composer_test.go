@@ -265,8 +265,8 @@ func TestPingNeedsAStartedConversation(t *testing.T) {
 	}
 	m, state = messagingApp(t)
 	m = openOrg(t, m)
-	if !strings.Contains(threadText(m), "Ping everyone in the org") {
-		t.Fatalf("ping chip missing:\n%s", threadText(m))
+	if !strings.Contains(statusText(m), "Ping everyone in the org") {
+		t.Fatalf("ping chip missing: %q", statusText(m))
 	}
 	m = settle(t, m, "p")
 	if !strings.Contains(state.log.String(), "ping "+fixtureOrg) || m.remotes.thread.messages[len(m.remotes.thread.messages)-1].Event != "ping" {

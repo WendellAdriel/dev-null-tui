@@ -1419,32 +1419,44 @@ func (m *AppModel) revealSelection() {
 	}
 }
 
-func (m AppModel) feedStatus() string {
-	f := m.feeds[m.active]
+// statusParts is the open screen's status bar. The g menu and Remotes draw their shortcuts as chips.
+func (m AppModel) statusParts() []statusPart {
 	if m.threadOnTop() && m.notice == "" {
-		return m.threadStatus()
+		return plainStatusLine(m.threadStatus())
 	}
 	if m.pendingG {
-		if m.remotesEnabled() {
-			return "g ...  l Log  e Trending  n Notifications  r Remotes  p Profile  s Starred  t Scheduled  d Drafts  (1 second)"
-		}
-		return "g ...  l Log  e Trending  n Notifications  p Profile  s Starred  t Scheduled  d Drafts  (1 second)"
+		return m.gMenuStatus()
 	}
 	if m.profileOnTop() && m.notice == "" {
-		return m.profileStatus()
+		return plainStatusLine(m.profileStatus())
 	}
 	if m.notice != "" {
-		return m.notice
+		return plainStatusLine(m.notice)
 	}
 	if m.notificationsOpen {
-		return m.notificationStatus()
+		return plainStatusLine(m.notificationStatus())
 	}
 	if m.starredOpen {
-		return m.starredStatus()
+		return plainStatusLine(m.starredStatus())
 	}
-	if m.remotes.open {
+	// Settings can cover Remotes, and the Remotes chips would send their keys to Settings.
+	if m.remotes.open && !m.settings.open {
 		return m.remotesStatus()
 	}
+	return plainStatusLine(feedStatus(&m.feeds[m.active]))
+}
+
+// gMenuStatus lists the g prefix's destinations for the second it waits for the next key.
+func (m AppModel) gMenuStatus() []statusPart {
+	parts := []statusPart{plainStatus("g ..."), statusChip("Log", "l"), statusChip("Trending", "e"), statusChip("Notifications", "n")}
+	if m.remotesEnabled() {
+		parts = append(parts, statusChip("Remotes", "r"))
+	}
+	parts = append(parts, statusChip("Profile", "p"), statusChip("Starred", "s"), statusChip("Scheduled", "t"), statusChip("Drafts", "d"))
+	return append(parts, statusPart{text: "(1 second)"})
+}
+
+func feedStatus(f *feed) string {
 	if f.status != "" && f.loadingMode != "refresh" {
 		return f.status
 	}

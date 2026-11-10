@@ -634,12 +634,12 @@ func TestRemotesStatusNamesOnlyOlderLoads(t *testing.T) {
 	m, _ = m.handleKey("g")
 	m = settle(t, m, "r", "j", "enter")
 	m.remotes.thread.data.HasOlder = true
-	if m.fetchRemoteThread("poll") == nil || strings.Contains(m.remotesStatus(), "older") {
-		t.Fatalf("a poll reads %q", m.remotesStatus())
+	if m.fetchRemoteThread("poll") == nil || strings.Contains(statusText(m), "older") {
+		t.Fatalf("a poll reads %q", statusText(m))
 	}
 	m.remotes.thread.loading = false
-	if m.fetchRemoteThread("older") == nil || m.remotesStatus() != "Loading older messages..." {
-		t.Fatalf("an older load reads %q", m.remotesStatus())
+	if m.fetchRemoteThread("older") == nil || strings.TrimSpace(statusText(m)) != "Loading older messages..." {
+		t.Fatalf("an older load reads %q", statusText(m))
 	}
 }
 
@@ -707,8 +707,8 @@ func TestRemotesInboxStatusShowsItsShortcuts(t *testing.T) {
 	m, _ := remotesApp(t, auth.RemotePreferences{})
 	m, _ = m.handleKey("g")
 	m = settle(t, m, "r")
-	status := m.remotesStatus()
-	for _, want := range []string{"1 / 2", "enter open", "tab stashed", "/ search", ". actions", "esc back"} {
+	status := statusText(m)
+	for _, want := range []string{"1 / 2", "Open  enter", "Stashed  tab", "Search  /", "Actions  .", "Back  esc"} {
 		if !strings.Contains(status, want) {
 			t.Fatalf("inbox status %q is missing %q", status, want)
 		}

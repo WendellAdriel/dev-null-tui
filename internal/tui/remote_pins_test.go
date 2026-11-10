@@ -123,7 +123,7 @@ func TestPinningWarnsUntilToldNotTo(t *testing.T) {
 func TestOnlyMaintainersPinMessages(t *testing.T) {
 	m, state := pinsApp(t, "contributor")
 	m = settle(t, m, "k", "!")
-	if strings.Contains(threadText(m), "! pin") || m.remotes.pinWarning != nil || strings.Contains(state.log.String(), "pin ") || m.settings.dialog != "" {
+	if m.remotes.pinWarning != nil || strings.Contains(state.log.String(), "pin ") || m.settings.dialog != "" {
 		t.Fatalf("a contributor pinned: %s\n%s", state.log, threadText(m))
 	}
 }
@@ -161,16 +161,16 @@ func TestThePinnedListJumpsAndUnpins(t *testing.T) {
 
 func TestStatusNamesTheManagementKeys(t *testing.T) {
 	m, _ := peopleApp(t)
-	if status := m.remotesStatus(); !strings.Contains(status, "N new remote") || !strings.Contains(status, "O new org") {
+	if status := statusText(m); !strings.Contains(status, "New remote  N") || !strings.Contains(status, "New org  O") {
 		t.Fatalf("inbox status %q", status)
 	}
 	maintainer, _ := pinsApp(t, "maintainer")
-	if status := maintainer.remotesStatus(); !strings.Contains(status, "I members") || !strings.Contains(status, "! pin") {
-		t.Fatalf("maintainer status %q", status)
+	if status, row := statusText(maintainer), threadText(maintainer); !strings.Contains(status, "Members  I") || !strings.Contains(row, "Pin  !") || strings.Contains(status, "!") {
+		t.Fatalf("maintainer status %q, row:\n%s", status, row)
 	}
 	contributor, _ := pinsApp(t, "contributor")
-	if status := contributor.remotesStatus(); !strings.Contains(status, "I members") || strings.Contains(status, "! pin") {
-		t.Fatalf("contributor status %q", status)
+	if status, row := statusText(contributor), threadText(contributor); !strings.Contains(status, "Members  I") || strings.Contains(row, "Pin  !") {
+		t.Fatalf("contributor status %q, row:\n%s", status, row)
 	}
 }
 

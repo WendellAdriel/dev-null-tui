@@ -273,16 +273,12 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 	}
 	areas = append(areas, hitArea{uiRect{0, editorTop, width, len(lines) - editorTop}, "write", 0})
-	right := ""
-	if len(t.messages) > 0 && m.remoteCalls.ping != nil && mc.status == "" {
-		label := "Ping everyone in the org"
-		if c := t.conversation; c.Kind != "org" && c.Partner != nil {
-			label = "Ping @" + safeText(c.Partner.Handle)
-		}
-		right = withBackground(text(p.ink).Render(" "+label+" "), p.wash)
-		if !mc.focused {
-			right = actionChip(label, "p", p)
-		}
+	// Write and Actions sit on the right of the idle row, where the ping chip used to be. Ping is in the status bar.
+	voice := m.voiceStatus()
+	idle := voice == nil && !mc.voiceConfirm && mc.recording == nil && mc.status == "" && !mc.editing && !mc.stripFocus && !mc.focused
+	right, rightAreas := "", []hitArea(nil)
+	if idle {
+		right, rightAreas = chipLine([]commitAction{{"Write", "w"}, {"Actions", "."}}, inner, p)
 	}
 	if length := api.MessageLength(mc.input.Value()); length >= messageCountFrom {
 		style := text(p.muted)
@@ -292,9 +288,13 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		right += "  " + style.Render(groupDigits(length)+"/"+groupDigits(api.MaxMessageLength))
 	}
 	hint := ""
-	if voice := m.voiceKeysHint(); voice != "" {
-		hint = text(p.muted).Render(voice)
-	} else if !mc.voiceConfirm && mc.recording == nil && mc.status == "" && !mc.editing && !mc.stripFocus && !mc.focused {
+	if voice != nil {
+		var keys []string
+		for _, part := range voice[1:] {
+			keys = append(keys, part.key+" "+strings.ToLower(part.label))
+		}
+		hint = text(p.muted).Render(strings.Join(keys, " · "))
+	} else if idle {
 		actions := []commitAction{{"Reply", "r"}, {"React", "e"}, {"Voice", "ctrl+t"}}
 		if m.canPin() {
 			actions = append(actions, commitAction{"Pin", "!"})
@@ -327,9 +327,10 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 			"enter push · ctrl+t voice",
 			"enter push, ctrl+t voice"))
 	}
-	if right != "" {
-		pingWidth := lipgloss.Width(right)
-		areas = append(areas, hitArea{uiRect{1 + inner - pingWidth, len(lines), pingWidth, 1}, "ping", 0})
+	for _, area := range rightAreas {
+		area.x += 1 + inner - lipgloss.Width(right)
+		area.y = len(lines)
+		areas = append(areas, area)
 	}
 	lines = append(lines, " "+split(fit(hint, inner-lipgloss.Width(right)-1), right, inner))
 	return strings.Join(lines, "\n"), areas

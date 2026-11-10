@@ -961,50 +961,66 @@ func (m *AppModel) messageAction(pressed string) tea.Cmd {
 	return nil
 }
 
-func (m AppModel) remotesStatus() string {
+// remotesStatus is the Remotes status bar: counts and progress stay text, and shortcuts are chips.
+func (m AppModel) remotesStatus() []statusPart {
 	r := m.remotes
+	back := closeChip("Back")
 	if t := r.thread; t != nil && r.focusThread {
 		switch {
 		case t.status != "":
-			return t.status
+			return plainStatusLine(t.status)
 		case t.loading && !t.loaded:
-			return "Reading the conversation from /dev/null..."
+			return plainStatusLine("Reading the conversation from /dev/null...")
 		case t.loading && t.loadingMode == "older":
-			return "Loading older messages..."
+			return plainStatusLine("Loading older messages...")
 		}
 		if t.composer.focused {
-			return "Write to " + m.conversationTitle(t.conversation) + "  ·  enter push  ·  esc messages"
+			return []statusPart{plainStatus("Write to " + m.conversationTitle(t.conversation)), statusChip("Push", "enter"), closeChip("Messages")}
 		}
-		if hint := m.voiceKeysHint(); hint != "" {
-			return "Voice note  ·  " + strings.ReplaceAll(hint, " · ", "  ·  ") + "  ·  esc back"
+		if voice := m.voiceStatus(); voice != nil {
+			return append(voice, back)
 		}
-		hints := []string{fmt.Sprintf("%d messages", len(t.messages)), "j/k select", "w write"}
+		parts := []statusPart{plainStatus(fmt.Sprintf("%d messages", len(t.messages))), hintChip("Select", "j/k", "j")}
 		if t.conversation.Kind == "org" {
-			hints = append(hints, "I members")
+			parts = append(parts, statusChip("Members", "I"))
 		}
-		if m.canPin() {
-			hints = append(hints, "! pin")
+		if label, ok := m.pingLabel(); ok {
+			parts = append(parts, statusChip(label, "p"))
 		}
-		return strings.Join(append(hints, ". actions", "esc back"), "  ·  ")
+		return append(parts, back)
 	}
 	switch {
 	case r.status != "":
-		return r.status
+		return plainStatusLine(r.status)
 	case r.searching:
-		return "Search by name or @handle  ·  enter search  ·  esc cancel"
+		return []statusPart{plainStatus("Search by name or @handle"), statusChip("Search", "enter"), closeChip("Cancel")}
 	case r.loading && !r.loaded:
-		return "Reading Remotes from /dev/null..."
+		return plainStatusLine("Reading Remotes from /dev/null...")
 	case len(r.inbox)+len(r.candidates) == 0:
-		return "No conversations here.  ·  N new remote  ·  O new org"
+		return []statusPart{plainStatus("No conversations here."), statusChip("New remote", "N"), statusChip("New org", "O")}
 	}
 	tabs := m.remotesTabs()
-	next := tabs[(max(0, slices.Index(tabs, r.tab))+1)%len(tabs)]
-	hints := []string{fmt.Sprintf("%d / %d", r.selected+1, len(r.inbox)+len(r.candidates)), "enter open", "tab " + strings.ToLower(string(next)), "/ search", ". actions"}
-	if r.hasMore {
-		hints = append(hints, "n more")
+	next := string(tabs[(max(0, slices.Index(tabs, r.tab))+1)%len(tabs)])
+	parts := []statusPart{
+		plainStatus(fmt.Sprintf("%d / %d", r.selected+1, len(r.inbox)+len(r.candidates))),
+		statusChip("Open", "enter"), statusChip(strings.ToUpper(next[:1])+next[1:], "tab"), statusChip("Search", "/"), statusChip("Actions", "."),
 	}
-	hints = append(hints, "N new remote", "O new org")
-	return strings.Join(append(hints, "esc back"), "  ·  ")
+	if r.hasMore {
+		parts = append(parts, statusChip("More", "n"))
+	}
+	return append(parts, statusChip("New remote", "N"), statusChip("New org", "O"), back)
+}
+
+// pingLabel names the thread's ping, which shows once the conversation has messages and the ping call exists.
+func (m AppModel) pingLabel() (string, bool) {
+	t := m.remotes.thread
+	if t == nil || len(t.messages) == 0 || m.remoteCalls.ping == nil || t.composer.status != "" {
+		return "", false
+	}
+	if c := t.conversation; c.Kind != "org" && c.Partner != nil {
+		return "Ping @" + safeText(c.Partner.Handle), true
+	}
+	return "Ping everyone in the org", true
 }
 
 // backToPresent jumps to the newest message at once, with no animation, for G and the pill above the composer.

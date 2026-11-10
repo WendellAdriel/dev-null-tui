@@ -943,8 +943,6 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 		switch area.action {
 		case "write":
 			return m, m.focusMessageComposer()
-		case "ping":
-			return m, m.sendPing()
 		case "key:ctrl+t", "key:r", "key:e", "key:!":
 			return m.remoteThreadKey(strings.TrimPrefix(area.action, "key:"))
 		case "merge", "drop":
@@ -956,6 +954,9 @@ func (m AppModel) remotesMouse(x, y int) (AppModel, tea.Cmd) {
 				return m, nil
 			}
 			return m, m.chooseReaction(quick[area.index])
+		}
+		if pressed, ok := strings.CutPrefix(area.action, "key:"); ok {
+			return m.mouseKey(pressed)
 		}
 	}
 	return m, nil

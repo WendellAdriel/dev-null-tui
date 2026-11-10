@@ -208,6 +208,15 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.account.width < 30 || m.account.height < 10 {
 		return m, nil
 	}
+	if msg.Y == m.account.height-1 {
+		_, areas := m.workspaceFooter(m.account.width, m.account.colors())
+		for _, area := range areas {
+			if area.contains(msg.X, 0) {
+				return m.mouseKey(area.action)
+			}
+		}
+		return m, nil
+	}
 	if lines := strings.Split(m.workspaceView().Content, "\n"); msg.Y < len(lines) && !m.searchBlocked() {
 		if tag := hashtagAt(lines[msg.Y], msg.X); tag != "" {
 			cmd := m.openSearch(tag)

@@ -19,6 +19,11 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
+func footerText(m AppModel) string {
+	footer, _ := m.workspaceFooter(120, m.account.colors())
+	return ansi.Strip(footer)
+}
+
 func clickText(t *testing.T, m AppModel, label string) (AppModel, tea.Cmd) {
 	t.Helper()
 	for y, line := range strings.Split(ansi.Strip(m.View().Content), "\n") {
@@ -340,7 +345,7 @@ func TestRefreshReportsProgressAndOutcomeInToasts(t *testing.T) {
 				return api.Page{Data: []api.Commit{fixtureCommit("new")}}, nil
 			}
 			m, cmd := m.handleKey("ctrl+r")
-			if !m.toast.visible || m.toast.title != "Refreshing" || strings.Contains(m.workspaceFooter(120), "Refreshing") {
+			if !m.toast.visible || m.toast.title != "Refreshing" || strings.Contains(footerText(m), "Refreshing") {
 				t.Fatal("refresh progress belongs in a toast")
 			}
 			next, _ := m.Update(logResponse(t, cmd))
@@ -355,7 +360,7 @@ func TestRefreshReportsProgressAndOutcomeInToasts(t *testing.T) {
 			if !m.toast.visible || m.toast.kind != want {
 				t.Fatal("refresh outcome toast missing")
 			}
-			if strings.Contains(m.workspaceFooter(120), "offline") {
+			if strings.Contains(footerText(m), "offline") {
 				t.Fatal("refresh failure leaked into footer")
 			}
 		})

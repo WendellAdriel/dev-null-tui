@@ -120,7 +120,7 @@ Reactions show at once and go back if the server refuses them. You can have up t
 
 ### Voice notes
 
-A voice note shows its length and its waveform. Select it and press `Space` to play it, or click its ▶. The first play downloads the note, and the waveform fills as it plays. A note rewinds when it ends, and `Space` on a note paused at its end plays it from the start. Only one note plays at a time, and leaving the conversation stops it. While a voice note is selected, the status line lists its keys. While a note plays or is paused:
+A voice note shows its length and its waveform. Select it and press `Space` to play it, or click its ▶. The first play downloads the note, and the waveform fills as it plays. A note rewinds when it ends, and `Space` on a note paused at its end plays it from the start. Only one note plays at a time, and leaving the conversation stops it. While a voice note is selected, the status line shows its keys as chips you can click. While a note plays or is paused:
 
 - `Left` and `Right` seek 2 seconds, and clicking the waveform seeks to that point.
 - `x` switches between 1×, 1.5×, and 2×. The voice keeps its pitch, and the clock counts in the chosen speed, so 0:14 at 2× reads 0:07.
