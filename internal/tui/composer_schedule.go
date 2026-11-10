@@ -29,24 +29,24 @@ type scheduleResult struct {
 	err                 error
 }
 
-// at is the picked local time, and whether it exists, since a daylight saving jump skips some.
+// at is the picked time in now's zone, and whether it exists, since a daylight saving jump skips some.
 func (s schedulePicker) at(now time.Time) (time.Time, bool) {
-	local := now.In(time.Local)
-	at := time.Date(local.Year(), local.Month(), local.Day()+s.day, s.hour, s.minute, 0, 0, time.Local)
+	zone := now.Location()
+	at := time.Date(now.Year(), now.Month(), now.Day()+s.day, s.hour, s.minute, 0, 0, zone)
 	return at, at.Hour() == s.hour && at.Minute() == s.minute
 }
 
 // newSchedulePicker starts at the chosen time, or like the web at the next full hour today, else 09:00 tomorrow.
 func newSchedulePicker(chosen *time.Time, now time.Time) *schedulePicker {
-	local := now.In(time.Local)
+	zone := now.Location()
 	if chosen != nil {
-		at := chosen.In(time.Local)
-		today := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, time.Local)
-		day := int(time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, time.Local).Sub(today).Hours()/24 + 0.5)
+		at := chosen.In(zone)
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, zone)
+		day := int(time.Date(at.Year(), at.Month(), at.Day(), 0, 0, 0, 0, zone).Sub(today).Hours()/24 + 0.5)
 		return &schedulePicker{day: day, hour: at.Hour(), minute: at.Minute()}
 	}
-	if local.Hour() < 23 {
-		return &schedulePicker{hour: local.Hour() + 1}
+	if now.Hour() < 23 {
+		return &schedulePicker{hour: now.Hour() + 1}
 	}
 	return &schedulePicker{day: 1, hour: 9}
 }

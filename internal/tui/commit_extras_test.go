@@ -285,9 +285,6 @@ func TestSchedulePickerRefusesPastAndSkippedTimes(t *testing.T) {
 	if err != nil {
 		t.Skip("no zone database:", err)
 	}
-	local := time.Local
-	time.Local = lisbon
-	defer func() { time.Local = local }()
 	// Lisbon skips 01:00 to 02:00 on 28 March 2027.
 	eve := time.Date(2027, 3, 27, 12, 0, 0, 0, lisbon)
 	if _, ok := (schedulePicker{day: 1, hour: 1, minute: 30}).at(eve); ok {
