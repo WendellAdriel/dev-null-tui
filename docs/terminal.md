@@ -66,6 +66,41 @@ Press `y` to copy a link. Clipboard access uses optional native utilities:
 
 If clipboard access fails, the app displays the link for manual copying. Clipboard utilities are not required to read the app.
 
+## Desktop notifications
+
+While the terminal isn't focused, devnull sends new notifications and Remotes messages to your desktop. Turn this off in **Settings** > **TUI**. The terminal must report focus changes, which most current terminals do.
+
+On Linux and the BSDs, outside SSH, the app sends notifications straight to the desktop's notification service over D-Bus. They show the devnull icon and stay up for 10 seconds, unless your desktop ignores the timeout the sender asks for. If no notification service answers, the app falls back to the methods below.
+
+Everywhere else, the app uses the terminal's own notification code when it recognizes the terminal:
+
+| Terminal | Code |
+| --- | --- |
+| kitty | OSC 99 |
+| Ghostty, WezTerm | OSC 777 |
+| iTerm2 | OSC 9 |
+
+The app recognizes a terminal from the environment variables it sets. Over SSH only `TERM` reaches the remote host, so only kitty (`xterm-kitty`) and Ghostty (`xterm-ghostty`) are still recognized there, and other terminals get the remote host's command.
+
+Inside tmux, add both of these to your tmux configuration. The first lets tmux tell the app when its pane gains or loses focus. Without it, the app treats the terminal as always focused and sends nothing. The second passes the notification code on to the terminal:
+
+```shell
+set -g focus-events on
+set -g allow-passthrough on
+```
+
+The terminal decides how the notification looks, shows its own icon, and may have its own setting for it, such as Ghostty's `desktop-notifications`.
+
+In any other terminal, the app runs the system's own command instead:
+
+| Platform | Command |
+| --- | --- |
+| Linux | `notify-send` |
+| macOS | `osascript` |
+| Windows | PowerShell |
+
+`notify-send` and the Windows toast show the devnull icon. The Windows toast uses its long duration, about 25 seconds, and still carries the PowerShell name. `osascript` can't set an icon or a duration, so macOS shows the Script Editor icon and keeps the banner for as long as your notification settings say. If the command is missing, nothing is shown.
+
 ## Submit keys in Ghostty
 
 Ghostty binds `Ctrl+Enter` to fullscreen by default. Use `Ctrl+S` to submit, or add this setting to your Ghostty configuration and reload it:

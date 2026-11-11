@@ -190,6 +190,8 @@ type TUISettings struct {
 	HideWhoToFollow bool `json:"hide_who_to_follow,omitempty"`
 	// CustomThemes are the user's own themes, picked by Theme as "custom:" plus the name.
 	CustomThemes []CustomTheme `json:"custom_themes,omitempty"`
+	// DesktopNotifications sends new notifications and Remotes messages to the desktop while the terminal is unfocused.
+	DesktopNotifications bool `json:"desktop_notifications"`
 }
 
 // CustomTheme is a theme the user made from a built-in one. Colors maps palette slots, such as shell or lane1, to
@@ -205,7 +207,7 @@ type CustomTheme struct {
 const TUISettingsLimit = 65536
 
 func (s Store) TUISettings() TUISettings {
-	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1}
+	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1, DesktopNotifications: true}
 	data, ok := s.readState(tuiSettingsFile, TUISettingsLimit)
 	if !ok {
 		return defaults

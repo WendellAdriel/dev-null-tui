@@ -50,6 +50,8 @@ The TUI tab holds preferences for this client only. They are saved in `tui.json`
 
 **Check for updates** is on by default. When on, devnull looks for a new release each time it starts and offers to install it. See [update from the TUI](installation.md#update-from-the-tui). The same file remembers any version you skipped, the voice note volume set with `-` and `+` in a conversation, and whether to skip the warning before pinning an org message.
 
+**Desktop notifications** is on by default. While the terminal isn't focused, devnull tells your desktop about new notifications ("3 new notifications") and new Remotes messages (the sender and the start of the message, or a count when several conversations changed). Muted conversations and the open thread stay quiet, and nothing is sent for what was already there when the app started. See [desktop notifications](terminal.md#desktop-notifications) for how each terminal shows them.
+
 Your custom themes are saved in the same file, up to 20 of them. See [custom themes](terminal.md#custom-themes).
 
 ## Account deletion

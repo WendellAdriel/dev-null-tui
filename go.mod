@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/ultraviolet v0.0.0-20261008173134-6b8d4baf91b4
 	github.com/charmbracelet/x/ansi v0.11.9
 	github.com/ebitengine/oto/v3 v3.4.0
+	github.com/godbus/dbus/v5 v5.2.4
 	github.com/jfreymuth/pulse v0.1.3
 	github.com/pion/opus v0.1.0
 	golang.org/x/crypto v0.58.0

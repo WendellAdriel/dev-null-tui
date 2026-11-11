@@ -45,6 +45,7 @@ func (m AppModel) settingsRows() []settingsRow {
 		return []settingsRow{
 			{"Theme: " + theme, "The colors throughout the app. F2 opens this list anywhere. An active event theme overrides this choice. Saved on this device in tui.json.", "theme-name", ""},
 			{"Check for updates: " + on(m.tuiSettings.CheckForUpdates), "Look for a new release each time devnull starts. Saved on this device in tui.json.", "update-check", ""},
+			{"Desktop notifications: " + on(m.tuiSettings.DesktopNotifications), "Tell your desktop about new notifications and Remotes messages while the terminal isn't focused. Muted conversations and the open thread stay quiet. Saved on this device in tui.json.", "desktop-notifications", ""},
 		}
 	case settingsSafety:
 		var rows []settingsRow

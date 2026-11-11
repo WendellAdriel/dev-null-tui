@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -80,52 +81,61 @@ type AppModel struct {
 	manualLink, manualPage, notice         string
 	manualText                             bool
 	focused                                bool
-	now                                    time.Time
-	images                                 *graphics.Manager
-	helpScroll                             int
-	graphicsSupported                      bool
-	composer                               composer
-	submit                                 func(context.Context, api.NewCommit) (api.Commit, error)
-	preview                                func(context.Context, string) (api.Preview, error)
-	loadThread                             func(context.Context, string) (api.Thread, error)
-	loadReplies                            func(context.Context, string, string) (api.CommitPage, error)
-	deleteCommit                           func(context.Context, string) error
-	threads                                []threadState
-	threadGeneration                       int
-	viewer                                 viewerState
-	deleting                               deleteConfirm
-	deletingID                             string
-	undo                                   undoState
-	pinning                                string
-	ask                                    *ask
-	picker                                 *picker
-	pickerGeneration                       int
-	themeEditor                            *themeEditor
-	translations                           map[string]translation
-	scheduled                              *scheduledList
-	commitCalls                            commitCalls
-	toast                                  toastNotice
-	whatsNew                               whatsNewState
-	updates                                Updates
-	upgrade                                upgradeState
-	tuiSettings                            auth.TUISettings
-	engagement                             engagementState
-	setStar                                func(context.Context, string, bool) (api.Commit, error)
-	givePastel                             func(context.Context, string) (api.Pastel, error)
-	vote                                   voteState
-	unfolded                               map[string]bool
-	imageDir                               string
-	castVote                               func(context.Context, string, string) (api.Commit, error)
-	notificationsOpen                      bool
-	notificationMask                       uint8
-	notificationFeeds                      map[string]*notificationFeed
-	notificationGeneration                 int
-	fetchNotifications                     func(context.Context, string, string) (api.Notifications, error)
-	fetchNotificationGroup                 func(context.Context, string, string, string) (api.Notifications, error)
-	fetchNotificationCount                 func(context.Context) (int, error)
-	unreadNotifications                    int
-	notificationCountGeneration            int
-	logTicks, badgeTicks                   int
+	// alertTerminal is the notification code the terminal shows, empty for the OS command, which runAlert runs.
+	alertTerminal string
+	alertTmux     bool
+	alertCount    int
+	alertState    alertState
+	runAlert      func(ctx context.Context, title, body string) error
+	// alertBus sends through the desktop's notification service, which runBusAlert reaches, before the above.
+	alertBus                    bool
+	runBusAlert                 func(ctx context.Context, title, body string) error
+	now                         time.Time
+	images                      *graphics.Manager
+	helpScroll                  int
+	graphicsSupported           bool
+	composer                    composer
+	submit                      func(context.Context, api.NewCommit) (api.Commit, error)
+	preview                     func(context.Context, string) (api.Preview, error)
+	loadThread                  func(context.Context, string) (api.Thread, error)
+	loadReplies                 func(context.Context, string, string) (api.CommitPage, error)
+	deleteCommit                func(context.Context, string) error
+	threads                     []threadState
+	threadGeneration            int
+	viewer                      viewerState
+	deleting                    deleteConfirm
+	deletingID                  string
+	undo                        undoState
+	pinning                     string
+	ask                         *ask
+	picker                      *picker
+	pickerGeneration            int
+	themeEditor                 *themeEditor
+	translations                map[string]translation
+	scheduled                   *scheduledList
+	commitCalls                 commitCalls
+	toast                       toastNotice
+	whatsNew                    whatsNewState
+	updates                     Updates
+	upgrade                     upgradeState
+	tuiSettings                 auth.TUISettings
+	engagement                  engagementState
+	setStar                     func(context.Context, string, bool) (api.Commit, error)
+	givePastel                  func(context.Context, string) (api.Pastel, error)
+	vote                        voteState
+	unfolded                    map[string]bool
+	imageDir                    string
+	castVote                    func(context.Context, string, string) (api.Commit, error)
+	notificationsOpen           bool
+	notificationMask            uint8
+	notificationFeeds           map[string]*notificationFeed
+	notificationGeneration      int
+	fetchNotifications          func(context.Context, string, string) (api.Notifications, error)
+	fetchNotificationGroup      func(context.Context, string, string, string) (api.Notifications, error)
+	fetchNotificationCount      func(context.Context) (int, error)
+	unreadNotifications         int
+	notificationCountGeneration int
+	logTicks, badgeTicks        int
 	// logAway and badgeAway mark ticks scheduled at the away pace, which focus restarts.
 	logAway, badgeAway         bool
 	notificationCountCancel    context.CancelFunc
@@ -203,6 +213,8 @@ func NewApp(theme string, store auth.Store, origin string, ctx context.Context) 
 		return images.Download(ctx, url, audio.MaxUploadBytes)
 	}
 	m.images.Tmux = os.Getenv("TMUX") != ""
+	m.alertTerminal, m.alertTmux, m.runAlert = alertTerminalFor(os.Getenv), m.images.Tmux, runAlertCommand
+	m.alertBus, m.runBusAlert = alertBusFor(runtime.GOOS, os.Getenv), sendBusAlert
 	for i := range m.feeds {
 		m.feeds[i].viewport = viewport.New()
 		m.feeds[i].cursors = make(map[string]bool)
@@ -342,10 +354,13 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.acceptDraftSave(msg)
 		return m, nil
 	case remotesCountResult:
-		if msg.session == m.session && !m.remotes.open {
+		if msg.session != m.session {
+			return m, nil
+		}
+		if !m.remotes.open {
 			m.remotes.unread = max(0, msg.unread)
 		}
-		return m, nil
+		return m, m.acceptRemotesAlerts(msg.inbox)
 	case starredResult:
 		msg.page.Data = m.safeCommits(msg.page.Data)
 		cmd := m.acceptStarred(msg)
@@ -365,6 +380,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case notificationGroupResult:
 		msg.page.Data = m.safeNotifications(msg.page.Data)
 		return m, m.acceptNotificationGroup(msg)
+	case alertFallback:
+		return m, m.alertWithoutBus(msg.title, msg.body)
 	case notificationCountResult:
 		if msg.session != m.session || msg.generation != m.notificationCountGeneration || !m.connected {
 			return m, nil
@@ -377,8 +394,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.revoked(msg.err)
 			return m, nil
 		}
+		previous := m.unreadNotifications
 		m.unreadNotifications = msg.count
-		return m, nil
+		return m, m.acceptNotificationAlert(previous, msg.count)
 	case whatsNewSaved:
 		cmd := m.acceptWhatsNewSaved(msg)
 		return m, cmd

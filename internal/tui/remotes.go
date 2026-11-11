@@ -305,7 +305,11 @@ func (m *AppModel) acceptInbox(msg remotesInboxResult) tea.Cmd {
 			r.selected = i
 		}
 	}
-	return m.scheduleRemotes()
+	var alerts tea.Cmd
+	if r.tab == api.Open && r.term == "" && msg.mode != "more" {
+		alerts = m.acceptRemotesAlerts(msg.inbox.Data)
+	}
+	return tea.Batch(alerts, m.scheduleRemotes())
 }
 
 // adoptConversation gives a thread opened by handle the conversation the inbox now lists with that person.
@@ -713,11 +717,14 @@ func (m *AppModel) refreshRemotesCount() tea.Cmd {
 		if err != nil {
 			return nil
 		}
-		return remotesCountResult{session: session, unread: inbox.UnreadCount}
+		return remotesCountResult{session: session, unread: inbox.UnreadCount, inbox: inbox.Data}
 	})
 }
 
-type remotesCountResult struct{ session, unread int }
+type remotesCountResult struct {
+	session, unread int
+	inbox           []api.Conversation
+}
 
 func (m *AppModel) selectConversation(index int) tea.Cmd {
 	r := &m.remotes

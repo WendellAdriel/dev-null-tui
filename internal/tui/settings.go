@@ -806,6 +806,10 @@ func (m *AppModel) activateSetting(action, value string) tea.Cmd {
 		m.tuiSettings.CheckForUpdates = !m.tuiSettings.CheckForUpdates
 		m.sizeSettings()
 		return m.saveTUISettings(false)
+	case "desktop-notifications":
+		m.tuiSettings.DesktopNotifications = !m.tuiSettings.DesktopNotifications
+		m.sizeSettings()
+		return m.saveTUISettings(false)
 	case "more-muted":
 		return m.loadSafety(0, true)
 	case "more-blocked":

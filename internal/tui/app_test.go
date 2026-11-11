@@ -24,6 +24,8 @@ func fixtureApp(t *testing.T) AppModel {
 	t.Helper()
 	m := NewApp("dark", auth.Store{Dir: t.TempDir()}, "https://example.test", t.Context())
 	m.now = time.Date(2026, 10, 23, 12, 0, 0, 0, time.UTC)
+	// Tests never reach the real desktop, whatever terminal runs them.
+	m.alertTerminal, m.alertBus, m.runAlert = "", false, func(context.Context, string, string) error { return nil }
 	// The fixture date has no event theme, so frames don't depend on the day the tests run.
 	m.applyEventTheme()
 	t.Cleanup(func() { _ = m.Close() })

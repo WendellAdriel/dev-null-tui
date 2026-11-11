@@ -175,7 +175,7 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(`{"skipped_version":"v0.4.0"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "v0.4.0" {
+	if got := store.TUISettings(); !got.CheckForUpdates || !got.DesktopNotifications || got.SkippedVersion != "v0.4.0" {
 		t.Fatalf("missing keys must keep their defaults: %+v", got)
 	}
 }
