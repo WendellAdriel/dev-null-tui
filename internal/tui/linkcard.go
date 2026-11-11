@@ -54,7 +54,7 @@ func linkCardLines(preview *api.LinkPreview, width int, p palette, manager *grap
 		body = []string{text(p.muted).Render(fit(site, textWidth))}
 		title := clampLines(safeText(preview.Title), textWidth, 2)
 		for _, line := range title {
-			body = append(body, linked(preview.URL, text(p.ink).Bold(true).Render)(line))
+			body = append(body, text(p.ink).Bold(true).Render(line))
 		}
 		for _, line := range clampLines(safeText(preview.Description), textWidth, 2) {
 			body = append(body, text(p.muted).Render(line))
@@ -72,13 +72,15 @@ func linkCardLines(preview *api.LinkPreview, width int, p palette, manager *grap
 			}
 		}
 	}
+	// The whole card is the link, as on the web, so a click on any of its cells opens it.
 	border := text(p.hairline)
-	lines := []string{border.Render("╭" + strings.Repeat("─", width-2) + "╮")}
+	card := func(line string) string { return ansi.SetHyperlink(preview.URL) + line + ansi.ResetHyperlink() }
+	lines := []string{card(border.Render("╭" + strings.Repeat("─", width-2) + "╮"))}
 	for _, line := range body {
 		cell := lipgloss.NewStyle().Width(inner).MaxWidth(inner).Render(line)
-		lines = append(lines, border.Render("│ ")+cell+border.Render(" │"))
+		lines = append(lines, card(border.Render("│ ")+cell+border.Render(" │")))
 	}
-	return append(lines, border.Render("╰"+strings.Repeat("─", width-2)+"╯"))
+	return append(lines, card(border.Render("╰"+strings.Repeat("─", width-2)+"╯")))
 }
 
 func linkHost(raw string) string {

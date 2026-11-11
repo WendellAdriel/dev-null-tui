@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 func TestLinkCardShowsSiteTitleAndDescription(t *testing.T) {
@@ -59,5 +61,41 @@ func TestCommitsShowTheirLinkCardInTheLog(t *testing.T) {
 	m = applyPage(m, 0, api.Page{Data: []api.Commit{quoting}})
 	if feed := ansi.Strip(m.feeds[0].viewport.GetContent()); !strings.Contains(feed, "The Go Programming Language") {
 		t.Fatalf("the quote does not show its link card:\n%s", feed)
+	}
+}
+
+func TestClickingAnywhereOnALinkCardOpensItsLink(t *testing.T) {
+	m, opened := linksApp(t, "Docs https://laravel.com/docs")
+	c := fixtureCommit("card")
+	c.Body = "Docs https://laravel.com/docs"
+	c.LinkPreview = &api.LinkPreview{URL: "https://laravel.com/docs", Title: "Laravel docs", Description: "The PHP framework", SiteName: "Laravel"}
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{c}})
+	for _, part := range []string{"The PHP framework", "Laravel docs", "Laravel  "} {
+		*opened = nil
+		next, cmd := clickText(t, m, part)
+		settleCmd(next, cmd)
+		if strings.Join(*opened, " ") != "https://laravel.com/docs" {
+			t.Fatalf("clicking the card's %q opened %v", part, *opened)
+		}
+	}
+}
+
+func TestClickingARemotesLinkCardOpensItsLink(t *testing.T) {
+	m, _ := remotesApp(t, auth.RemotePreferences{})
+	var opened []string
+	m.openURL = func(_ context.Context, raw string) error {
+		opened = append(opened, raw)
+		return nil
+	}
+	m, _ = m.handleKey("g")
+	m = settle(t, m, "r", "enter")
+	message := remoteMessage(5, "ada", "https://go.dev", m.now)
+	message.LinkPreview = &api.LinkPreview{URL: "https://go.dev", Title: "The Go Programming Language", Description: "Build simple, secure, scalable systems", SiteName: "go.dev"}
+	m.remotes.thread.messages = []api.Message{message}
+	m.renderRemoteThread()
+	next, cmd := clickText(t, m, "Build simple")
+	settleCmd(next, cmd)
+	if strings.Join(opened, " ") != "https://go.dev" {
+		t.Fatalf("clicking the Remotes card opened %v", opened)
 	}
 }
