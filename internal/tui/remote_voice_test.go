@@ -67,6 +67,16 @@ func voiceApp(t *testing.T) (AppModel, *voiceFixture) {
 	t.Helper()
 	m, _ := messagingApp(t)
 	f := &voiceFixture{sound: &fakeSound{}}
+	// The notes are encoded up front, because test helpers drop any command that takes over 50ms, which encoding under
+	// the race detector on a busy CI runner can.
+	notes := map[int][]byte{}
+	for _, seconds := range []int{3, 10} {
+		samples := make([]float32, seconds*audio.RecordRate)
+		for i := range samples {
+			samples[i] = float32(0.3 * math.Sin(float64(i)/10))
+		}
+		notes[seconds] = audio.EncodeWAV(samples)
+	}
 	m.voice.openSound = func() (audio.Device, error) {
 		if f.sound.refused {
 			return nil, audio.ErrUnavailable
@@ -79,15 +89,10 @@ func voiceApp(t *testing.T) (AppModel, *voiceFixture) {
 			f.failNext = false
 			return nil, errors.New("media unavailable")
 		}
-		seconds := 10
 		if strings.HasSuffix(url, "/41") {
-			seconds = 3
+			return notes[3], nil
 		}
-		samples := make([]float32, seconds*audio.RecordRate)
-		for i := range samples {
-			samples[i] = float32(0.3 * math.Sin(float64(i)/10))
-		}
-		return audio.EncodeWAV(samples), nil
+		return notes[10], nil
 	}
 	m = openOrg(t, m)
 	thread := m.remotes.thread
