@@ -256,6 +256,11 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 	switch d.kind {
 	case "stars":
 		return m, tea.Batch(m.syncImages(), m.openProfile(row.person.Handle))
+	case "reactions":
+		if row.value == "" {
+			return m, nil
+		}
+		return m, tea.Batch(m.syncImages(), m.openProfile(row.value))
 	case "live":
 		return m, tea.Batch(m.syncImages(), m.watchLive(row.person.Live))
 	case "event-theme":

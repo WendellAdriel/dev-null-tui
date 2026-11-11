@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"cmp"
 	"context"
+	"fmt"
 	"slices"
 	"sort"
 	"strings"
@@ -417,4 +419,47 @@ func (m AppModel) reactionModalMouse(x, y int) (AppModel, tea.Cmd) {
 		m.closeReactions()
 	}
 	return m, nil
+}
+
+// showReactions lists who reacted to the selected message, each emoji with its people, like the web's reaction
+// popover. Reactions carry only user IDs, so names come from the people the thread knows.
+func (m *AppModel) showReactions() {
+	item, ok := m.selectedItem()
+	if !ok || item.message == nil {
+		return
+	}
+	reactions := item.message.Reactions
+	if len(reactions) == 0 {
+		m.notice = "No reactions yet."
+		return
+	}
+	var order []string
+	people := map[string][]string{}
+	for _, reaction := range reactions {
+		if _, seen := people[reaction.Emoji]; !seen {
+			order = append(order, reaction.Emoji)
+		}
+		people[reaction.Emoji] = append(people[reaction.Emoji], reaction.UserID)
+	}
+	m.pickerGeneration++
+	d := &picker{kind: "reactions", title: "/dev/null · REACTIONS", intro: "Who reacted to this message.", generation: m.pickerGeneration}
+	for i, emoji := range order {
+		if i > 0 {
+			d.rows = append(d.rows, pickerRow{heading: true})
+		}
+		label := emojiPresentation(safeText(emoji))
+		if name := emojiName(emoji); name != "" {
+			label += "  :" + name + ":"
+		}
+		d.rows = append(d.rows, pickerRow{label: fmt.Sprintf("%s · %d", label, len(people[emoji])), heading: true})
+		for _, id := range people[emoji] {
+			row := pickerRow{label: "Someone who left"}
+			if user := m.threadUser(m.remotes.thread, id); user != nil {
+				row = pickerRow{label: safeText(cmp.Or(user.Name, user.Handle)), note: "@" + safeText(user.Handle), value: user.Handle}
+			}
+			d.rows = append(d.rows, row)
+		}
+	}
+	d.first()
+	m.picker = d
 }

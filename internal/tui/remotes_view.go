@@ -411,18 +411,32 @@ func (m AppModel) messageSender(message api.Message, t *remoteThreadState) *api.
 	if message.User != nil {
 		return message.User
 	}
-	if message.UserID == m.account.user.ID {
+	if user := m.threadUser(t, message.UserID); user != nil {
+		return user
+	}
+	return t.conversation.Partner
+}
+
+// threadUser is someone the thread knows by ID: you, the partner, a member, or the sender of a loaded message. It is
+// nil for anyone else, such as a member who left before their messages loaded.
+func (m AppModel) threadUser(t *remoteThreadState, id string) *api.User {
+	if id == m.account.user.ID {
 		return &api.User{ID: m.account.user.ID, Handle: m.account.user.Handle, Name: m.account.user.Name}
 	}
-	if t.data.Partner != nil && t.data.Partner.ID == message.UserID {
+	if t.data.Partner != nil && t.data.Partner.ID == id {
 		return t.data.Partner
 	}
 	for _, member := range append(append([]api.Member(nil), t.data.Members...), t.conversation.Members...) {
-		if member.User.ID == message.UserID {
+		if member.User.ID == id {
 			return &member.User
 		}
 	}
-	return t.conversation.Partner
+	for _, message := range t.messages {
+		if message.User != nil && message.User.ID == id {
+			return message.User
+		}
+	}
+	return nil
 }
 
 // renderRemoteThread draws the messages the way the web's conversation-thread.tsx does: day chips and events centered,
@@ -1036,7 +1050,7 @@ func (m AppModel) remotesBindings(bind func(string, string) key.Binding) appKeys
 	short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open"), bind("tab", "inbox tab"), bind("/", "search"), bind(".", "actions"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	thread := m.remotes.thread != nil && m.remotes.focusThread
 	if thread {
-		short = []key.Binding{bind("↑/↓", "select"), bind("w", "write"), bind("ctrl+t", "voice"), bind("r", "reply"), bind("e", "react"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
+		short = []key.Binding{bind("↑/↓", "select"), bind("w", "write"), bind("ctrl+t", "voice"), bind("r", "reply"), bind("e", "react"), bind("E", "who reacted"), bind(".", "actions"), bind("esc", "inbox"), bind("?", "help"), bind("ctrl+c", "quit")}
 	}
 	all := append([]key.Binding(nil), short...)
 	if thread {

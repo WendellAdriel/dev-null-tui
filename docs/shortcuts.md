@@ -143,6 +143,7 @@ In a conversation:
 | `d` | Discard a rejected message |
 | `1`, `2`, `3` | Toggle a quick reaction on the selected message |
 | `e` | Open the reaction row. `1` to `3` react, `+` opens the picker |
+| `E` | List who reacted to the selected message, under each emoji. `Enter` opens a profile |
 | `p` | Ping the partner, or everyone in the org |
 | `m`, `d` | Merge or drop a message request |
 | `I` | Org members. `u` opens a profile, `r` renames, `a` adds people, and `Enter` changes a member's role or removes them (maintainers) |

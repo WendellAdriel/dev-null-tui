@@ -923,6 +923,8 @@ func (m AppModel) remoteThreadKey(pressed string) (AppModel, tea.Cmd) {
 		return m, m.sendPing()
 	case "r", "d", "e", "1", "2", "3":
 		return m, m.messageAction(pressed)
+	case "E":
+		m.showReactions()
 	}
 	return m, nil
 }
@@ -981,6 +983,9 @@ func (m AppModel) remotesStatus() []statusPart {
 			return append(voice, back)
 		}
 		parts := []statusPart{plainStatus(fmt.Sprintf("%d messages", len(t.messages))), hintChip("Select", "↑/↓", "down")}
+		if item, ok := m.selectedItem(); ok && item.message != nil && len(item.message.Reactions) > 0 {
+			parts = append(parts, statusChip("Reactions", "E"))
+		}
 		if t.conversation.Kind == "org" {
 			parts = append(parts, statusChip("Members", "I"))
 		}
