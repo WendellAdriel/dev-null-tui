@@ -201,18 +201,18 @@ func (m AccountModel) shownTheme() theme {
 	if m.event != "" {
 		return themeNamed(m.event)
 	}
-	return themeNamed(m.themeName)
+	return m.lookupTheme(m.themeName)
 }
 
 // paintsBackground reports that the terminal's background and foreground can be set: the colors no longer depend on
 // a background reply still to come.
 func (m AccountModel) paintsBackground() bool {
-	return m.theme != "auto" || m.backgroundKnown || !themeNamed(m.themeName).bothModes()
+	return m.theme != "auto" || m.backgroundKnown || !m.lookupTheme(m.themeName).bothModes()
 }
 
 // isDark is the chosen theme's mode. Auto and the other two-mode themes follow the terminal or --theme.
 func (m AccountModel) isDark() bool {
-	if th := themeNamed(m.themeName); !th.bothModes() {
+	if th := m.lookupTheme(m.themeName); !th.bothModes() {
 		return th.dark != nil
 	}
 	return m.dark
@@ -313,8 +313,11 @@ func (m *AppModel) openThemes() {
 	groups := []struct {
 		label string
 		list  []theme
-	}{{"TUI themes", listed}, {"Event themes", eventThemes}}
+	}{{"TUI themes", listed}, {"Custom themes", m.account.custom}, {"Event themes", eventThemes}}
 	for g, group := range groups {
+		if len(group.list) == 0 {
+			continue
+		}
 		if g > 0 {
 			d.rows = append(d.rows, pickerRow{heading: true})
 		}
@@ -334,7 +337,7 @@ func (m *AppModel) openThemes() {
 
 // setTheme applies and saves a theme choice.
 func (m *AppModel) setTheme(name string) tea.Cmd {
-	next := themeNamed(name)
+	next := m.account.lookupTheme(name)
 	m.account.themeName, m.tuiSettings.Theme, m.tuiSettings.Mode = next.name, next.name, ""
 	m.reflow()
 	return m.saveTUISettings(false)

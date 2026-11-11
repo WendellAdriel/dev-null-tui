@@ -152,6 +152,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.connected && !m.accountOpen && m.ask != nil {
 		return m.askMouse(msg.X, msg.Y)
 	}
+	if m.connected && !m.accountOpen && m.themeEditor != nil {
+		return m.themeEditorMouse(msg.X, msg.Y)
+	}
 	if m.connected && !m.accountOpen && m.picker != nil {
 		return m.listPickerMouse(msg.X, msg.Y)
 	}

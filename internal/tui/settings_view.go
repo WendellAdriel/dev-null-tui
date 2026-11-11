@@ -38,7 +38,7 @@ func (m AppModel) settingsRows() []settingsRow {
 			{"Who to follow: " + map[bool]string{true: "Hidden", false: "Shown"}[m.tuiSettings.HideWhoToFollow], "The Who to follow action (w) in the aside, and suggested people in the Following and Latest logs after the fifth commit when the aside has no room. Saved in tui.json.", "who-to-follow", ""},
 		}
 	case settingsTUI:
-		theme := themeNamed(m.account.themeName).label
+		theme := m.account.lookupTheme(m.account.themeName).label
 		if m.account.event != "" && m.account.event != m.account.themeName {
 			theme += " (" + themeNamed(m.account.event).label + " event theme on now)"
 		}

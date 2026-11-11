@@ -157,7 +157,7 @@ func (m AppModel) popupOpen() bool {
 	r := m.remotes
 	return !m.connected || m.accountOpen || m.search != nil || m.achievements != nil || m.manualLink != "" ||
 		m.whatsNew.open || m.upgradeVisible() || m.viewer.open || m.vote.commitID != "" || m.help ||
-		m.composer.open || m.composer.confirm != "" || m.live != nil || m.deleting.id != "" || m.ask != nil || m.picker != nil || m.whoToFollow.open || m.sharingCommit() ||
+		m.composer.open || m.composer.confirm != "" || m.live != nil || m.deleting.id != "" || m.ask != nil || m.picker != nil || m.themeEditor != nil || m.whoToFollow.open || m.sharingCommit() ||
 		m.settings.dialog != "" || m.settings.busy || m.activeReactions() != nil ||
 		(m.remotesOnTop() && (r.dialog != "" || m.remotesOverlay()))
 }

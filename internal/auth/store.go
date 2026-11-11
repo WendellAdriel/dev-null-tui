@@ -188,11 +188,21 @@ type TUISettings struct {
 	EventTheme string `json:"event_theme,omitempty"`
 	// HideWhoToFollow hides suggested people, like the web's who_to_follow cookie.
 	HideWhoToFollow bool `json:"hide_who_to_follow,omitempty"`
+	// CustomThemes are the user's own themes, picked by Theme as "custom:" plus the name.
+	CustomThemes []CustomTheme `json:"custom_themes,omitempty"`
+}
+
+// CustomTheme is a theme the user made from a built-in one. Colors maps palette slots, such as shell or lane1, to
+// #rrggbb values, and Base fills any slot that is missing or invalid.
+type CustomTheme struct {
+	Name   string            `json:"name"`
+	Base   string            `json:"base"`
+	Colors map[string]string `json:"colors"`
 }
 
 // TUISettings reads tui.json, falling back to the defaults when it is missing, oversized, or invalid.
 // TUISettingsLimit is the largest tui.json that loads. A bigger file falls back to the defaults.
-const TUISettingsLimit = 16384
+const TUISettingsLimit = 65536
 
 func (s Store) TUISettings() TUISettings {
 	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1}

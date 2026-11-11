@@ -208,6 +208,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.listPickerModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.themeEditor != nil && m.connected && !m.accountOpen {
+		content, r, _ := m.themeEditorModal(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.whoToFollow.open && m.connected && !m.accountOpen {
 		content, r, _ := m.suggestionModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)

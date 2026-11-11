@@ -55,7 +55,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `?` | Open or close centered shortcut help. Arrow and page keys scroll it |
 | `Esc` | Close shortcut help |
 | `Ctrl+C` | Request exit, protecting a nonempty draft |
-| `F2` | Choose a theme. **Theme** in the aside's Actions does the same |
+| `F2` | Choose a theme. **Theme** in the aside's Actions does the same. In the list, `n` makes a custom theme, and `e` and `D` edit or delete the selected custom theme |
 
 `q` quotes. It never quits.
 

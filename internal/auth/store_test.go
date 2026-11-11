@@ -164,7 +164,7 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	if err := store.Disconnect(); err != nil || store.TUISettings().SkippedVersion != "v0.3.0" {
 		t.Fatal("disconnecting must keep TUI settings")
 	}
-	for _, corrupt := range []string{"{", `{"check_for_updates":"yes"}`, strings.Repeat(" ", 20000) + "{}"} {
+	for _, corrupt := range []string{"{", `{"check_for_updates":"yes"}`, strings.Repeat(" ", TUISettingsLimit+1) + "{}"} {
 		if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(corrupt), 0600); err != nil {
 			t.Fatal(err)
 		}
@@ -177,6 +177,27 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	}
 	if got := store.TUISettings(); !got.CheckForUpdates || got.SkippedVersion != "v0.4.0" {
 		t.Fatalf("missing keys must keep their defaults: %+v", got)
+	}
+}
+
+func TestStoreKeepsTwentyFullCustomThemes(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
+	if err := store.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	colors := map[string]string{}
+	for _, slot := range []string{"shell", "ink", "muted", "hairline", "blue", "wash", "soft", "code", "danger", "success", "warning", "lane1", "lane2", "lane3", "lane4", "lane5", "lane6", "graph", "peak"} {
+		colors[slot] = "#123456"
+	}
+	var want TUISettings
+	for i := range 20 {
+		want.CustomThemes = append(want.CustomThemes, CustomTheme{Name: strings.Repeat("x", 31) + string(rune('a'+i)), Base: "tokyonight-night", Colors: colors})
+	}
+	if err := store.SaveTUISettings(want); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.TUISettings(); len(got.CustomThemes) != 20 || got.CustomThemes[19].Colors["peak"] != "#123456" {
+		t.Fatalf("twenty full custom themes did not come back: %d", len(got.CustomThemes))
 	}
 }
 

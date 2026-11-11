@@ -87,7 +87,11 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	if d.next != "" {
 		rows++
 	}
-	shown := min(rows, max(1, min(pickerVisibleRows, m.account.height-10-len(lines))))
+	footerRows := 1
+	if d.kind == "theme" {
+		footerRows = 2
+	}
+	shown := min(rows, max(1, min(pickerVisibleRows, m.account.height-9-footerRows-len(lines))))
 	first := min(max(0, d.selected-shown/2), max(0, rows-shown))
 	top := len(lines)
 	var areas []hitArea
@@ -133,7 +137,20 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 		hints = append(hints, statusChip("More", "n"))
 	}
 	footer, footerAreas := hintRow(append(hints, closeChip("Close")), width, pal)
-	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width+4, lipgloss.Height(body)+6)
+	if d.kind == "theme" {
+		// The custom theme actions get their own row, so the picker stays narrow.
+		custom := []statusPart{statusChip("New theme", "n")}
+		if d.selected < len(d.rows) && m.customIndex(d.rows[d.selected].value) >= 0 {
+			custom = append(custom, statusChip("Edit", "e"), statusChip("Delete", "D"))
+		}
+		second, secondAreas := hintRow(custom, width, pal)
+		for _, area := range secondAreas {
+			area.y++
+			footerAreas = append(footerAreas, area)
+		}
+		footer += "\n" + second
+	}
+	r := centeredRect(max(1, m.account.width), max(1, m.account.height), width+4, lipgloss.Height(body)+5+lipgloss.Height(footer))
 	for i := range areas {
 		areas[i].x += r.x + 2
 		areas[i].y += r.y + 3
@@ -186,6 +203,21 @@ func (m AppModel) listPickerKey(pressed string) (AppModel, tea.Cmd) {
 				d.selected = i
 				return m.choosePicker()
 			}
+		}
+	}
+	if d.kind == "theme" {
+		switch pressed {
+		case "n":
+			m.openThemeBases()
+			return m, nil
+		case "e":
+			if row := d.rows[d.selected]; m.customIndex(row.value) >= 0 {
+				return m, m.editThemeEditor(row.value)
+			}
+			return m, nil
+		case "D":
+			m.askDeleteTheme()
+			return m, nil
 		}
 	}
 	switch pressed {
@@ -267,6 +299,8 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, m.setEventTheme(row.value)
 	case "theme":
 		return m, m.setTheme(row.value)
+	case "theme-base":
+		return m, m.newThemeEditor(row.value)
 	}
 	return m, tea.Batch(m.syncImages(), m.openLink(row.value))
 }
@@ -344,6 +378,8 @@ func (m AppModel) confirmAsk() (AppModel, tea.Cmd) {
 		return m, m.deleteDraft(a.id)
 	case "share-commit":
 		return m, m.shareCommit(a.commit, a.id)
+	case "delete-theme":
+		return m, m.deleteCustomTheme(a.id)
 	}
 	return m, nil
 }

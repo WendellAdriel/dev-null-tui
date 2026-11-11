@@ -100,6 +100,7 @@ type AppModel struct {
 	ask                                    *ask
 	picker                                 *picker
 	pickerGeneration                       int
+	themeEditor                            *themeEditor
 	translations                           map[string]translation
 	scheduled                              *scheduledList
 	commitCalls                            commitCalls
@@ -176,20 +177,24 @@ type AppModel struct {
 
 func NewApp(theme string, store auth.Store, origin string, ctx context.Context) AppModel {
 	settings := store.TUISettings()
-	name := settings.Theme
-	if theme == "" {
+	name, saved := settings.Theme, theme == ""
+	if saved {
 		// Without --theme, the saved theme applies. A v0.8.0 theme and mode become one theme, saved with the next change.
 		if single := singleTheme(settings.Theme, settings.Mode); single != "" {
 			name = single
 		}
-		settings.Theme, settings.Mode, theme = themeNamed(name).name, "", "auto"
+		settings.Mode, theme = "", "auto"
 	} else {
 		// --theme picks Auto, Dark or Light for this run without saving it.
 		name = map[string]string{"auto": "default", "light": "light", "dark": "dark"}[theme]
 	}
 	m := AppModel{account: NewAccount(theme, store, origin, ctx), copyLink: writeClipboard, openURL: auth.OpenBrowser, focused: true, now: time.Now(), notificationMask: 63, icons: nerdIcons}
 	m.tuiSettings = settings
-	m.account.themeName = themeNamed(name).name
+	m.applyCustomThemes()
+	m.account.themeName = m.account.lookupTheme(name).name
+	if saved {
+		m.tuiSettings.Theme = m.account.themeName
+	}
 	m.applyEventTheme()
 	m.images = graphics.New(origin)
 	images := m.images
@@ -726,6 +731,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			next, cmd := m.askKey(msg.String())
 			return next, cmd
 		}
+		if m.connected && !m.accountOpen && m.themeEditor != nil && msg.String() != "ctrl+c" {
+			cmd := m.themeEditorKey(msg)
+			return m, cmd
+		}
 		if m.connected && !m.accountOpen && m.picker != nil && msg.String() != "ctrl+c" {
 			next, cmd := m.listPickerKey(msg.String())
 			return next, cmd
@@ -788,6 +797,16 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		return m, nil
+	}
+	if m.connected && !m.accountOpen && m.themeEditor != nil {
+		// Pastes and cursor blinks reach the focused field, so a copied color can be pasted in. A paste goes back to
+		// typing, since the sliders would no longer match the field.
+		if _, pasted := msg.(tea.PasteMsg); pasted {
+			m.themeEditor.adjusting = false
+		}
+		var cmd tea.Cmd
+		m.themeEditor.field, cmd = m.themeEditor.field.Update(msg)
+		return m, cmd
 	}
 	if m.connected && m.live != nil {
 		// Pastes and cursor blinks reach the link field, which is how most people enter a stream link.

@@ -50,6 +50,8 @@ The TUI tab holds preferences for this client only. They are saved in `tui.json`
 
 **Check for updates** is on by default. When on, devnull looks for a new release each time it starts and offers to install it. See [update from the TUI](installation.md#update-from-the-tui). The same file remembers any version you skipped, the voice note volume set with `-` and `+` in a conversation, and whether to skip the warning before pinning an org message.
 
+Your custom themes are saved in the same file, up to 20 of them. See [custom themes](terminal.md#custom-themes).
+
 ## Account deletion
 
 **Delete account** permanently removes your /dev/null account and its data. Threads you started and their replies are removed. Some replies to other people's threads remain as anonymous tombstones. Your GitHub account is unchanged.

@@ -90,7 +90,9 @@ type AccountModel struct {
 	theme         string
 	dark          bool
 	// themeName picks the palettes, and event is the event theme on screen, or empty.
-	themeName, event            string
+	themeName, event string
+	// custom are the user's own themes from tui.json.
+	custom                      []theme
 	backgroundKnown             bool
 	state                       string
 	status                      string

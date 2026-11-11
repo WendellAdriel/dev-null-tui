@@ -78,19 +78,12 @@ func TestEveryThemeFillsEveryPaletteSlotWithReadableColors(t *testing.T) {
 			}
 		}
 	}
-	// Event themes keep Default's status colors and lanes, like the web, so only TUI themes are held to these.
+	// Event themes keep Default's status colors and lanes, like the web, so only TUI themes are held to these. The
+	// custom theme editor warns with the same checks.
 	for _, th := range themes {
 		for _, dark := range []bool{false, true} {
-			p := th.palette(dark)
-			for name, color := range map[string]string{"code": p.code, "danger": p.danger, "success": p.success, "warning": p.warning} {
-				if c := contrast(color, p.shell); c < 4.5 {
-					t.Errorf("%s dark=%v: %s contrast %.2f", th.name, dark, name, c)
-				}
-			}
-			for i, lane := range p.lanes {
-				if c := contrast(lane, p.shell); c < 3 {
-					t.Errorf("%s dark=%v: lane %d contrast %.2f", th.name, dark, i, c)
-				}
+			if issues := readabilityIssues(th.palette(dark)); len(issues) > 0 {
+				t.Errorf("%s dark=%v: %v", th.name, dark, issues)
 			}
 		}
 	}
