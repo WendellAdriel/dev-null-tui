@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,7 @@ func (m AppModel) settingsRows() []settingsRow {
 		return []settingsRow{
 			{"Event theme: " + event, "Halloween (Oct 29 to Nov 1), Christmas (Dec 23 to 26) and New Year (Dec 30 to Jan 2) colors, like the web. Each shows its dark or light colors to match your theme. Auto follows the dates, Default never shows them. Saved in tui.json.", "event-theme", ""},
 			{"Who to follow: " + map[bool]string{true: "Hidden", false: "Shown"}[m.tuiSettings.HideWhoToFollow], "The Who to follow action (w) in the aside, and suggested people in the Following and Latest logs after the fifth commit when the aside has no room. Saved in tui.json.", "who-to-follow", ""},
+			{"Replies: " + strconv.Itoa(m.tuiSettings.RepliesPerPage), "How many of the newest replies show under each commit in logs, profiles and Starred, like the web. Saved in tui.json.", "replies-per-page", ""},
 		}
 	case settingsTUI:
 		theme := m.account.lookupTheme(m.account.themeName).label

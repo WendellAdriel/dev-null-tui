@@ -802,6 +802,9 @@ func (m *AppModel) activateSetting(action, value string) tea.Cmd {
 		return nil
 	case "who-to-follow":
 		return m.toggleWhoToFollow()
+	case "replies-per-page":
+		m.openRepliesPerPage()
+		return nil
 	case "update-check":
 		m.tuiSettings.CheckForUpdates = !m.tuiSettings.CheckForUpdates
 		m.sizeSettings()

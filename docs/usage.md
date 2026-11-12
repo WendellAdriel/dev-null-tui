@@ -242,7 +242,7 @@ See [terminal graphics](terminal.md#images-and-avatars) for display requirements
 
 ## Current limits
 
-Search is not implemented. Organization followers lists are web only. Profile README content is web only. The API currently returns one inline reply preview per commit, so lists can show fewer replies than the web app.
+Search is not implemented. Organization followers lists are web only. Profile README content is web only.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC retry date when supplied. `Ctrl+R` is the refresh shortcut. Neither `r` nor `R` refreshes the workspace.
 

@@ -76,7 +76,7 @@ func (c *Client) OrganizationCommits(ctx context.Context, handle string, mention
 	if cursor != "" {
 		query.Set("cursor", cursor)
 	}
-	return c.commitPage(ctx, path, query, cursor)
+	return c.commitPage(ctx, path, c.withReplies(query), cursor)
 }
 
 func (c *Client) SetOrganizationFollow(ctx context.Context, handle string, follow bool) error {

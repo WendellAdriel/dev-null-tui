@@ -322,6 +322,14 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	return lines, areas
 }
 
+// moreReplies labels the row under reply previews that opens the thread for the rest, like the web's Load more.
+func moreReplies(count int) string {
+	if count == 1 {
+		return "1 more reply"
+	}
+	return fmt.Sprintf("%d more replies", count)
+}
+
 func previewReplies(commit api.Commit) []api.Commit {
 	if commit.ReplyPreview == nil {
 		return nil
@@ -588,6 +596,14 @@ func (m AppModel) commitList(lines []string, commits []api.Commit, selected, wid
 		for _, reply := range previews {
 			heads = append(heads, len(rows))
 			rows = append(rows, replyPreview(reply, contentWidth, p, m.images, m.statsStyle())...)
+		}
+		if more := c.Replies - len(previews); len(previews) > 0 && more > 0 {
+			heads = append(heads, len(rows))
+			row := text(p.muted).Render(fit(moreReplies(more), contentWidth))
+			if i == selected {
+				row = actionChip(moreReplies(more), "enter", p)
+			}
+			rows = append(rows, row)
 		}
 		for _, line := range m.feedRail(c, rows, ring, heads, gutter, lane, p) {
 			if i == selected {

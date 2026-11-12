@@ -382,12 +382,12 @@ func (m *AppModel) addToThreads(mode, targetID string, commit api.Commit) {
 		return
 	}
 	for i := range m.starred.commits {
-		addReply(&m.starred.commits[i], targetID, commit)
+		addReply(&m.starred.commits[i], targetID, commit, m.tuiSettings.RepliesPerPage)
 	}
 	m.renderStarred()
 	for i := range m.feeds {
 		for j := range m.feeds[i].commits {
-			addReply(&m.feeds[i].commits[j], targetID, commit)
+			addReply(&m.feeds[i].commits[j], targetID, commit, m.tuiSettings.RepliesPerPage)
 		}
 		m.renderFeed(i)
 	}
@@ -395,22 +395,27 @@ func (m *AppModel) addToThreads(mode, targetID string, commit api.Commit) {
 		s := &m.profiles[i]
 		for l := range s.lists {
 			for j := range s.lists[l].commits {
-				addReply(&s.lists[l].commits[j], targetID, commit)
+				addReply(&s.lists[l].commits[j], targetID, commit, m.tuiSettings.RepliesPerPage)
 			}
 		}
 		m.renderProfile(s)
 	}
 }
 
-// addReply counts a confirmed reply on a listed parent and shows it as the newest reply, as the web's lists do.
-func addReply(parent *api.Commit, targetID string, reply api.Commit) {
+// addReply counts a confirmed reply on a listed parent and puts it first among the previews, which come newest first,
+// keeping at most the chosen number of previews.
+func addReply(parent *api.Commit, targetID string, reply api.Commit, previews int) {
 	if parent.ID != targetID {
 		return
 	}
 	parent.Replies++
+	data := []api.Commit{reply}
+	if parent.ReplyPreview != nil {
+		data = append(data, parent.ReplyPreview.Data...)
+	}
 	parent.ReplyPreview = &struct {
 		Data []api.Commit `json:"data"`
-	}{Data: []api.Commit{reply}}
+	}{Data: data[:min(len(data), max(1, previews))]}
 }
 
 func (m *AppModel) deleteKey(pressed string) tea.Cmd {

@@ -151,6 +151,7 @@ type AppModel struct {
 	version                    string
 	settings                   settingsState
 	settingsAPI                *api.Client
+	applyRepliesPerPage        func(int)
 	safetyHidden               map[string]uint8
 	starredOpen                bool
 	starred                    feed
@@ -889,6 +890,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
 		m.settingsAPI = client
+		if m.applyRepliesPerPage == nil {
+			m.applyRepliesPerPage = client.SetRepliesPerPage
+		}
+		m.applyRepliesPerPage(m.tuiSettings.RepliesPerPage)
 		m.setStar, m.givePastel, m.castVote = client.SetStar, client.GivePastel, client.Vote
 		m.loadStarred = client.Starred
 		if m.remoteCalls.inbox == nil {
@@ -992,6 +997,7 @@ func (m *AppModel) leaveApplication() {
 	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls, m.commitCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}, commitCalls{}
+	m.applyRepliesPerPage = nil
 	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
 	m.closeAllThreads()

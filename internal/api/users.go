@@ -123,7 +123,7 @@ func (c *Client) Profile(ctx context.Context, handle string) (Profile, error) {
 		return Profile{}, err
 	}
 	var profile Profile
-	if err := c.transport.GetJSON(ctx, path, &profile); err != nil {
+	if err := c.transport.GetJSON(ctx, withQuery(path, c.withReplies(url.Values{})), &profile); err != nil {
 		return Profile{}, err
 	}
 	if profile.User.ID == "" || !strings.EqualFold(profile.User.Handle, handle) || (profile.Pinned != nil && !validCommit(*profile.Pinned)) {
@@ -144,7 +144,7 @@ func (c *Client) UserCommits(ctx context.Context, handle string, replies bool, c
 	if replies {
 		query.Set("replies", "1")
 	}
-	return c.commitPage(ctx, path+"/commits", query, cursor)
+	return c.commitPage(ctx, path+"/commits", c.withReplies(query), cursor)
 }
 
 func (c *Client) Connections(ctx context.Context, handle string, list Connections, cursor string) (People, error) {

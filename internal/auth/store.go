@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -192,7 +193,15 @@ type TUISettings struct {
 	CustomThemes []CustomTheme `json:"custom_themes,omitempty"`
 	// DesktopNotifications sends new notifications and Remotes messages to the desktop while the terminal is unfocused.
 	DesktopNotifications bool `json:"desktop_notifications"`
+	// RepliesPerPage is how many reply previews lists show, like the web's replies_per_page cookie.
+	RepliesPerPage int `json:"replies_per_page"`
 }
+
+// RepliesPerPageCounts are the reply preview counts the web offers and the server accepts.
+var RepliesPerPageCounts = []int{1, 3, 5, 10, 15, 20, 25}
+
+// DefaultRepliesPerPage is the web's default, used for a missing or unknown count.
+const DefaultRepliesPerPage = 3
 
 // CustomTheme is a theme the user made from a built-in one. Colors maps palette slots, such as shell or lane1, to
 // #rrggbb values, and Base fills any slot that is missing or invalid.
@@ -207,7 +216,7 @@ type CustomTheme struct {
 const TUISettingsLimit = 65536
 
 func (s Store) TUISettings() TUISettings {
-	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1, DesktopNotifications: true}
+	defaults := TUISettings{CheckForUpdates: true, VoiceVolume: 1, DesktopNotifications: true, RepliesPerPage: DefaultRepliesPerPage}
 	data, ok := s.readState(tuiSettingsFile, TUISettingsLimit)
 	if !ok {
 		return defaults
@@ -218,6 +227,9 @@ func (s Store) TUISettings() TUISettings {
 	}
 	// Like the web's voiceVolumeOf: anything outside 0 to 1 is clamped, to whole percents.
 	settings.VoiceVolume = math.Round(min(1, max(0, settings.VoiceVolume))*100) / 100
+	if !slices.Contains(RepliesPerPageCounts, settings.RepliesPerPage) {
+		settings.RepliesPerPage = DefaultRepliesPerPage
+	}
 	return settings
 }
 

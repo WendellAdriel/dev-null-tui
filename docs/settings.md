@@ -26,7 +26,9 @@ The Region tab loads your timezone and translation settings when you open it.
 
 ## Appearance
 
-The Appearance tab sets the event theme and whether Who to follow shows. Its event theme shows dark or light colors to match your theme. Pick the theme itself in the TUI tab, or press `F2` in the workspace, outside popups and the composer. Both are saved in `tui.json`, and `--theme` overrides the theme for one run.
+The Appearance tab sets the event theme, whether Who to follow shows, and how many replies show under each commit. The event theme shows dark or light colors to match your theme. Pick the theme itself in the TUI tab, or press `F2` in the workspace, outside popups and the composer. These settings are saved in `tui.json`, and `--theme` overrides the theme for one run.
+
+**Replies** sets how many of the newest replies show under each commit in logs, profiles, and Starred: 1, 3, 5, 10, 15, 20, or 25, as on the web. The default is 3. When a commit has more replies than its previews, a **N more replies** row ends them. On the selected commit it shows `enter`, and `Enter` or a click opens the thread with every reply.
 
 ## Safety
 

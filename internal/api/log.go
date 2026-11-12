@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"strconv"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
@@ -87,8 +90,32 @@ type Page struct {
 }
 
 type Client struct {
-	transport *auth.Client
-	origin    *url.URL
+	transport      *auth.Client
+	origin         *url.URL
+	repliesPerPage atomic.Int64
+}
+
+// SetRepliesPerPage sets how many reply previews every list that shows them asks for.
+func (c *Client) SetRepliesPerPage(count int) {
+	c.repliesPerPage.Store(int64(count))
+}
+
+// withReplies adds replies_per_page, which the server's next links leave out, to a list request.
+func (c *Client) withReplies(query url.Values) url.Values {
+	if count := c.repliesPerPage.Load(); count > 0 {
+		query.Set("replies_per_page", strconv.FormatInt(count, 10))
+	}
+	return query
+}
+
+func withQuery(target string, query url.Values) string {
+	if len(query) == 0 {
+		return target
+	}
+	if strings.Contains(target, "?") {
+		return target + "&" + query.Encode()
+	}
+	return target + "?" + query.Encode()
 }
 
 func NewClient(origin string, key *auth.Key) (*Client, error) {
@@ -132,11 +159,15 @@ func (c *Client) Log(ctx context.Context, log Log, next, since string) (Page, er
 	if err != nil {
 		return Page{}, err
 	}
+	query := url.Values{}
 	if next == "" && since != "" && log != Trending {
-		target += "?since=" + url.QueryEscape(since)
+		query.Set("since", since)
+	}
+	if next == "" {
+		target = withQuery(target, query)
 	}
 	var page Page
-	if err := c.transport.GetJSON(ctx, target, &page); err != nil {
+	if err := c.transport.GetJSON(ctx, withQuery(target, c.withReplies(url.Values{})), &page); err != nil {
 		return Page{}, err
 	}
 	if page.Log != log || page.Ranked != (log == Trending) || page.Data == nil {

@@ -180,6 +180,24 @@ func TestStoreKeepsTUISettingsWithSafeDefaults(t *testing.T) {
 	}
 }
 
+func TestRepliesPerPageDefaultsToThreeAndOnlyKeepsTheWebsCounts(t *testing.T) {
+	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
+	if err := store.Prepare(); err != nil {
+		t.Fatal(err)
+	}
+	if got := store.TUISettings().RepliesPerPage; got != 3 {
+		t.Fatalf("missing tui.json gave %d reply previews, want 3", got)
+	}
+	for saved, want := range map[string]int{`{"replies_per_page":10}`: 10, `{"replies_per_page":7}`: 3, `{"replies_per_page":0}`: 3} {
+		if err := os.WriteFile(filepath.Join(store.Dir, "tui.json"), []byte(saved), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if got := store.TUISettings().RepliesPerPage; got != want {
+			t.Errorf("%s gave %d reply previews, want %d", saved, got, want)
+		}
+	}
+}
+
 func TestStoreKeepsTwentyFullCustomThemes(t *testing.T) {
 	store := Store{Dir: filepath.Join(t.TempDir(), "dev-null-cli")}
 	if err := store.Prepare(); err != nil {

@@ -129,7 +129,7 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	switch d.kind {
 	case "commit-menu":
 		verb = "Run"
-	case "event-theme", "theme":
+	case "event-theme", "theme", "replies-per-page":
 		verb = "Apply"
 	}
 	hints := []statusPart{hintChip("Choose", "↑/↓", "down"), statusChip(verb, "enter")}
@@ -299,6 +299,8 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, m.setEventTheme(row.value)
 	case "theme":
 		return m, m.setTheme(row.value)
+	case "replies-per-page":
+		return m, m.setRepliesPerPage(row.value)
 	case "theme-base":
 		return m, m.newThemeEditor(row.value)
 	}
