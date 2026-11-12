@@ -16,7 +16,7 @@ import (
 var badgeGlyphs = map[string]string{
 	"terminal": "›", "file-code": "≡", "flame": "∆", "zap": "ϟ", "server": "☰", "box": "□", "shield": "◈", "star": "☆",
 	"sparkles": "✧", "git-merge": "⑂", "key": "⌐", "pastel-de-nata": "◍", "bot-off": "⊘", "bomb": "◉",
-	"dragon-ball": "✪", "mushroom-cloud": "♣", "award": "◎",
+	"dragon-ball": "✪", "mushroom-cloud": "♣", "award": "◎", "git-commit-horizontal": "⊸",
 }
 
 // badgeIconName falls back to the terminal icon for names it doesn't know, as the web does.

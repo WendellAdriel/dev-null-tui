@@ -111,7 +111,7 @@ func TestPastelIconKeepsItsOwnColorsOnASquareCanvas(t *testing.T) {
 func TestBadgeIconsTintTheWebIconsInTheRingColor(t *testing.T) {
 	m := New("https://example.test")
 	m.Enabled = true
-	for _, name := range []string{"terminal", "file-code", "flame", "zap", "server", "box", "shield", "star", "sparkles", "git-merge", "key", "bot-off", "bomb", "dragon-ball", "mushroom-cloud", "award"} {
+	for _, name := range []string{"terminal", "file-code", "flame", "zap", "server", "box", "shield", "star", "sparkles", "git-merge", "git-commit-horizontal", "key", "bot-off", "bomb", "dragon-ball", "mushroom-cloud", "award"} {
 		jobs, _ := m.Plan(t.Context(), []Request{{Icon: "badge-" + name, Ring: "#123abc", Cols: 2, Rows: 1}})
 		if len(jobs) != 1 {
 			t.Fatalf("no icon job for %s", name)
