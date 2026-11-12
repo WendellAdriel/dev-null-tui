@@ -79,19 +79,25 @@ type toastNotice struct {
 	id                  int
 	visible             bool
 	kind, title, detail string
+	// link opens when the toast is clicked, such as a newly opened issue.
+	link string
 }
 type toastExpired struct{ id, session int }
 
 func (m *AppModel) showToast(kind, title, detail string) {
 	m.toast.id++
 	m.toast.visible = true
-	m.toast.kind, m.toast.title, m.toast.detail = kind, safeText(title), fit(safeText(detail), 400)
+	m.toast.kind, m.toast.title, m.toast.detail, m.toast.link = kind, safeText(title), fit(safeText(detail), 400), ""
 }
 
 func (m *AppModel) notify(kind, title, detail string) tea.Cmd {
+	return m.notifyFor(kind, title, detail, 3*time.Second)
+}
+
+func (m *AppModel) notifyFor(kind, title, detail string, shown time.Duration) tea.Cmd {
 	m.showToast(kind, title, detail)
 	id, session := m.toast.id, m.session
-	return tea.Tick(3*time.Second, func(time.Time) tea.Msg { return toastExpired{id, session} })
+	return tea.Tick(shown, func(time.Time) tea.Msg { return toastExpired{id, session} })
 }
 
 func (m AppModel) toastView() (string, uiRect) {

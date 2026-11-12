@@ -186,6 +186,8 @@ Press `c` or click **Commit** to open the composer. It needs at least 48 columns
 
 Enter your text, then submit with `Ctrl+Enter` or the `Ctrl+S` fallback. `Ctrl+P` switches between preview and editing. Preview does not publish or store the draft. You can also select controls with `Tab` and activate them with `Enter`.
 
+To report a bug or request a feature, start the draft with `/bug ` or `/feature `, or choose **Report a bug** or **Request a feature** in search. The composer becomes an issue form with the web's template, and `Ctrl+S` opens it as a GitHub issue. Issues are text only, aren't saved as drafts, and send your terminal, OS, window size, language, color scheme, and current screen so the bug can be reproduced. The **Opened issue** notice stays for 10 seconds. Press `Ctrl+O` or click it to open the issue. While you write a Remotes message, `Ctrl+O` adds an image instead, so click the notice. If the server can't tell whether GitHub created the issue, sending again asks first.
+
 The budget is 4000 Unicode characters after normalization. Prose links count as at most 23 characters, while code counts literally. Each link is limited to 2048 characters, and normalized raw text is limited to 40000 characters. The server validates submissions.
 
 ### Images

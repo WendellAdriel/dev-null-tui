@@ -95,6 +95,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 			if m.undo.id != "" && m.toast.id == m.undo.toast {
 				return m, m.startUndo()
 			}
+			if m.toast.link != "" {
+				return m, m.openLink(m.toast.link)
+			}
 			return m, nil
 		}
 	}

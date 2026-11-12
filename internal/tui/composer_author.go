@@ -38,7 +38,7 @@ type authorCheckResult struct {
 
 func (m *AppModel) openAuthorPicker() tea.Cmd {
 	c := &m.composer
-	if c.previewing || c.sending || c.owner != m.account.user.ID {
+	if c.previewing || c.sending || c.owner != m.account.user.ID || c.issue() {
 		return nil
 	}
 	u := m.account.user

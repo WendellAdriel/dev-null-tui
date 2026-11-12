@@ -248,7 +248,7 @@ func (m *AppModel) composerPaste(msg tea.PasteMsg) tea.Cmd {
 		c.field, cmd = c.field.Update(msg)
 		return cmd
 	}
-	if paths, ok := api.DroppedPaths(msg.Content); ok {
+	if paths, ok := api.DroppedPaths(msg.Content); ok && !c.issue() {
 		m.attachImages(paths)
 		return nil
 	}
@@ -265,7 +265,7 @@ func (m AppModel) composerStripRows() int {
 	room := m.composerHeight() - m.composerContextRows()
 	count := c.attachmentCount()
 	switch {
-	case c.previewing, c.owner != m.account.user.ID:
+	case c.previewing, c.owner != m.account.user.ID, c.issue():
 		return 0
 	case m.stripThumbnails() && stripThumbRows+2 <= room-6:
 		return stripThumbRows + 2

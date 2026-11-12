@@ -485,7 +485,7 @@ func (m *AppModel) openSearchOption(option searchOption) tea.Cmd {
 		case "commit":
 			return m.composeTo("", api.Commit{})
 		case "feature", "bug":
-			return m.openLink(strings.TrimRight(m.account.origin, "/") + "/")
+			return m.composeTo(option.action, api.Commit{})
 		}
 		return m.toggleLive()
 	case "developer":

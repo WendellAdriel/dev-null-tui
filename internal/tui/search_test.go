@@ -216,7 +216,7 @@ func TestRecentSearchesKeepTheLastThreePerAccount(t *testing.T) {
 	}
 }
 
-func TestSearchActionsComposeGoLiveAndOpenTheWebForIssues(t *testing.T) {
+func TestSearchActionsComposeGoLiveAndReportIssues(t *testing.T) {
 	m, live := searchApp(t)
 	m = searchKey(m, "ctrl+k")
 	m = typeSearch(m, "comm")
@@ -231,9 +231,10 @@ func TestSearchActionsComposeGoLiveAndOpenTheWebForIssues(t *testing.T) {
 	m = searchKey(m, "ctrl+k")
 	m = typeSearch(m, "/bu")
 	m = searchKey(m, "enter")
-	if m.search != nil || fmt.Sprint(live.live.opened) != "[https://example.test/]" {
-		t.Fatalf("/bug should open the web: %q", live.live.opened)
+	if m.search != nil || m.composer.mode != "bug" || len(live.live.opened) != 0 {
+		t.Fatalf("/bug should open the composer as a bug report, opened %q", live.live.opened)
 	}
+	m = searchKey(m, "esc")
 	m = searchKey(m, "ctrl+k")
 	m = typeSearch(m, "go live")
 	m = searchKey(m, "enter")

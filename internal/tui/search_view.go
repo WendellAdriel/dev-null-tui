@@ -17,8 +17,8 @@ var searchHeadings = map[string]string{
 
 var actionLabels = map[string]struct{ label, command string }{
 	"commit":     {"Write a commit", ""},
-	"feature":    {"Request a feature on the web", "/feature"},
-	"bug":        {"Report a bug on the web", "/bug"},
+	"feature":    {"Request a feature", "/feature"},
+	"bug":        {"Report a bug", "/bug"},
 	"go-live":    {"Go live", ""},
 	"end-stream": {"End stream", ""},
 }

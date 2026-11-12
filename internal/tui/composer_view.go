@@ -137,9 +137,12 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 }
 
 func (m AppModel) composerTitle(p palette) string {
-	title := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote commit"}[m.composer.mode]
+	title := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote commit", "feature": "Request a feature", "bug": "Report a bug"}[m.composer.mode]
 	if m.composer.previewing {
 		title = "Preview commit"
+		if m.composer.issue() {
+			title = "Preview issue"
+		}
 	}
 	marker := "◌"
 	if m.composer.hasDraft() {
@@ -258,6 +261,9 @@ func (m AppModel) confirmationModal(p palette) (string, uiRect, []hitArea) {
 	if c.confirm == "retry" {
 		title = "Submit again?"
 		detail = "The previous commit may exist. Another submission risks a duplicate."
+		if c.issue() {
+			title, detail = "Send the report again?", "The issue may already exist on GitHub. Sending again may open a duplicate."
+		}
 		actions[1] = modalAction{"Submit again", "ctrl+s", "ctrl+s"}
 	}
 	w, h := max(1, m.account.width), max(1, m.account.height)

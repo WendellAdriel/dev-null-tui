@@ -25,21 +25,23 @@ type composer struct {
 	previewOffset                                        int
 	status, confirm, owner, mode                         string
 	target                                               api.Commit
-	confirmFocus                                         int
-	dragging                                             bool
-	preview                                              api.Preview
-	cancel                                               context.CancelFunc
-	suggest                                              completion
-	images                                               []api.ImageFile
-	poll                                                 *pollDraft
-	strip                                                int
-	editing                                              string
-	field                                                textinput.Model
-	browser                                              *fileBrowser
-	author                                               *auth.Organization
-	picker                                               *authorPicker
-	schedule                                             *schedulePicker
-	scheduleAt                                           *time.Time
+	// issueDraft is the saved draft a typed /bug or /feature came from, removed once the issue opens.
+	issueDraft   string
+	confirmFocus int
+	dragging     bool
+	preview      api.Preview
+	cancel       context.CancelFunc
+	suggest      completion
+	images       []api.ImageFile
+	poll         *pollDraft
+	strip        int
+	editing      string
+	field        textinput.Model
+	browser      *fileBrowser
+	author       *auth.Organization
+	picker       *authorPicker
+	schedule     *schedulePicker
+	scheduleAt   *time.Time
 }
 
 type submissionResult struct {
@@ -79,7 +81,7 @@ func (m *AppModel) openComposer() tea.Cmd {
 }
 
 func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
-	if mode != "" && (target.DeletedAt != nil || target.Author == nil) {
+	if mode != "" && !isIssueMode(mode) && (target.DeletedAt != nil || target.Author == nil) {
 		return nil
 	}
 	c := &m.composer
@@ -92,6 +94,9 @@ func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
 	}
 	cmd := m.openComposer()
 	m.composer.mode, m.composer.target = mode, target
+	if isIssueMode(mode) {
+		m.composer.startIssueMode(mode)
+	}
 	m.restoreDraft()
 	m.sizeComposer()
 	return cmd
@@ -202,6 +207,13 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if c.owner != m.account.user.ID {
 		return m.requestDraftAction("discard")
+	}
+	if c.issue() {
+		switch pressed {
+		case "ctrl+o", "ctrl+l", "ctrl+a", "ctrl+t":
+			c.status = "Issues are text only, and open as you."
+			return nil
+		}
 	}
 	if !c.previewing {
 		switch pressed {
@@ -352,6 +364,7 @@ func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 			}
 		}
 		m.invalidatePreview()
+		m.takeIssueCommand()
 	}
 	return tea.Batch(cmd, m.refreshSuggestions())
 }
@@ -372,6 +385,9 @@ func (m *AppModel) startSubmission() tea.Cmd {
 	c := &m.composer
 	if c.sending || !c.open || c.owner != m.account.user.ID {
 		return nil
+	}
+	if c.issue() {
+		return m.startIssue()
 	}
 	if c.mode != "" && (c.target.ID == "" || c.target.DeletedAt != nil || c.target.Author == nil) {
 		c.status = "The reply or quote target is unavailable. Your draft is kept."

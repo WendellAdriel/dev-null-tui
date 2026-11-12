@@ -48,7 +48,7 @@ func (m *AppModel) loadCommitDrafts() {
 // A draft whose last submission had an unknown outcome stays in memory, so its duplicate-risk confirmation survives.
 func (m AppModel) canSaveDrafts() bool {
 	c := m.composer
-	return m.connected && c.owner != "" && c.owner == m.account.user.ID && !c.sending && !c.uncertain
+	return m.connected && c.owner != "" && c.owner == m.account.user.ID && !c.sending && !c.uncertain && !c.issue()
 }
 
 func (m *AppModel) saveCommitDrafts() tea.Cmd {
@@ -93,7 +93,10 @@ func (m *AppModel) dropDraft() tea.Cmd {
 }
 
 func (m *AppModel) removeDraft() error {
-	key := draftKey(m.composer.mode, m.composer.target)
+	return m.removeDraftAt(draftKey(m.composer.mode, m.composer.target))
+}
+
+func (m *AppModel) removeDraftAt(key string) error {
 	if _, ok := m.commitDrafts[key]; !ok || m.composer.owner != m.account.user.ID {
 		return nil
 	}

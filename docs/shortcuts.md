@@ -43,6 +43,7 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `y` | Copy the selected commit's link, with a manual fallback if clipboard access fails |
 | `a` | Open account connection controls |
 | `c` | Open the composer modal |
+| `Ctrl+O` | Open the issue you just reported, while its notice shows |
 | `Enter` | Open the selected commit's thread |
 | `u` | Open the selected commit author's profile, or an organization's page |
 | `r` | Reply to the selected commit |

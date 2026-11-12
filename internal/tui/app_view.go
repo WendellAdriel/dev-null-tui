@@ -24,6 +24,9 @@ func (k appKeys) FullHelp() [][]key.Binding { return [][]key.Binding{k.all} }
 // bindings adds search to every screen it opens from. Remotes keeps / for its own inbox search.
 func (m AppModel) bindings() appKeys {
 	keys := m.screenBindings()
+	if m.toast.visible && m.toast.link != "" && !m.composer.open && !m.settings.open {
+		keys.all = append(keys.all, key.NewBinding(key.WithKeys("ctrl+o"), key.WithHelp("ctrl+o", "open the new issue")))
+	}
 	// Help lists what works once it closes.
 	closed := m
 	closed.help = false

@@ -152,6 +152,7 @@ type AppModel struct {
 	settings                   settingsState
 	settingsAPI                *api.Client
 	applyRepliesPerPage        func(int)
+	openIssue                  func(context.Context, api.NewIssue) (api.OpenedIssue, error)
 	headlineCalls              headlineCalls
 	topics                     hotTopics
 	headline                   *topicPage
@@ -494,6 +495,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptSearchResult(msg)
 	case liveNowResult:
 		return m, m.acceptLiveNow(msg)
+	case issueResult:
+		return m, m.acceptIssue(msg)
 	case headlinesResult:
 		m.acceptHeadlines(msg)
 		return m, nil
@@ -895,6 +898,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.fetch = client.Log
 		}
 		m.submit, m.preview = client.CreateCommit, client.Preview
+		if m.openIssue == nil {
+			m.openIssue = client.OpenIssue
+		}
 		m.settingsAPI = client
 		if m.applyRepliesPerPage == nil {
 			m.applyRepliesPerPage = client.SetRepliesPerPage
@@ -1007,7 +1013,7 @@ func (m *AppModel) leaveApplication() {
 	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls, m.commitCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}, commitCalls{}
-	m.applyRepliesPerPage, m.headlineCalls = nil, headlineCalls{}
+	m.openIssue, m.applyRepliesPerPage, m.headlineCalls = nil, nil, headlineCalls{}
 	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
@@ -1170,6 +1176,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		if next, cmd, ok := m.topicsKey(pressed); ok {
 			return next, cmd
 		}
+	}
+	// Before Remotes, which has no ctrl+o of its own. Composers take their keys before this.
+	if pressed == "ctrl+o" && !m.pendingG && m.toast.visible && m.toast.link != "" {
+		return m, m.openLink(m.toast.link)
 	}
 	if m.remotesOnTop() && (m.remotes.dialog != "" || m.remotes.searching || m.remotesOverlay() || (!m.pendingG && pressed != "g" && pressed != "c" && pressed != "a")) {
 		return m.remotesKey(pressed)
