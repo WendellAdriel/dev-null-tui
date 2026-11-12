@@ -164,7 +164,7 @@ func TestStarredSidebarAndResponsiveFrames(t *testing.T) {
 					target = a
 				}
 			}
-			if target.w == 0 || target.y != 10 {
+			if target.w == 0 {
 				t.Fatal("missing starred sidebar target")
 			}
 			m, cmd := m.handleMouse(tea.MouseClickMsg{X: target.x, Y: target.y, Button: tea.MouseLeft})

@@ -6,11 +6,33 @@ import (
 	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
 )
 
-const starredHeaderHeight = 6
+// listHeaderHeight is the rows above the list screen's commits: a blank row, the title, a rule, the about lines, a
+// blank row and a rule.
+func (m AppModel) listHeaderHeight() int {
+	_, width, _ := m.columns()
+	return 5 + len(m.listAbout(width))
+}
+
+// listAbout is the line under the list screen's title, or a hot topic's recap wrapped to four lines.
+func (m AppModel) listAbout(width int) []string {
+	switch {
+	case m.headline != nil && m.headline.topic.Summary != nil:
+		rows := strings.Split(ansi.Wrap(safeText(*m.headline.topic.Summary), max(1, width-4), ""), "\n")
+		return rows[:min(len(rows), 4)]
+	case m.headline != nil:
+		return []string{"Commits about this topic from the past week, newest first."}
+	case m.commitSearch != "":
+		return []string{fit("Search: "+safeText(m.commitSearch), width-4)}
+	case m.scheduled != nil:
+		return []string{""}
+	}
+	return []string{"Commits you starred, newest first."}
+}
 
 func (m *AppModel) renderStarred() {
 	if !m.starredOpen {
@@ -45,6 +67,10 @@ func (m *AppModel) renderStarred() {
 		add("Try describing the idea in other words.")
 	case f.loaded && m.commitSearch != "":
 		add("Those are the closest commits.")
+	case f.loaded && len(f.commits) == 0 && m.headline != nil:
+		add("No commits about this topic in the past week.")
+	case f.loaded && m.headline != nil:
+		add("That's every commit about this topic from the past week.")
 	case f.loaded && len(f.commits) == 0:
 		add("fatal: no starred commits yet")
 		add("Star a commit to find it here.")
@@ -63,7 +89,7 @@ func (m *AppModel) sizeStarred() {
 	_, width, _ := m.columns()
 	if s := m.scheduled; s != nil {
 		s.viewport.SetWidth(width)
-		s.viewport.SetHeight(max(1, m.mainHeight()-starredHeaderHeight))
+		s.viewport.SetHeight(max(1, m.mainHeight()-m.listHeaderHeight()))
 		m.renderScheduled()
 		m.revealScheduledSelection()
 		return
@@ -74,7 +100,7 @@ func (m *AppModel) sizeStarred() {
 		offset -= f.starts[f.selected]
 	}
 	f.viewport.SetWidth(width)
-	f.viewport.SetHeight(max(1, m.mainHeight()-starredHeaderHeight))
+	f.viewport.SetHeight(max(1, m.mainHeight()-m.listHeaderHeight()))
 	m.renderStarred()
 	if f.selected < len(f.starts) {
 		f.viewport.SetYOffset(max(0, f.starts[f.selected]+offset))
@@ -100,16 +126,25 @@ func (m AppModel) starredColumn(width int, p palette) string {
 	}
 	line := text(p.hairline).Render(strings.Repeat("─", width))
 	header := split(text(p.ink).Bold(true).Render("Starred"), text(p.muted).Render(m.icons.lock+" Only you"), width-4)
-	about := "Commits you starred, newest first."
-	if m.commitSearch != "" {
-		count := ""
-		if m.starred.loaded && !m.starred.loading {
-			count = plural(len(m.starred.commits), "match", "matches")
-		}
-		header = split(text(p.ink).Bold(true).Render("Most relevant commits"), text(p.muted).Render(count), width-4)
-		about = "Search: " + safeText(m.commitSearch)
+	count := ""
+	if m.starred.loaded && !m.starred.loading {
+		count = plural(len(m.starred.commits), "match", "matches")
 	}
-	content := "\n  " + header + "\n" + line + "\n  " + text(p.muted).Render(fit(about, width-4)) + "\n\n" + line + "\n" + m.starred.viewport.View()
+	switch {
+	case m.headline != nil:
+		if m.starred.loaded && !m.starred.loading {
+			count = plural(len(m.starred.commits), "commit", "commits")
+		}
+		name := text(p.lanes[0]).Render(m.icons.flame) + " " + text(p.ink).Bold(true).Render(fit(safeText(m.headline.topic.Name), width-6-lipgloss.Width(count)))
+		header = split(name, text(p.muted).Render(count), width-4)
+	case m.commitSearch != "":
+		header = split(text(p.ink).Bold(true).Render("Most relevant commits"), text(p.muted).Render(count), width-4)
+	}
+	about := ""
+	for _, row := range m.listAbout(width) {
+		about += "\n  " + text(p.muted).Render(fit(row, width-4))
+	}
+	content := "\n  " + header + "\n" + line + about + "\n\n" + line + "\n" + m.starred.viewport.View()
 	return lipgloss.NewStyle().Width(width).Height(m.mainHeight()).MaxWidth(width).MaxHeight(m.mainHeight()).Render(content)
 }
 
@@ -123,11 +158,11 @@ func (m AppModel) starredBindings(bind func(string, string) key.Binding) appKeys
 	}
 	short = append(short, bind("ctrl+r", "refresh"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append(append([]key.Binding(nil), short...), bind("r / q", "reply / quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"))
-	if m.commitSearch == "" {
+	if m.isStarred() {
 		all = append(all, bind("n", "older starred commits"))
 	}
 	all = append(all, bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five entries"), bind("ctrl+u/ctrl+d", "move five entries"))
-	if m.commitSearch == "" {
+	if m.isStarred() {
 		all = append(all, bind("g s", "reopen Starred"))
 	} else {
 		all = append(all, bind("g s", "Starred"))
@@ -141,11 +176,11 @@ func (m AppModel) starredMouse(x, y int) (AppModel, tea.Cmd) {
 	if m.scheduled != nil {
 		return m.scheduledMouse(x, y)
 	}
-	if y < starredHeaderHeight || y >= m.mainHeight() {
+	if y < m.listHeaderHeight() || y >= m.mainHeight() {
 		return m, nil
 	}
 	f := &m.starred
-	row := y - starredHeaderHeight + f.viewport.YOffset()
+	row := y - m.listHeaderHeight() + f.viewport.YOffset()
 	for _, area := range f.actions {
 		if area.contains(x, row) {
 			if area.action == "avatar" {

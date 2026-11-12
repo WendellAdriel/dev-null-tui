@@ -52,7 +52,7 @@ func (m AppModel) openScheduled() (AppModel, tea.Cmd) {
 	if m.commitCalls.scheduled == nil {
 		return m, nil
 	}
-	next, cmd := m.openList("")
+	next, cmd := m.openList("", nil)
 	if !next.starredOpen {
 		return next, cmd
 	}
@@ -375,10 +375,10 @@ func (m AppModel) scheduledColumn(width int, p palette) string {
 
 func (m AppModel) scheduledMouse(x, y int) (AppModel, tea.Cmd) {
 	s := m.scheduled
-	if y < starredHeaderHeight || y >= m.mainHeight() {
+	if y < m.listHeaderHeight() || y >= m.mainHeight() {
 		return m, nil
 	}
-	row := y - starredHeaderHeight + s.viewport.YOffset()
+	row := y - m.listHeaderHeight() + s.viewport.YOffset()
 	for _, area := range s.actions {
 		if area.contains(x, row) {
 			return m.scheduledKey(area.action)

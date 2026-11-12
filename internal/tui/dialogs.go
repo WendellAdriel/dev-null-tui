@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"strconv"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -21,6 +22,8 @@ type pickerRow struct {
 	danger bool
 	// heading starts a group of rows, such as Event themes. It can't be selected.
 	heading bool
+	// detail shows in full below the list while the row is selected, such as a hot topic's recap.
+	detail string
 }
 
 // picker is a centered list dialog: Starred by, the link picker, the Live now picker, and the themes.
@@ -91,7 +94,20 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	if d.kind == "theme" {
 		footerRows = 2
 	}
-	shown := min(rows, max(1, min(pickerVisibleRows, m.account.height-9-footerRows-len(lines))))
+	// The selected row's detail takes the room left after at least three rows, ending in … when it doesn't fit.
+	var detail []string
+	if d.selected < len(d.rows) && d.rows[d.selected].detail != "" {
+		detail = strings.Split(ansi.Wrap(d.rows[d.selected].detail, width, ""), "\n")
+		room := max(1, m.account.height-9-footerRows-len(lines)-min(rows, 3)-1)
+		if len(detail) > room {
+			detail = append(detail[:room-1:room-1], fit(detail[room-1]+" …", width))
+		}
+	}
+	extra := 0
+	if len(detail) > 0 {
+		extra = len(detail) + 1
+	}
+	shown := min(rows, max(1, min(pickerVisibleRows, m.account.height-9-footerRows-len(lines)-extra)))
 	first := min(max(0, d.selected-shown/2), max(0, rows-shown))
 	top := len(lines)
 	var areas []hitArea
@@ -114,6 +130,12 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 		}
 		areas = append(areas, hitArea{uiRect{0, top + i - first, width, 1}, "row", i})
 		lines = append(lines, line)
+	}
+	if len(detail) > 0 {
+		lines = append(lines, text(pal.hairline).Render(strings.Repeat("─", width)))
+		for _, row := range detail {
+			lines = append(lines, text(pal.muted).Render(row))
+		}
 	}
 	if len(d.rows) == 0 {
 		status := d.status
@@ -295,6 +317,11 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, tea.Batch(m.syncImages(), m.openProfile(row.value))
 	case "live":
 		return m, tea.Batch(m.syncImages(), m.watchLive(row.person.Live))
+	case "topics":
+		if i, err := strconv.Atoi(row.value); err == nil && i < len(m.topics.list) {
+			return m.openTopic(m.topics.list[i], false)
+		}
+		return m, nil
 	case "event-theme":
 		return m, m.setEventTheme(row.value)
 	case "theme":

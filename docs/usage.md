@@ -81,6 +81,10 @@ Unstarring with `s` removes the entry after confirmation. Selection moves to the
 
 `Ctrl+R` refreshes the first page, keeping your position on failure. `Esc` from Starred returns to the log.
 
+## Hot topics
+
+The aside's **Hot topics** shows what people commit about in the last 12 hours, one card per topic with its whole title. On a short terminal the aside drops the shortcuts first, then the block. Click a card, or press `H` to pick a topic with its whole recap shown below the list, to open its commits under its name and recap. A topic shows **No recap right now** while the server writes a new recap, every 2 hours, or when the topic links commits hidden from you, such as ones from people you muted. The web shows the same. For the full list with whole recaps, press `g h` or choose **Hot topics** above Settings in the sidebar, then `Enter` or click a topic. `Esc` returns to the Hot topics screen when you opened the topic there, and to the log otherwise. The list refreshes every minute while the terminal is focused and the list is shown.
+
 ## Remotes
 
 Remotes are direct messages and orgs. **Remotes** appears between Notifications and Profile in the sidebar, with the unread count, only when Remotes is turned on in [Settings](settings.md). Press `g r` or click it to open the inbox. The badge refreshes every 15 seconds while Remotes is closed and the terminal is focused, and every 30 seconds while it isn't.

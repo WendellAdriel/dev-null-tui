@@ -152,6 +152,9 @@ type AppModel struct {
 	settings                   settingsState
 	settingsAPI                *api.Client
 	applyRepliesPerPage        func(int)
+	headlineCalls              headlineCalls
+	topics                     hotTopics
+	headline                   *topicPage
 	safetyHidden               map[string]uint8
 	starredOpen                bool
 	starred                    feed
@@ -491,6 +494,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptSearchResult(msg)
 	case liveNowResult:
 		return m, m.acceptLiveNow(msg)
+	case headlinesResult:
+		m.acceptHeadlines(msg)
+		return m, nil
 	case followedOrganizationsResult:
 		return m, m.acceptFollowedOrganizations(msg)
 	case pageOpened:
@@ -917,6 +923,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.liveCalls.goLive == nil {
 			m.liveCalls = newLiveCalls(client)
 		}
+		if m.headlineCalls.list == nil {
+			m.headlineCalls = newHeadlineCalls(client)
+		}
 		if m.suggestCalls.list == nil {
 			m.suggestCalls = suggestCalls{list: client.SuggestedUsers, dismiss: client.DismissSuggestion}
 		}
@@ -941,7 +950,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.tickClock(), m.scheduleLogCheck(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow())
+		return m, tea.Batch(cmd, load, m.tickClock(), m.scheduleLogCheck(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow(), m.fetchHeadlines())
 	}
 	return m, cmd
 }
@@ -950,6 +959,7 @@ func (m *AppModel) leaveApplication() {
 	// Cleared first, so closing the thread below can't write the drafts back.
 	m.messaging = messagingState{}
 	m.commitDrafts, m.drafts, m.whoToFollow = nil, draftsState{}, whoToFollow{}
+	m.topics, m.headline = hotTopics{}, nil
 	m.closeVoice()
 	m.settings.generation++
 	m.settings = settingsState{generation: m.settings.generation}
@@ -997,7 +1007,7 @@ func (m *AppModel) leaveApplication() {
 	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls, m.commitCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}, commitCalls{}
-	m.applyRepliesPerPage = nil
+	m.applyRepliesPerPage, m.headlineCalls = nil, headlineCalls{}
 	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
 	m.closeAllThreads()
@@ -1144,7 +1154,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.startSequence()
 		}
 		// A go-to sequence leaves Settings unless a write is in flight; anything else stays inside it.
-		if m.settings.busy || !m.pendingG || !strings.Contains("lenpstdr", pressed) || len(pressed) != 1 {
+		if m.settings.busy || !m.pendingG || !strings.Contains("lenpstdrh", pressed) || len(pressed) != 1 {
 			m.resetSequence()
 			cmd := m.settingsKey(pressed)
 			return m, cmd
@@ -1153,6 +1163,11 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if m.draftsOnTop() && !m.pendingG {
 		if next, cmd, ok := m.draftsKey(pressed); ok {
+			return next, cmd
+		}
+	}
+	if m.topicsOnTop() && !m.pendingG {
+		if next, cmd, ok := m.topicsKey(pressed); ok {
 			return next, cmd
 		}
 	}
@@ -1185,6 +1200,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if pressed == "W" && !m.pendingG && !m.profileOnTop() {
 		return m, m.watchLiveNow()
+	}
+	if pressed == "H" && !m.pendingG {
+		return m, m.openTopicsPicker()
 	}
 	if pressed == "w" && !m.pendingG {
 		if cmd := m.openWhoToFollow(); cmd != nil {
@@ -1231,6 +1249,8 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.openScheduled()
 		case "d":
 			return m.openDrafts()
+		case "h":
+			return m.openHotTopics()
 		case "r":
 			return m.openRemotes()
 		case ",":
@@ -1429,7 +1449,7 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	left := m.notificationsOpen || m.starredOpen || m.remotes.open || m.drafts.open || len(m.profiles) > 0
+	left := m.notificationsOpen || m.starredOpen || m.remotes.open || m.drafts.open || m.topics.open || len(m.profiles) > 0
 	if left {
 		m.drafts = draftsState{}
 		m.closeStarred()
@@ -1499,6 +1519,9 @@ func (m AppModel) statusParts() []statusPart {
 	if m.starredOpen {
 		return plainStatusLine(m.starredStatus())
 	}
+	if m.topicsOnTop() {
+		return plainStatusLine(m.topicsStatus())
+	}
 	// Settings can cover Remotes, and the Remotes chips would send their keys to Settings.
 	if m.remotes.open && !m.settings.open {
 		return m.remotesStatus()
@@ -1512,7 +1535,7 @@ func (m AppModel) gMenuStatus() []statusPart {
 	if m.remotesEnabled() {
 		parts = append(parts, statusChip("Remotes", "r"))
 	}
-	parts = append(parts, statusChip("Profile", "p"), statusChip("Starred", "s"), statusChip("Scheduled", "t"), statusChip("Drafts", "d"))
+	parts = append(parts, statusChip("Profile", "p"), statusChip("Starred", "s"), statusChip("Scheduled", "t"), statusChip("Drafts", "d"), statusChip("Hot topics", "h"))
 	return append(parts, statusPart{text: "(1 second)"})
 }
 

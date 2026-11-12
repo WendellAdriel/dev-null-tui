@@ -252,6 +252,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				if area.action == "drafts" {
 					return m.openDrafts()
 				}
+				if area.action == "hot-topics" {
+					return m.openHotTopics()
+				}
 				if area.action == "remotes" {
 					return m.openRemotes()
 				}
@@ -278,6 +281,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				if area.action == "watch" {
 					return m, m.watchLive(m.liveNow[area.index].Live)
 				}
+				if area.action == "topic" {
+					return m.openTopic(m.topics.list[area.index], false)
+				}
 				return m.mouseKey(area.action)
 			}
 		}
@@ -293,6 +299,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.draftsOnTop() && !m.settings.open {
 		if x := msg.X - left - nav - 1; x >= 0 && x < center {
 			return m.draftsMouse(x, msg.Y, center)
+		}
+		return m, nil
+	}
+	if m.topicsOnTop() && !m.settings.open {
+		if x := msg.X - left - nav - 1; x >= 0 && x < center {
+			return m.topicsMouse(x, msg.Y, center)
 		}
 		return m, nil
 	}

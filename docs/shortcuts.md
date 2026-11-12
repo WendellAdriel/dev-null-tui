@@ -30,6 +30,8 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `L` | Go live, or end your stream while you're live |
 | `g r` | Open Remotes, when Remotes is on |
 | `g s` | Open Starred, fetching its first page again |
+| `g h` | Open Hot topics |
+| `H` | Pick a hot topic and open its commits |
 | `g ,` | Open Settings |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |

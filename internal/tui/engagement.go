@@ -138,7 +138,7 @@ func (m *AppModel) acceptEngagement(msg engagementResult) tea.Cmd {
 	}
 	m.reconcileEngagement(msg.commit, msg.kind)
 	var reload tea.Cmd
-	if msg.kind == "star" && msg.commit.Starred != nil && !*msg.commit.Starred && m.commitSearch == "" {
+	if msg.kind == "star" && msg.commit.Starred != nil && !*msg.commit.Starred && m.isStarred() {
 		reload = m.removeStarred(msg.id)
 	}
 	m.reflow()

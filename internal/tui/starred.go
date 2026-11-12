@@ -18,6 +18,7 @@ type starredResult struct {
 	session, generation int
 	mode                string
 	page                api.CommitPage
+	topic               *api.HeadlinePage
 	err                 error
 }
 
@@ -38,15 +39,16 @@ func (m *AppModel) closeStarred() {
 	}
 	m.scheduled = nil
 	m.drafts = draftsState{}
+	m.topics.open, m.headline = false, nil
 }
 
-func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("") }
+func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("", nil) }
 
 // openCommitSearch shows a search's matching commits, the web's See all matching commits, in the Starred list screen.
-func (m AppModel) openCommitSearch(term string) (AppModel, tea.Cmd) { return m.openList(term) }
+func (m AppModel) openCommitSearch(term string) (AppModel, tea.Cmd) { return m.openList(term, nil) }
 
-func (m AppModel) openList(term string) (AppModel, tea.Cmd) {
-	if m.loadStarred == nil || (term != "" && m.searchCalls.commits == nil) {
+func (m AppModel) openList(term string, topic *topicPage) (AppModel, tea.Cmd) {
+	if m.loadStarred == nil || (term != "" && m.searchCalls.commits == nil) || (topic != nil && m.headlineCalls.page == nil) {
 		return m, nil
 	}
 	m.closeAllProfiles()
@@ -62,7 +64,7 @@ func (m AppModel) openList(term string) (AppModel, tea.Cmd) {
 		f.cancel, f.loading = nil, false
 		f.generation++
 	}
-	m.starredOpen, m.commitSearch = true, term
+	m.starredOpen, m.commitSearch, m.headline = true, term, topic
 	m.starred.viewport = viewport.New()
 	m.starred.cursors = make(map[string]bool)
 	m.starredRemoved = make(map[string]bool)
@@ -93,9 +95,17 @@ func (m *AppModel) fetchStarred(mode string) tea.Cmd {
 	ctx, cancel := context.WithTimeout(m.account.life.ctx, 30*time.Second)
 	f.cancel = cancel
 	session, generation, load, term, search := m.session, f.generation, m.loadStarred, m.commitSearch, m.searchCalls.commits
+	topic, readTopic := "", m.headlineCalls.page
+	if m.headline != nil {
+		topic = m.headline.topic.ID
+	}
 	m.renderStarred()
 	return m.account.life.command(func() tea.Msg {
 		defer cancel()
+		if topic != "" {
+			page, err := readTopic(ctx, topic)
+			return starredResult{session: session, generation: generation, mode: mode, page: api.CommitPage{Data: page.Data}, topic: &page, err: err}
+		}
 		if term != "" {
 			commits, err := search(ctx, term, commitResultsLimit)
 			return starredResult{session: session, generation: generation, mode: mode, page: api.CommitPage{Data: commits}, err: err}
@@ -139,6 +149,10 @@ func (m *AppModel) acceptStarred(msg starredResult) tea.Cmd {
 	}
 	f.commits = uniqueCommits(f.commits)
 	f.next, f.loaded = msg.page.Next, true
+	if msg.topic != nil && m.headline != nil {
+		m.headline.topic.Name, m.headline.topic.Summary = msg.topic.Name, msg.topic.Summary
+		m.sizeStarred()
+	}
 	if f.cursors[f.next] {
 		f.next, f.status = "", "Repeated pagination cursor. Ctrl+R to refresh."
 	}
@@ -153,7 +167,15 @@ func (m *AppModel) acceptStarred(msg starredResult) tea.Cmd {
 }
 
 // listName names the list screen in its messages.
+// isStarred is true while the Starred list screen holds Starred itself, not search results or a hot topic.
+func (m AppModel) isStarred() bool {
+	return m.commitSearch == "" && m.headline == nil
+}
+
 func (m AppModel) listName() string {
+	if m.headline != nil {
+		return "this topic"
+	}
 	if m.commitSearch != "" {
 		return "search results"
 	}
@@ -214,6 +236,9 @@ func (m AppModel) starredKey(pressed string) (AppModel, tea.Cmd) {
 	f := &m.starred
 	switch pressed {
 	case "esc":
+		if m.headline != nil {
+			return m.leaveTopic()
+		}
 		return m.switchLog(m.active)
 	case "j", "down":
 		return m, m.selectStarred(f.selected + 1)
@@ -278,6 +303,9 @@ func (m AppModel) starredStatus() string {
 			return "fatal: nothing close to '" + safeText(m.commitSearch) + "'"
 		}
 		return fmt.Sprintf("%d / %d matching commits", f.selected+1, len(f.commits))
+	}
+	if m.headline != nil {
+		return fmt.Sprintf("%d / %d commits about this topic", min(f.selected+1, len(f.commits)), len(f.commits))
 	}
 	if len(f.commits) == 0 {
 		return "No starred commits yet."

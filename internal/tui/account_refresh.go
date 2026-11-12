@@ -64,8 +64,12 @@ func (m *AppModel) refreshAside() tea.Cmd {
 	if nav >= sidebarWidth {
 		account = m.refreshAccount()
 	}
+	var topics tea.Cmd
 	if aside > 0 {
 		live = m.fetchLiveNow()
 	}
-	return tea.Batch(account, live)
+	if (aside > 0 && !m.remotesWide()) || m.topicsOnTop() {
+		topics = m.fetchHeadlines()
+	}
+	return tea.Batch(account, live, topics)
 }
