@@ -40,6 +40,8 @@ Commit the reviewed changes and push `main` to `origin`. The script requires a c
 scripts/release.sh v0.1.0 --publish
 ```
 
+The script reads the latest Checks run for the pushed commit. It refuses to publish while that run is missing, still running, or failed. When the run failed only because GitHub Actions couldn't start its jobs for billing or a spending limit, the script runs the CI checks locally instead: `make check test-race coverage`, lint for darwin and windows, and `--version` and `--help` on the host executable it builds. Native macOS and Windows tests can't run locally, so the script says so.
+
 The script repeats tests and builds, then asks you to type the version to confirm publication. It refuses an existing tag or release. It uploads every file listed in `checksums.txt` (the six executables and six archives), the checksums file, and the MIT license to a draft release, then publishes it as the latest release with generated notes. No GitHub Actions release workflow is needed for cross-compilation.
 
 The installers and `devnull update` use `WendellAdriel/dev-null-tui` as their fixed release source. The Go module and linker variable still use the existing `github.com/WendellAdriel/dev-null-cli` module path.

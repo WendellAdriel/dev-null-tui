@@ -22,6 +22,7 @@ if [ ! -s "$summary" ]; then
     exit 1
 fi
 repo=WendellAdriel/dev-null-tui
+local_ci=
 if [ "$publish" = --publish ]; then
     command -v gh >/dev/null 2>&1 || { echo 'GitHub CLI (gh) is required to publish.' >&2; exit 1; }
     if [ -n "$(git status --porcelain)" ]; then echo 'Commit all changes before publishing.' >&2; exit 1; fi
@@ -38,10 +39,40 @@ if [ "$publish" = --publish ]; then
     remote_tag=$(git ls-remote origin "refs/tags/$version")
     if [ -n "$remote_tag" ]; then echo 'This tag already exists remotely.' >&2; exit 1; fi
     if gh release view "$version" --repo "$repo" >/dev/null 2>&1; then echo 'This release already exists.' >&2; exit 1; fi
+    run=$(gh run list --repo "$repo" --workflow checks.yml --commit "$commit" --limit 1 \
+        --json databaseId,status,conclusion --jq '.[0] // empty | "\(.databaseId) \(.status) \(.conclusion)"')
+    case "$run" in
+        *' completed success') ;;
+        *' completed failure')
+            # Jobs that never started because of billing fail with an annotation and no step output.
+            jobs=$(gh run view "${run%% *}" --repo "$repo")
+            if printf '%s\n' "$jobs" | grep -Eqi 'spending limit|billing|payments have failed' &&
+                ! printf '%s\n' "$jobs" | grep -qi 'exit code'; then
+                local_ci=1
+            else
+                echo "CI failed on $commit. Fix it before publishing." >&2
+                exit 1
+            fi;;
+        '') echo "No Checks run exists for $commit. Wait for CI before publishing." >&2; exit 1;;
+        *) echo "CI hasn't passed on $commit yet ($run). Wait for it to finish." >&2; exit 1;;
+    esac
 fi
 
-go test ./...
+if [ -n "$local_ci" ]; then
+    echo 'GitHub Actions could not run the checks (billing or spending limit). Running them locally instead.'
+    make check test-race coverage
+    for goos in darwin windows; do GOOS=$goos "${GOLANGCI_LINT:-golangci-lint}" run ./...; done
+else
+    go test ./...
+fi
 go run ./tools/build -version "$version" -release
+if [ -n "$local_ci" ]; then
+    host="dist/release/devnull_$(go env GOOS)_$(go env GOARCH)"
+    if [ "$(go env GOOS)" = windows ]; then host="$host.exe"; fi
+    "$host" --version
+    "$host" --help >/dev/null
+    echo 'Native macOS and Windows tests did not run. Only the host binary was smoke tested.'
+fi
 if [ "$publish" != --publish ]; then
     printf 'Prepared %s in dist/release. No tag or release was created.\n' "$version"
     exit 0

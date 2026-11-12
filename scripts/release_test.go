@@ -17,7 +17,7 @@ func TestReleasePublicationRequiresExplicitApprovalAndCleanPushedMain(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined", "missing summary", "missing asset"} {
+	for _, scenario := range []string{"prepare", "publish", "dirty", "wrong remote", "unpushed", "existing tag", "remote tag", "existing release", "changed during build", "declined", "missing summary", "missing asset", "ci pending", "ci failed", "ci missing", "ci billing"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			scriptsDir, mockDir := filepath.Join(root, "scripts"), filepath.Join(root, "mocks")
@@ -45,13 +45,20 @@ func TestReleasePublicationRequiresExplicitApprovalAndCleanPushedMain(t *testing
 			mock := `#!/bin/sh
 name=${0##*/}
 printf '%s %s\n' "$name" "$*" >> "$TEST_ROOT/calls"
+if [ "$name" = golangci-lint ]; then
+    printf 'GOOS=%s\n' "${GOOS:-}" >> "$TEST_ROOT/calls"
+    exit 0
+fi
+if [ "$name" = make ]; then exit 0; fi
 if [ "$name" = go ]; then
+    case "$*" in 'env GOOS') echo linux; exit 0;; 'env GOARCH') echo amd64; exit 0;; esac
     touch "$TEST_ROOT/built"
     case "$*" in 'run ./tools/build '*)
         mkdir -p "$TEST_ROOT/dist/release"
         if [ "$TEST_SCENARIO" = 'missing asset' ]; then : > "$TEST_ROOT/dist/release/checksums.txt"; exit 0; fi
         for asset in devnull_linux_amd64 devnull_v0.1.0_windows_arm64.zip; do
-            touch "$TEST_ROOT/dist/release/$asset"
+            printf '#!/bin/sh\necho "devnull $*" >> "$TEST_ROOT/calls"\n' > "$TEST_ROOT/dist/release/$asset"
+            chmod +x "$TEST_ROOT/dist/release/$asset"
             echo "abc  $asset" >> "$TEST_ROOT/dist/release/checksums.txt"
         done;;
     esac
@@ -60,6 +67,19 @@ fi
 if [ "$name" = gh ]; then
     case "$*" in 'release view '*)
         if [ "$TEST_SCENARIO" = 'existing release' ]; then exit 0; else exit 1; fi;;
+    'run list '*)
+        case "$TEST_SCENARIO" in
+            'ci pending') echo '7 in_progress ';;
+            'ci failed'|'ci billing') echo '7 completed failure';;
+            'ci missing') ;;
+            *) echo '7 completed success';;
+        esac;;
+    'run view 7 '*)
+        if [ "$TEST_SCENARIO" = 'ci billing' ]; then
+            echo 'The job was not started because recent account payments have failed or your spending limit needs to be increased.'
+        else
+            echo 'X Process completed with exit code 1.'
+        fi;;
     esac
     exit 0
 fi
@@ -81,7 +101,7 @@ case "$*" in
     *) exit 99;;
 esac
 `
-			for _, name := range []string{"git", "gh", "go"} {
+			for _, name := range []string{"git", "gh", "go", "make", "golangci-lint"} {
 				path := filepath.Join(mockDir, name)
 				if err := os.WriteFile(path, []byte(mock), 0600); err != nil {
 					t.Fatal(err)
@@ -108,13 +128,19 @@ esac
 				t.Fatal(readErr)
 			}
 			published := strings.Contains(string(calls), "git tag -a") || strings.Contains(string(calls), "git push") || strings.Contains(string(calls), "gh release create")
-			if scenario == "publish" {
+			if scenario == "publish" || scenario == "ci billing" {
 				if err != nil || !published || !strings.Contains(string(calls), "--draft=false --latest") {
 					t.Fatalf("mock publication failed: %v %s\n%s", err, output, calls)
 				}
 				for _, asset := range []string{"devnull_linux_amd64", "devnull_v0.1.0_windows_arm64.zip", "checksums.txt"} {
 					if !strings.Contains(string(calls), "dist/release/"+asset) {
 						t.Fatalf("publication did not upload %s:\n%s", asset, calls)
+					}
+				}
+				local := []string{"make check test-race coverage", "GOOS=darwin", "GOOS=windows", "devnull --version", "devnull --help"}
+				for _, check := range local {
+					if (scenario == "ci billing") != strings.Contains(string(calls), check) {
+						t.Fatalf("%s: local CI checks must run only when Actions couldn't (%s):\n%s", scenario, check, calls)
 					}
 				}
 			} else if published {
