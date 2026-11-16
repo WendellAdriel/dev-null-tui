@@ -15,6 +15,12 @@ import (
 
 const RedirectURI = "devnull://auth/callback"
 
+// appID and appName name this app on the device the browser approves, as Settings > Devices shows it.
+const (
+	appID   = "terminal:dev-null-tui"
+	appName = "dev-null-tui"
+)
+
 var ErrDenied = errors.New("browser approval was canceled; try connecting again")
 
 type Attempt struct {
@@ -41,7 +47,7 @@ func NewAttempt(origin, fingerprint, device string) (*Attempt, error) {
 	a := &Attempt{State: hex.EncodeToString(state), Verifier: base64.RawURLEncoding.EncodeToString(verifier), redirect: RedirectURI, expires: time.Now().Add(10 * time.Minute)}
 	challenge := sha256.Sum256([]byte(a.Verifier))
 	base.Path = "/mobile/authorize"
-	base.RawQuery = url.Values{"fingerprint": {fingerprint}, "device_name": {device}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}, "code_challenge_method": {"S256"}, "state": {a.State}, "redirect_uri": {RedirectURI}}.Encode()
+	base.RawQuery = url.Values{"fingerprint": {fingerprint}, "device_name": {device}, "app_id": {appID}, "app_name": {appName}, "code_challenge": {base64.RawURLEncoding.EncodeToString(challenge[:])}, "code_challenge_method": {"S256"}, "state": {a.State}, "redirect_uri": {RedirectURI}}.Encode()
 	a.URL = base.String()
 	return a, nil
 }

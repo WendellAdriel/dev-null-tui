@@ -42,6 +42,9 @@ func TestAuthorizationCallbackIsBoundToAttempt(t *testing.T) {
 	if u.Query().Get("code_challenge") != base64.RawURLEncoding.EncodeToString(hash[:]) {
 		t.Fatal("incorrect PKCE challenge")
 	}
+	if u.Query().Get("app_id") != "terminal:dev-null-tui" || u.Query().Get("app_name") != "dev-null-tui" {
+		t.Fatalf("the approval doesn't name the app: %s", u.RawQuery)
+	}
 	for _, callback := range []string{"bare-code", "https://auth/callback?code=x&state=" + a.State, "devnull://other/callback?code=x&state=" + a.State} {
 		if _, err := a.Accept(callback); err == nil {
 			t.Fatal("accepted wrong callback destination")
@@ -80,6 +83,9 @@ func TestSignedEnrollmentAndIdentityUseTransmittedBytes(t *testing.T) {
 		body, _ := io.ReadAll(r.Body)
 		message := strings.Join([]string{r.Header.Get("X-Devnull-Timestamp"), r.Header.Get("X-Devnull-Nonce"), r.Method, r.RequestURI, string(body)}, "\n")
 		verifySignature(t, key, r.Header.Get("X-SSH-Signature"), []byte(message))
+		if agent := r.Header.Get("User-Agent"); agent != UserAgent || !strings.HasPrefix(agent, "dev-null-tui/") {
+			t.Errorf("user agent %q", agent)
+		}
 		if r.URL.Path == "/api/v1/devices" && string(body) != `{"code":"synthetic-code","code_verifier":"synthetic-verifier"}` {
 			t.Errorf("unexpected enrollment body %q", body)
 		}

@@ -21,6 +21,7 @@ import (
 var Version = release.Version
 
 func Run(args []string, stdout, stderr io.Writer) error {
+	auth.UserAgent = "dev-null-tui/" + Version
 	return runCommands(args, stdout, stderr, commands{app: startApp, update: func(output io.Writer) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 		defer cancel()

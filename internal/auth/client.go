@@ -20,9 +20,14 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/release"
 )
 
 const DefaultOrigin = "https://dev-null.sh"
+
+// UserAgent names this app and its version on signed requests. The CLI sets it to the version it was built with.
+var UserAgent = "dev-null-tui/" + release.Version
 
 type User struct {
 	ID                  string             `json:"id"`
@@ -366,6 +371,7 @@ func (c *Client) do(ctx context.Context, request signedRequest, expected int) ([
 	req.Header.Set("X-SSH-Signature", signature)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", request.contentType)
+	req.Header.Set("User-Agent", UserAgent)
 	client := c.http
 	if request.upload {
 		client = c.uploads()

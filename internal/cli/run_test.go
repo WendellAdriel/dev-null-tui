@@ -6,6 +6,8 @@ import (
 	"io"
 	"strings"
 	"testing"
+
+	"github.com/WendellAdriel/dev-null-cli/internal/auth"
 )
 
 func TestInformationalCommandsDoNotStartApplication(t *testing.T) {
@@ -140,5 +142,17 @@ func TestStartupOptionsAndPrivateCallbackDelivery(t *testing.T) {
 		if err := runCommands(args, io.Discard, io.Discard, commands{}); err == nil {
 			t.Fatalf("invalid account arguments accepted: %q", args)
 		}
+	}
+}
+
+func TestRunNamesTheStampedVersionInTheUserAgent(t *testing.T) {
+	stamped, agent := Version, auth.UserAgent
+	t.Cleanup(func() { Version, auth.UserAgent = stamped, agent })
+	Version = "v9.9.9"
+	if err := Run([]string{"--version"}, io.Discard, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if auth.UserAgent != "dev-null-tui/v9.9.9" {
+		t.Fatalf("user agent %q", auth.UserAgent)
 	}
 }
