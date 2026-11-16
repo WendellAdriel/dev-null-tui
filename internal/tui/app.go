@@ -141,6 +141,7 @@ type AppModel struct {
 	notificationCountCancel    context.CancelFunc
 	deletedNotificationCommits map[string]time.Time
 	loadProfile                func(context.Context, string) (api.Profile, error)
+	loadModerationHistory      func(context.Context) (api.ModerationHistory, error)
 	loadUserCommits            func(context.Context, string, bool, string) (api.CommitPage, error)
 	loadConnections            func(context.Context, string, api.Connections, string) (api.People, error)
 	setFollow                  func(context.Context, string, bool) error
@@ -401,7 +402,11 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		previous := m.unreadNotifications
 		m.unreadNotifications = msg.count
-		return m, m.acceptNotificationAlert(previous, msg.count)
+		if msg.count <= previous {
+			return m, m.acceptNotificationAlert(previous, msg.count)
+		}
+		// A new notification may be a timeout, which your open profile's moderation history should show.
+		return m, tea.Batch(m.acceptNotificationAlert(previous, msg.count), m.refreshModerationHistory())
 	case whatsNewSaved:
 		cmd := m.acceptWhatsNewSaved(msg)
 		return m, cmd
@@ -474,6 +479,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, m.acceptProfile(msg)
+	case moderationResult:
+		return m, m.acceptModerationHistory(msg)
 	case profileListResult:
 		msg.commits.Data = m.safeCommitsFor(msg.commits.Data, true)
 		return m, m.acceptProfileList(msg)
@@ -909,6 +916,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.loadProfile == nil {
 			m.loadProfile, m.loadUserCommits, m.loadConnections, m.setFollow = client.Profile, client.UserCommits, client.Connections, client.SetFollow
 		}
+		if m.loadModerationHistory == nil {
+			m.loadModerationHistory = client.ModerationHistory
+		}
 		if m.organizationCalls.load == nil {
 			m.organizationCalls = newOrganizationCalls(client)
 		}
@@ -1181,6 +1191,9 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if pressed == "m" && !m.pendingG && m.showMore() {
+		return m, nil
+	}
+	if m.profileOnTop() && pressed == "M" && m.openModerationHistory() {
 		return m, nil
 	}
 	if m.profileOnTop() && (pressed == "M" || pressed == "B") {

@@ -41,12 +41,15 @@ type profileState struct {
 	people       bool
 	organization bool
 	// mention opens a clicked @handle, which names a user or an organization, so a missing user tries the organization.
-	mention      bool
-	below, tab   int
-	profile      api.Profile
-	page         api.OrganizationPage
-	loaded       bool
-	status       string
+	mention    bool
+	below, tab int
+	profile    api.Profile
+	page       api.OrganizationPage
+	loaded     bool
+	status     string
+	// history is your moderation history, read only for your own profile. historyRead counts its reads.
+	history      *api.ModerationHistory
+	historyRead  int
 	lists        [2]profileList
 	generation   int
 	viewport     viewport.Model
@@ -200,6 +203,10 @@ func (m *AppModel) profileFor(session, generation int) *profileState {
 	return nil
 }
 
+func (m AppModel) ownProfile(s *profileState) bool {
+	return !s.people && !s.organization && strings.EqualFold(s.handle, m.account.user.Handle)
+}
+
 func (m AppModel) fetchProfile(s *profileState) tea.Cmd {
 	session, generation, handle, load, base := m.session, s.generation, s.handle, m.loadProfile, s.ctx
 	if s.organization {
@@ -211,12 +218,12 @@ func (m AppModel) fetchProfile(s *profileState) tea.Cmd {
 			return profileResult{session: session, generation: generation, page: page, err: err}
 		})
 	}
-	return m.account.life.command(func() tea.Msg {
+	return tea.Batch(m.account.life.command(func() tea.Msg {
 		ctx, cancel := context.WithTimeout(base, 30*time.Second)
 		defer cancel()
 		profile, err := load(ctx, handle)
 		return profileResult{session: session, generation: generation, profile: profile, err: err}
-	})
+	}), m.fetchModerationHistory(s))
 }
 
 func (m *AppModel) fetchProfileList(s *profileState, more bool) tea.Cmd {

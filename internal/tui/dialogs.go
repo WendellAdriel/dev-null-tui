@@ -84,7 +84,10 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 	width := max(1, min(56, m.account.width-4)-4)
 	var lines []string
 	if d.intro != "" {
-		lines = append(lines, text(pal.muted).Render(fit(d.intro, width)), "")
+		for _, row := range strings.Split(ansi.Wrap(d.intro, width, ""), "\n") {
+			lines = append(lines, text(pal.muted).Render(row))
+		}
+		lines = append(lines, "")
 	}
 	rows := len(d.rows)
 	if d.next != "" {
@@ -155,6 +158,9 @@ func (m AppModel) listPickerModal(pal palette) (string, uiRect, []hitArea) {
 		verb = "Apply"
 	}
 	hints := []statusPart{hintChip("Choose", "↑/↓", "down"), statusChip(verb, "enter")}
+	if d.kind == "moderation" {
+		hints = hints[:1]
+	}
 	if d.next != "" && verb == "Open" {
 		hints = append(hints, statusChip("More", "n"))
 	}
@@ -300,6 +306,9 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, m.loadStargazers(false)
 	}
 	if d.selected >= len(d.rows) {
+		return m, nil
+	}
+	if d.kind == "moderation" {
 		return m, nil
 	}
 	row := d.rows[d.selected]

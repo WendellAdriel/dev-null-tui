@@ -367,6 +367,11 @@ func (m AppModel) profileHeader(frame *profileFrame, s *profileState, width int,
 	if len(counts) > 0 {
 		frame.add("", pad+fit(strings.Join(counts, "   "), inner))
 	}
+	if h := s.history; h != nil && own {
+		chip := actionChip(m.icons.moderation+" "+plural(h.TimeoutsCount, "timeout", "timeouts")+" · "+plural(h.BansCount, "ban", "bans"), "M", p)
+		frame.target(2, lipgloss.Width(chip), "M")
+		frame.add(pad + fit(chip, inner))
+	}
 	if profile.PasteisReceived != nil && m.account.user.PasteisMode {
 		frame.add(pad + pastelLabel(plural(*profile.PasteisReceived, "pastél received", "pastéis received"), inner, p, m.images))
 	}
@@ -764,7 +769,7 @@ func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys
 	short := []key.Binding{bind("↑/↓", "move"), bind("tab", "commits / replies"), bind("f", "follow / unfollow"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	all := append(append([]key.Binding(nil), short...), bind("1 / 2", "commits / replies"), bind("F / O", "followers / following"), bind("V", "view avatar"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("A", "all achievements"), bind("n", "older commits"), bind("ctrl+r", "reload profile"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("c", "compose"), bind("f2", "choose a theme"), bind("click", "select, open, act, or view image"))
 	all = append(all, m.engagementBindings()...)
-	all = append(all, bind("M", "mute / unmute profile"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
+	all = append(all, bind("M", "mute / unmute profile, or your moderation history"), bind("B", "block profile"), bind("W", "watch their stream"), bind("L", "go live / end your stream"), bind("g ,", "settings"))
 	return appKeys{short, all}
 }
 
