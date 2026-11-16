@@ -21,6 +21,9 @@ type liveLog struct {
 	people        []api.User
 }
 
+// idleMsg is a message nothing handles, standing in for a cursor blink.
+type idleMsg struct{}
+
 func stream(m AppModel, platform string, left time.Duration) *auth.LiveStream {
 	return &auth.LiveStream{Platform: platform, URL: "https://www.twitch.tv/" + platform + "-stream", ThumbnailURL: "https://static.example.test/" + platform + ".jpg", EndsAt: m.now.Add(left)}
 }

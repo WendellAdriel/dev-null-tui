@@ -53,10 +53,10 @@ func (m AppModel) canCopyText(c api.Commit) bool {
 	if m.ownCommit(c) {
 		return true
 	}
-	if !c.Author.Organization() || m.account.user.Organizations == nil {
+	if !c.Author.Organization() {
 		return false
 	}
-	for _, o := range *m.account.user.Organizations {
+	for _, o := range m.account.user.Organizations {
 		if o.ID != "" && c.Author.ID != "" {
 			if o.ID == c.Author.ID {
 				return true

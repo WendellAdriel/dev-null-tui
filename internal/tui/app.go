@@ -481,8 +481,6 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptFollow(msg)
 	case claimResult:
 		return m, m.acceptClaim(msg)
-	case authorCheckResult:
-		return m, m.acceptAuthorCheck(msg)
 	case liveResult:
 		return m, m.acceptLive(msg)
 	case completionTick:
@@ -857,17 +855,8 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.updateMessageInput(msg)
 		}
 	}
-	if picker := m.composer.picker; m.connected && m.composer.open && picker != nil {
-		if !picker.typed || picker.checking {
-			return m, nil
-		}
-		before := picker.field.Value()
-		var cmd tea.Cmd
-		picker.field, cmd = picker.field.Update(msg)
-		if picker.field.Value() != before {
-			picker.status = ""
-		}
-		return m, cmd
+	if m.connected && m.composer.open && m.composer.picker != nil {
+		return m, nil
 	}
 	if m.connected && m.composer.open && !m.composer.sending && !m.composer.previewing && m.composer.confirm == "" {
 		if paste, ok := msg.(tea.PasteMsg); ok {

@@ -107,7 +107,7 @@ func TestTCopiesTheTextOfOwnAndOrganizationCommits(t *testing.T) {
 	m := threadApp(t)
 	copied := copiedValues(&m)
 	orgs := []auth.Organization{{ID: "org-1", Handle: "acme"}}
-	m.account.user.Organizations = &orgs
+	m.account.user.Organizations = orgs
 	own := fixtureCommit("own")
 	own.Body, own.Author.ID = "My own words", "fixture"
 	org := fixtureCommit("org")

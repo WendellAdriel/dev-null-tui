@@ -44,8 +44,7 @@
         "html_url": "https://devnull.example/@laravel",
         "lane": null
       }
-    ],
-    "can_post_as_organization": true
+    ]
   },
   "unread_notifications_count": 0
 }

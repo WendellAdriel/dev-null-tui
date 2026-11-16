@@ -298,6 +298,9 @@ func (m AppModel) stripView(width int, p palette) (string, []hitArea) {
 		if c.mode == "" && m.commitCalls.schedule != nil {
 			hints = append(hints, statusChip("Schedule", "ctrl+t"))
 		}
+		if m.canPostAs() {
+			hints = append(hints, statusChip("Post as", "ctrl+a"))
+		}
 		return hintRow(hints, width, p)
 	}
 	thumbnails := rows == stripThumbRows+2 && m.stripThumbnails()
