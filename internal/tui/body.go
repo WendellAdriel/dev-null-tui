@@ -960,7 +960,8 @@ func (r bodyRenderer) wordmarks(s string) []piece {
 
 var pastelWords = []string{"pastel", "pasteis", "pastéis"}
 
-// pasteis swaps the words for the pastel icon in pastéis mode, or colors them until the icon is ready.
+// pasteis swaps the words for the pastel icon in pastéis mode, or colors them until the icon is ready. A backslash
+// right before a word keeps it as text and is dropped, like the web's pasteisParts.
 func (r bodyRenderer) pasteis(s string) []piece {
 	if !r.style.pasteis {
 		return []piece{{text: s}}
@@ -969,39 +970,51 @@ func (r bodyRenderer) pasteis(s string) []piece {
 	position := 0
 	for i := 0; i < len(s); {
 		_, size := utf8.DecodeRuneInString(s[i:])
-		if i > 0 && isWordRune(lastRune(s[:i])) {
+		if before := lastRune(s[:i]); i > 0 && (isWordRune(before) || before == '\\') {
 			i += size
 			continue
 		}
-		word := ""
-		for _, candidate := range pastelWords {
-			end := i
-			for range utf8.RuneCountInString(candidate) {
-				if end >= len(s) {
-					break
-				}
-				_, n := utf8.DecodeRuneInString(s[end:])
-				end += n
-			}
-			if strings.EqualFold(s[i:end], candidate) && (end == len(s) || !isWordRune(firstRune(s[end:]))) {
-				word = s[i:end]
-				break
-			}
+		escaped := s[i] == '\\'
+		start := i
+		if escaped {
+			start++
 		}
+		word := pastelWordAt(s, start)
 		if word == "" {
 			i += size
 			continue
 		}
 		pieces = append(pieces, piece{text: s[position:i]})
-		if icon := r.pastelIcon(); icon != "" {
+		switch icon := r.pastelIcon(); {
+		case escaped:
+			pieces = append(pieces, piece{text: word})
+		case icon != "":
 			pieces = append(pieces, piece{atom: icon})
-		} else {
+		default:
 			pieces = append(pieces, piece{text: word, paint: text(r.p.lanes[0]).Render})
 		}
-		i += len(word)
+		i = start + len(word)
 		position = i
 	}
 	return append(pieces, piece{text: s[position:]})
+}
+
+// pastelWordAt returns the pastel word that starts at i and ends before a word character, or "".
+func pastelWordAt(s string, i int) string {
+	for _, candidate := range pastelWords {
+		end := i
+		for range utf8.RuneCountInString(candidate) {
+			if end >= len(s) {
+				break
+			}
+			_, n := utf8.DecodeRuneInString(s[end:])
+			end += n
+		}
+		if strings.EqualFold(s[i:end], candidate) && (end == len(s) || !isWordRune(firstRune(s[end:]))) {
+			return s[i:end]
+		}
+	}
+	return ""
 }
 
 func (r bodyRenderer) pastelIcon() string {

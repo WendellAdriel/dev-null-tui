@@ -189,6 +189,23 @@ func TestBodyDrawsPastelWordsOnlyInPasteisMode(t *testing.T) {
 	}
 }
 
+func TestBodyKeepsBackslashEscapedPastelWordsAsText(t *testing.T) {
+	p := colors(true)
+	pastel := text(p.lanes[0]).Render
+	body := prose(`\pastel, (\Pastéis) a\pastel \\pasteis pastel`)
+	raw, plain := bodyOf(body, 80, statsStyle{pasteis: true, glyphs: nerdIcons})
+	if want := `pastel, (Pastéis) a\pastel \\pasteis pastel`; plain[0] != want {
+		t.Fatalf("got %q, want %q", plain[0], want)
+	}
+	if strings.Count(raw, pastel("pastel")) != 1 || strings.Contains(raw, pastel("Pastéis")) || strings.Contains(raw, pastel("pasteis")) {
+		t.Fatalf("only the last word may be drawn as a pastel: %q", raw)
+	}
+	_, plain = bodyOf(prose(`\pastel`), 80, statsStyle{glyphs: nerdIcons})
+	if plain[0] != `\pastel` {
+		t.Fatalf("pastéis mode off must leave the backslash: %q", plain[0])
+	}
+}
+
 func TestBodyHighlightsCodeBlocksUnderTheirFilename(t *testing.T) {
 	p := colors(true)
 	segments := []api.Segment{
