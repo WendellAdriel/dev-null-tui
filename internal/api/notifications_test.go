@@ -94,3 +94,23 @@ func TestNotificationCountUsesOnlyMeAndKeepsRemotesSeparate(t *testing.T) {
 		t.Fatal("missing count treated as zero")
 	}
 }
+
+func TestNotificationsReadTheTimeoutAndTheOrganization(t *testing.T) {
+	client := fixtureClient(t, func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":[`+
+			`{"id":"n1","group_id":"g1","type":"timed_out","actor":{"id":"m","handle":"mod"},"created_at":"2026-11-16T10:00:00Z","timeout":{"reason":"Spam or self-promotion","duration":"3 hours","ends_at":"2026-11-16T13:00:00Z"}},`+
+			`{"id":"n2","group_id":"g2","type":"replied","actor":{"id":"u","handle":"ada"},"created_at":"2026-11-16T09:00:00Z","organization":{"handle":"laravel","name":"Laravel"}}`+
+			`],"read_at":"2026-11-16T12:00:00Z","meta":{"next_cursor":null}}`)
+	})
+	page, err := client.Notifications(t.Context(), "all", "")
+	if err != nil || len(page.Data) != 2 {
+		t.Fatalf("page: %+v %v", page, err)
+	}
+	timeout := page.Data[0].Timeout
+	if timeout == nil || timeout.Reason != "Spam or self-promotion" || timeout.Duration != "3 hours" || !timeout.EndsAt.Equal(time.Date(2026, 11, 16, 13, 0, 0, 0, time.UTC)) {
+		t.Fatalf("timeout: %+v", timeout)
+	}
+	if organization := page.Data[1].Organization; organization == nil || organization.Handle != "laravel" || page.Data[0].Organization != nil {
+		t.Fatalf("organization: %+v", page.Data[1].Organization)
+	}
+}

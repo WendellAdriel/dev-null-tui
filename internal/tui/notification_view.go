@@ -64,23 +64,54 @@ func (m AppModel) notificationColumn(width int, p palette) string {
 }
 
 func notificationVerb(n api.Notification) (string, string) {
+	whose := "your"
+	if n.Organization != nil {
+		whose = "@" + safeText(n.Organization.Handle) + "'s"
+	}
 	switch n.Type {
 	case "followed":
 		return "+", "followed you"
 	case "starred":
-		return "★", "starred your commit"
+		return "★", "starred " + whose + " commit"
 	case "replied":
-		return "↩", "Replied to your commit"
+		return "↩", "Replied to " + whose + " commit"
 	case "quoted":
-		return "❝", "Quoted your commit"
+		return "❝", "Quoted " + whose + " commit"
 	case "mentioned":
+		if n.Organization != nil {
+			return "@", "Mentioned @" + safeText(n.Organization.Handle)
+		}
 		return "@", "Mentioned you"
 	case "approved":
-		return "✓", "Your commit was approved"
+		return "✓", ownerOf(n) + " commit was approved"
 	case "rejected":
-		return "×", "Your commit was rejected"
+		return "×", ownerOf(n) + " commit was rejected"
+	case "first_commit":
+		return "◆", "Made their first commit"
+	case "leveled_up":
+		return "⇈", "You reached a new level"
+	case "timed_out":
+		return "⧗", "You were put in timeout"
 	}
 	return "●", "Notification"
+}
+
+// actorsCommitType is a notification about the actor's own commit, drawn with their avatar and name above it.
+func actorsCommitType(kind string) bool {
+	return kind == "replied" || kind == "quoted" || kind == "mentioned" || kind == "first_commit"
+}
+
+// aboutYou is a notification that names no actor, because it's about you or your commit.
+func aboutYou(kind string) bool {
+	return kind == "approved" || kind == "rejected" || kind == "timed_out" || kind == "leveled_up"
+}
+
+// ownerOf starts a sentence about whose commit a moderation notification is.
+func ownerOf(n api.Notification) string {
+	if n.Organization != nil {
+		return "@" + safeText(n.Organization.Handle) + "'s"
+	}
+	return "Your"
 }
 
 func notificationNoun(n api.Notification) string {
@@ -137,7 +168,7 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		handle = "@" + safeText(n.Actor.Handle)
 	}
 	identity := text(p.ink).Bold(true).Render(name)
-	actorsCommit := n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned"
+	actorsCommit := actorsCommitType(n.Type)
 	stamp := text(p.muted).Render(relativeAge(n.CreatedAt, m.now))
 	var rows []string
 	var hits []avatarHit
@@ -194,7 +225,7 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		} else {
 			identity += " " + text(p.muted).Render(handle)
 		}
-		if n.Type == "approved" || n.Type == "rejected" {
+		if aboutYou(n.Type) {
 			identity = ""
 		}
 		rows = append(rows, strings.Split(ansi.Wrap(strings.TrimSpace(identity+" "+verb), width, ""), "\n")...)
@@ -208,7 +239,15 @@ func (m AppModel) notificationRows(n api.Notification, width int, p palette, mem
 		rows = append(rows, strings.Split(ansi.Wrap("reason: "+safeText(n.Reason), width, ""), "\n")...)
 	}
 	if n.Type == "rejected" {
-		rows = append(rows, strings.Split(ansi.Wrap("Only you can see this update and your rejected commit.", width, ""), "\n")...)
+		private := "Only you can see this update and your rejected commit."
+		if n.Organization != nil {
+			private = "Only @" + safeText(n.Organization.Handle) + "'s members can see this update and its rejected commit."
+		}
+		rows = append(rows, strings.Split(ansi.Wrap(private, width, ""), "\n")...)
+	}
+	if t := n.Timeout; n.Type == "timed_out" && t != nil {
+		detail := "Reason: " + safeText(t.Reason) + " · Duration: " + safeText(t.Duration) + "\nPosting resumes " + scheduleTime(t.EndsAt) + "."
+		rows = append(rows, strings.Split(ansi.Wrap(detail, width, ""), "\n")...)
 	}
 	if member {
 		rows = append(rows, "")
@@ -272,7 +311,7 @@ func (m *AppModel) renderNotifications() {
 			hit.area.y += len(lines)
 			f.avatars = append(f.avatars, hit)
 		}
-		if n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned" {
+		if actorsCommitType(n.Type) {
 			if !member && n.Actor != nil && m.images.Row(m.authorAvatar(n.Actor, p, 5, 2), 0) != "" {
 				f.avatars = append(f.avatars, authorHit(uiRect{1, len(lines), 5, 2}, n.Actor))
 			}
@@ -324,7 +363,7 @@ func (m *AppModel) renderNotifications() {
 		}
 		lane := authorColor(n.Actor, p)
 		icon, _ := notificationVerb(n)
-		actorsCommit := n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned"
+		actorsCommit := actorsCommitType(n.Type)
 		for row, body := range rows {
 			glyph := "│"
 			if row == 0 {
@@ -469,7 +508,7 @@ func (m *AppModel) notificationMedia() []graphics.Request {
 		if entry.parent == "" && (n.Type == "starred" || n.Type == "followed" || n.Type == "approved" || n.Type == "rejected") {
 			requests = append(requests, notificationIconRequest(n, p))
 		}
-		actorsCommit := n.Type == "replied" || n.Type == "quoted" || n.Type == "mentioned"
+		actorsCommit := actorsCommitType(n.Type)
 		if n.Actor != nil {
 			cols, rows := 4, 2
 			if entry.parent == "" && actorsCommit {

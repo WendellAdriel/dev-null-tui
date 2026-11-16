@@ -22,6 +22,16 @@ type Notification struct {
 	ActorsCount int        `json:"actors_count"`
 	UnreadCount int        `json:"unread_count"`
 	Commit      *Commit    `json:"commit"`
+	// Organization is set when a member hears about the organization's commit or mention, rather than their own.
+	Organization *Organization `json:"organization"`
+	Timeout      *Timeout      `json:"timeout"`
+}
+
+// Timeout is a timed_out notification's timeout: the reason's label, its length for people, and when it ends.
+type Timeout struct {
+	Reason   string    `json:"reason"`
+	Duration string    `json:"duration"`
+	EndsAt   time.Time `json:"ends_at"`
 }
 
 func (n Notification) NewSince(boundary time.Time) bool {

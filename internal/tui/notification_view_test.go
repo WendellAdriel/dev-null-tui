@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/charmbracelet/x/ansi"
 	"github.com/charmbracelet/x/ansi/kitty"
@@ -170,4 +171,64 @@ func TestNotificationChipsSitUnderARuleLikeACommits(t *testing.T) {
 		}
 	}
 	t.Fatalf("no Open chip on the selected notification:\n%s", strings.Join(lines, "\n"))
+}
+
+func notificationText(m AppModel, n api.Notification) string {
+	rows, _ := m.notificationRows(n, 80, colors(true), false)
+	return ansi.Strip(strings.Join(rows, "\n"))
+}
+
+func TestTimeoutNotificationsSayWhyAndUntilWhen(t *testing.T) {
+	m := inboxFixture(t)
+	// The server makes you the actor of your own timeout, so the row links to your profile.
+	you := &api.Author{Type: "user", ID: m.account.user.ID, Handle: m.account.user.Handle, Name: "Your Name"}
+	ends := time.Date(2026, 11, 16, 13, 0, 0, 0, time.UTC)
+	n := api.Notification{ID: "t", GroupID: "t", Type: "timed_out", Actor: you, EventCount: 1, CreatedAt: ends.Add(-3 * time.Hour), Timeout: &api.Timeout{Reason: "Spam or self-promotion", Duration: "3 hours", EndsAt: ends}}
+	got := notificationText(m, n)
+	for _, want := range []string{"You were put in timeout", "Reason: Spam or self-promotion · Duration: 3 hours", "Posting resumes " + scheduleTime(ends) + "."} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("missing %q in:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "Your Name") || strings.Contains(got, "Notification") {
+		t.Fatalf("a timeout names its actor or reads as unknown:\n%s", got)
+	}
+	m = inboxPage(m, n)
+	m, _ = m.notificationKey("enter")
+	if len(m.profiles) != 1 || m.profiles[0].handle != m.account.user.Handle {
+		t.Fatal("enter did not open your profile, as the web's link does")
+	}
+}
+
+func TestFirstCommitsAndLevelUpsReadLikeTheWeb(t *testing.T) {
+	m := inboxFixture(t)
+	first := fixtureNotification("f")
+	first.Type, first.EventCount, first.ActorsCount = "first_commit", 1, 1
+	if got := notificationText(m, first); !strings.Contains(got, "Made their first commit") || !strings.Contains(got, "commit-f") {
+		t.Fatalf("first commit:\n%s", got)
+	}
+	level := fixtureNotification("l")
+	level.Type, level.Commit, level.EventCount, level.ActorsCount = "leveled_up", nil, 1, 1
+	if got := notificationText(m, level); !strings.Contains(got, "You reached a new level") || strings.Contains(got, level.Actor.Name) {
+		t.Fatalf("level up:\n%s", got)
+	}
+}
+
+func TestOrganizationNotificationsNameTheOrganization(t *testing.T) {
+	m := inboxFixture(t)
+	laravel := &api.Organization{Handle: "laravel", Name: "Laravel"}
+	for kind, want := range map[string]string{
+		"replied":   "Replied to @laravel's commit",
+		"quoted":    "Quoted @laravel's commit",
+		"starred":   "starred @laravel's commit",
+		"mentioned": "Mentioned @laravel",
+		"approved":  "@laravel's commit was approved",
+		"rejected":  "Only @laravel's members can see this update and its rejected commit.",
+	} {
+		n := fixtureNotification(kind)
+		n.Type, n.Organization = kind, laravel
+		if got := notificationText(m, n); !strings.Contains(strings.Join(strings.Fields(got), " "), want) || strings.Contains(got, "your") {
+			t.Fatalf("%s: missing %q in:\n%s", kind, want, got)
+		}
+	}
 }
