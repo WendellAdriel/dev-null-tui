@@ -289,9 +289,12 @@ func TestManagementCallsUseTheirRoutesAndBodies(t *testing.T) {
 func TestManagementCallsRefuseInvalidInputBeforeSending(t *testing.T) {
 	client := fixtureClient(t, func(http.ResponseWriter, *http.Request) { t.Error("sent an invalid request") })
 	ctx := t.Context()
-	many := make([]string, 100)
+	many := make([]string, 256)
 	for i := range many {
 		many[i] = "user" + strconv.Itoa(i)
+	}
+	if err := validMembers(many[:255]); err != nil {
+		t.Fatalf("255 people besides the creator fill an org of 256: %v", err)
 	}
 	long := strings.Repeat("a", 61)
 	for name, call := range map[string]func() error{
@@ -301,19 +304,19 @@ func TestManagementCallsRefuseInvalidInputBeforeSending(t *testing.T) {
 			_, err := client.Candidates(ctx, CandidateQuery{Term: strings.Repeat("a", 101)})
 			return err
 		},
-		"bad candidate org":   func() error { _, err := client.Candidates(ctx, CandidateQuery{Org: "nope"}); return err },
-		"bad candidate for":   func() error { _, err := client.Candidates(ctx, CandidateQuery{For: "everyone"}); return err },
-		"org name over 60":    func() error { _, err := client.CreateOrg(ctx, long, []string{"ada"}); return err },
-		"org without members": func() error { _, err := client.CreateOrg(ctx, "", nil); return err },
-		"org over 99 members": func() error { _, err := client.CreateOrg(ctx, "", many); return err },
-		"duplicate members":   func() error { _, err := client.CreateOrg(ctx, "", []string{"ada", "ADA"}); return err },
-		"bad member handle":   func() error { _, err := client.CreateOrg(ctx, "", []string{"a b"}); return err },
-		"rename over 60":      func() error { return client.RenameOrg(ctx, orgUUID, long) },
-		"rename bad org":      func() error { return client.RenameOrg(ctx, "x", "core") },
-		"add nobody":          func() error { return client.AddOrgMembers(ctx, orgUUID, nil, false) },
-		"unknown role":        func() error { return client.SetOrgRole(ctx, orgUUID, "ada", OrgRole("owner")) },
-		"remove bad handle":   func() error { return client.RemoveOrgMember(ctx, orgUUID, "../x") },
-		"pin bad id":          func() error { _, err := client.SetMessagePinned(ctx, 0, true); return err },
+		"bad candidate org":    func() error { _, err := client.Candidates(ctx, CandidateQuery{Org: "nope"}); return err },
+		"bad candidate for":    func() error { _, err := client.Candidates(ctx, CandidateQuery{For: "everyone"}); return err },
+		"org name over 60":     func() error { _, err := client.CreateOrg(ctx, long, []string{"ada"}); return err },
+		"org without members":  func() error { _, err := client.CreateOrg(ctx, "", nil); return err },
+		"org over 255 members": func() error { _, err := client.CreateOrg(ctx, "", many); return err },
+		"duplicate members":    func() error { _, err := client.CreateOrg(ctx, "", []string{"ada", "ADA"}); return err },
+		"bad member handle":    func() error { _, err := client.CreateOrg(ctx, "", []string{"a b"}); return err },
+		"rename over 60":       func() error { return client.RenameOrg(ctx, orgUUID, long) },
+		"rename bad org":       func() error { return client.RenameOrg(ctx, "x", "core") },
+		"add nobody":           func() error { return client.AddOrgMembers(ctx, orgUUID, nil, false) },
+		"unknown role":         func() error { return client.SetOrgRole(ctx, orgUUID, "ada", OrgRole("owner")) },
+		"remove bad handle":    func() error { return client.RemoveOrgMember(ctx, orgUUID, "../x") },
+		"pin bad id":           func() error { _, err := client.SetMessagePinned(ctx, 0, true); return err },
 	} {
 		if call() == nil {
 			t.Errorf("%s: accepted", name)

@@ -95,7 +95,7 @@ func (p *peopleDialog) fields() []int {
 	return []int{peopleSearch}
 }
 
-// room is how many more people can be picked: 99 besides the creator, or what is left of an org's 100 places.
+// room is how many more people can be picked: 255 besides the creator, or what is left of an org's 256 places.
 func (p *peopleDialog) room() int {
 	if p.mode == "add" {
 		return api.MaxOrgMembers - len(p.org.Members) - len(p.picks)

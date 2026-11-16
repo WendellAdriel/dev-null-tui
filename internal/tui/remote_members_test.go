@@ -158,7 +158,7 @@ func TestAddingPeopleJoinsThemAsContributors(t *testing.T) {
 			m.remotes.thread.data.Members = append(m.remotes.thread.data.Members, api.Member{User: api.User{ID: fmt.Sprint("m", i), Handle: fmt.Sprint("m", i)}, Role: "contributor"})
 		}
 		m = settle(t, m, "a")
-		if m.remotes.people != nil || !strings.Contains(frameText(m), "The org is full (100)") {
+		if m.remotes.people != nil || !strings.Contains(frameText(m), "The org is full (256)") {
 			t.Fatalf("full org:\n%s", frameText(m))
 		}
 	})

@@ -386,7 +386,7 @@ const (
 // The server's limits for an org: a name, its members, a candidate search, and pinned messages.
 const (
 	MaxOrgName       = 60
-	MaxOrgMembers    = 100
+	MaxOrgMembers    = 256
 	MaxCandidateTerm = 100
 	MaxPinned        = 25
 )
@@ -555,7 +555,7 @@ func orgName(name string) (*string, error) {
 	return &name, nil
 }
 
-// validMembers mirrors the server's rules: 1 to 99 distinct handles, since the creator or maintainer is already in.
+// validMembers mirrors the server's rules: 1 to 255 distinct handles, since the creator or maintainer is already in.
 func validMembers(handles []string) error {
 	if len(handles) == 0 || len(handles) > MaxOrgMembers-1 {
 		return fmt.Errorf("pick from 1 to %d people", MaxOrgMembers-1)
