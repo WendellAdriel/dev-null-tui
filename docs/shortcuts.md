@@ -229,7 +229,7 @@ A profile replaces the center column, like a thread. `Esc` returns to the screen
 | `Tab`, `Shift+Tab`, `1`, `2` | Switch between Commits and Replies |
 | `F`, `O` | Open the Followers or Following list |
 | `f` | Follow or unfollow this person |
-| `M` | Mute or unmute this person, with confirmation |
+| `M` | Mute or unmute this person, with confirmation. On your own profile, open your moderation history |
 | `B` | Block this person, with confirmation |
 | `Enter` | Open the selected commit's thread |
 | `u` | Open the selected commit author's profile, when it is someone else |

@@ -36,7 +36,7 @@ The Safety tab shows **Muted**, followed by **Blocked**, in one scrollable view.
 
 Mute is silent and preserves follows. Muted people's commits remain reachable through their profile and direct links, while discovery and reply lists hide them. Block ends follows in both directions and hides content everywhere. Unblocking does not restore follows. Confirmed safety changes remove affected cached content and invalidate pending reads. Threads rooted in blocked commits and blocked profiles close. Unrelated log entries retain selection where possible. Removed content is not restored from an old cache after unmuting or unblocking; refresh the relevant screen to fetch current content.
 
-`M` and `B` open mute and block confirmation on another person's profile. `!` reports another person's published commit. Reports offer the server's four reasons and up to 500 characters of optional details. Reporting the same commit again retains the first report on the server.
+`M` and `B` open mute and block confirmation on another person's profile. On your own profile, `M` opens your moderation history instead. `!` reports another person's published commit. Reports offer the server's four reasons and up to 500 characters of optional details. Reporting the same commit again retains the first report on the server.
 
 Uncertain writes are never replayed automatically. Settings blocks further writes until a successful account refresh. For an uncertain safety change, affected content stays hidden locally until a confirmed reversal or a new session. Check the web before retrying an uncertain report or deletion.
 

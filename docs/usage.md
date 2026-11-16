@@ -28,7 +28,7 @@ Older pages load near the end of the list, or when you press `n`. Switching logs
 
 Following and Latest check for new commits every 15 seconds while the terminal is focused, and every 30 seconds while it isn't. New commits go above the ones you're reading, and your row stays where it was. If you're at the top of a focused terminal, they simply appear. Otherwise a **New commits** button with up to three author avatars appears at the top of the log. Click it or scroll up to read them. Your own commits never raise it. Trending has no chronological arrival check.
 
-Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon.
+Commit bodies follow the web's display rules. Links show shortened and open in the browser in terminals that support OSC 8 hyperlinks. GitHub, GitLab, and Codeberg links show the repository and the issue or pull request, and dev/null commit links show the author and hash. Mentions link to the profile on the web. Quotes, emoji shortcodes, hex colors, and the /dev/null wordmark are styled. Code blocks show their file name or language with syntax highlighting. In pastéis mode, the words pastel and pastéis show the pastel icon. A backslash before the word, as in `\pastel`, keeps it as plain text, and the backslash doesn't show.
 
 A commit with a link shows the server's link card below the body: the site, a two-line title that opens the page, a two-line description, and the page's picture when the terminal supports graphics. A card the server is still fetching shows **Loading preview…** until the log reloads. In Remotes, the conversation asks for the card again after 1, 2, 3, 5, 8, and 13 seconds, as the web does, then stops showing the loading row. Quoted commits show their link card inside the quote. The TUI has no card picker, so the server uses the first link.
 
@@ -55,6 +55,8 @@ Open the inbox with `g n` or the sidebar. Press `1` through `6` to toggle Replie
 
 `Space` expands or collapses a group. `n` loads older members of the selected expanded group, or older notifications otherwise. `Enter` opens the referenced commit. On a single follow, or an expanded follow member, it opens the follower's profile. `u` opens the actor's profile, using the newest actor for a group.
 
+Notifications about an organization's commit or mention name the organization, as in "starred @acme's commit". A timeout says why and for how long, and when you can post again. First commits and level ups have their own rows, as on the web.
+
 `Ctrl+R` refreshes and selects the first notification after success. A failed refresh keeps your position. `Esc` returns to the log. The unread badge uses a separate count check every 15 seconds while the terminal is focused and every 30 seconds while it isn't. The check does not mark the inbox read.
 
 ## Profiles
@@ -62,6 +64,8 @@ Open the inbox with `g n` or the sidebar. Press `1` through `6` to toggle Replie
 Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own. On an organization's commit, `u` or **Profile** opens the organization's page instead. It shows the organization's identity, links, followers, and admins, with **Commits** and **Mentions** tabs on `1` and `2`. Press `f` to follow it. A Following list shows the organizations you follow above the people.
 
 Profiles show available identity details, counts, activity, streaks, and achievements. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `F` or `O`, or click a count, to open Followers or Following. The counts show those keys beside them.
+
+Your own profile shows your moderation history under the counts, as a gavel and **N timeouts · N bans**. Only you and site moderators see it. Press `M` or click the line to list each timeout and ban with its reason and dates. The history reloads with `Ctrl+R` and when a new notification arrives.
 
 Press `f` to follow or unfollow. Counts change after confirmation. A refused request leaves the profile unchanged, while an unknown outcome reloads it. In a relationship list, `f` acts on the selected person and `Enter` opens their profile.
 
@@ -162,7 +166,7 @@ Blocking removes the conversation for both of you. Leaving an org removes it and
 From the inbox, press `N` for **New remote** or `O` for **New org**. Type a name or @handle, and results appear after a short pause. People who can't be added show why, such as "only takes remotes from people they follow", and can't be chosen.
 
 - **New remote:** `Down` moves into the results, and `Enter` opens the conversation with the selected person, reusing an existing one.
-- **New org:** name the org (optional, up to 60 characters), then `Tab` to the search. `Space` or `Enter` picks or unpicks people, up to 99. `Ctrl+S` creates the org and opens it. You maintain it, and everyone you add contributes.
+- **New org:** name the org (optional, up to 60 characters), then `Tab` to the search. `Space` or `Enter` picks or unpicks people, up to 255. `Ctrl+S` creates the org and opens it. You maintain it, and everyone you add contributes.
 
 If the server refuses, the dialog keeps your picks and shows its reason.
 
@@ -171,7 +175,7 @@ If the server refuses, the dialog keeps your picks and shows its reason.
 In an org, press `I` or click the member count in the header to see its members and their roles. Press `u` to open the highlighted member's profile, and `Esc` there returns to the list. Anyone can leave from their own row. Maintainers can also:
 
 - Press `r` to rename the org. An empty name clears it, and the org falls back to its members' first names.
-- Press `a` to add people. They join as contributors. Turn on **Share history** to let them read what was pushed before they joined. An org holds up to 100 people.
+- Press `a` to add people. They join as contributors. Turn on **Share history** to let them read what was pushed before they joined. An org holds up to 256 people.
 - Press `Enter` on a member to make them a maintainer or a contributor, or to remove them after a confirmation. An org always keeps at least one maintainer.
 
 ### Pinned messages
@@ -210,7 +214,7 @@ Emoji suggestions appear after at least two shortcode characters, such as `:ro`.
 
 ### Post as an organization
 
-Press `Ctrl+A` in the composer to choose who the commit is from. The list shows you and the organizations you're a member of. Pick one with `j`, `k`, and `Enter`, or click it. On a server that doesn't list your organizations, type the organization's handle instead. The TUI checks its page, and only members can post as it. The composer title shows the chosen organization.
+Press `Ctrl+A` in the composer to choose who the commit is from. The list shows you and the organizations you're a member of. Pick one with `j`, `k`, and `Enter`, or click it. If you aren't a member of any organization, the composer says so. The composer title shows the chosen organization.
 
 ### Drafts and failures
 
