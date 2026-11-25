@@ -24,7 +24,7 @@ devnull --theme light
 devnull --theme dark
 ```
 
-Press `F2` in the workspace, outside popups and the composer, to open the theme list: Auto, Dark, Light, Catppuccin Latte, Catppuccin Mocha, Dracula, Solarized Light, Synthwave '84, Tokyo Night and Tokyo Night Day. Each theme except Auto has one look. The choice is saved in `tui.json`. Event themes (Halloween, Christmas and New Year) show their dark or light colors to match the chosen theme.
+Press `F2` in the workspace, outside popups and the composer, to open the theme list: Auto, Dark, Light, Catppuccin Latte, Catppuccin Mocha, Dracula, Ocean Drive, Solarized Light, Synthwave '84, Tokyo Night and Tokyo Night Day. Each theme except Auto has one look. The choice is saved in `tui.json`. Event themes (Halloween, Christmas and New Year) show their dark or light colors to match the chosen theme.
 
 The font and its size come from your terminal's settings. A program running inside the terminal can't change them.
 

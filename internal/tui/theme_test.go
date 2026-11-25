@@ -340,7 +340,7 @@ func TestThemeLivesInTheTUITabAndPicksEventThemesTooWithATag(t *testing.T) {
 	for _, row := range m.picker.rows {
 		labels = append(labels, row.label)
 	}
-	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Auto|Dark|Light|Catppuccin Latte|Catppuccin Mocha|Dracula|Solarized Light|Synthwave '84|Tokyo Night|Tokyo Night Day||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
+	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Auto|Dark|Light|Catppuccin Latte|Catppuccin Mocha|Dracula|Ocean Drive|Solarized Light|Synthwave '84|Tokyo Night|Tokyo Night Day||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
 		t.Fatalf("the picker must group TUI themes, then event themes, on the current choice: %q", labels)
 	}
 	if text := frameText(m); !strings.Contains(text, "TUI themes") || !strings.Contains(text, "overrides") {
@@ -452,5 +452,15 @@ func TestTheSavedPairStaysSelectedInThePicker(t *testing.T) {
 	m.openThemes()
 	if row := m.picker.rows[m.picker.selected]; row.value != "tokyonight" || row.label != "Tokyo Night (follows terminal)" {
 		t.Fatalf("the picker must keep the saved pair selected, got %+v", row)
+	}
+}
+
+func TestOceanDriveIsADarkSunsetThemeOfItsOwn(t *testing.T) {
+	th := themeNamed("ocean-drive")
+	if th.name != "ocean-drive" || th.label != "Ocean Drive" || th.dark == nil || th.light != nil {
+		t.Fatalf("Ocean Drive must be listed as a dark-only theme, got %+v", th)
+	}
+	if *th.dark == synthwave84 || th.dark.shell == synthwave84.shell || th.dark.lanes == synthwave84.lanes {
+		t.Fatal("Ocean Drive needs its own palette, not Synthwave '84's")
 	}
 }

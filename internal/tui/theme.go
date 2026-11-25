@@ -50,6 +50,7 @@ var themes = []theme{
 	{name: "catppuccin-latte", label: "Catppuccin Latte", light: &catppuccinLatte},
 	{name: "catppuccin-mocha", label: "Catppuccin Mocha", dark: &catppuccinMocha},
 	{name: "dracula", label: "Dracula", dark: &dracula},
+	{name: "ocean-drive", label: "Ocean Drive", dark: &oceanDrive},
 	{name: "solarized-light", label: "Solarized Light", light: &solarizedLight},
 	{name: "synthwave84", label: "Synthwave '84", dark: &synthwave84},
 	{name: "tokyonight-night", label: "Tokyo Night", dark: &tokyoNight},
@@ -132,6 +133,15 @@ var synthwave84 = palette{
 	soft: "#171520", code: "#fede5d", danger: "#fe4652",
 	success: "#72f1b8", warning: "#ff8b39", brand: "#ff2d20",
 	lanes: [6]string{"#f97e72", "#72f1b8", "#ff7edb", "#2ee2fa", "#fede5d", "#ff8b39"},
+}
+
+// oceanDrive is a pink-to-orange sunset over deep blue, with teal water and palm green.
+var oceanDrive = palette{
+	shell: "#141a33", ink: "#fff4ea", muted: "#a9a8cc",
+	hairline: "#2e3560", blue: "#2de2e6", wash: "#2a2450",
+	soft: "#1b2142", code: "#ffd166", danger: "#ff4d6d",
+	success: "#3ddc84", warning: "#ff9f43", brand: "#ff2d20",
+	lanes: [6]string{"#ff4fa3", "#ff8c42", "#2de2e6", "#3ddc84", "#ffd166", "#b68cff"},
 }
 
 // solarizedLight's hairline is base2 mixed a quarter toward base1, because Solarized has one highlight tone.
