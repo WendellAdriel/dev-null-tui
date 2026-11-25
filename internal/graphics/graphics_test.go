@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -167,24 +168,44 @@ func TestVisibleImageBudgetAndTmuxWrapping(t *testing.T) {
 	}
 }
 
-func TestDownloadsStartInVisiblePriorityOrderWithoutAvatarBacklog(t *testing.T) {
+func TestPhotosAndAvatarsDownloadInTheirOwnLanesInVisibleOrder(t *testing.T) {
 	m := New("https://example.test")
 	m.Enabled = true
-	requests := []Request{{URL: "https://example.test/photo", Cols: 40, Rows: 12}}
-	for _, name := range []string{"ada", "lin", "sam", "kenji"} {
-		requests = append(requests, Request{URL: "https://example.test/" + name, Cols: 4, Rows: 2, Ring: "#ff8a4c"})
+	var photos, avatars []Request
+	for _, name := range []string{"one", "two", "three"} {
+		photos = append(photos, Request{URL: "https://example.test/photo-" + name, Cols: 40, Rows: 12})
 	}
+	for _, name := range []string{"ada", "lin", "sam", "kenji", "grace"} {
+		avatars = append(avatars, Request{URL: "https://example.test/" + name, Cols: 4, Rows: 2, Ring: "#ff8a4c"})
+	}
+	requests := append(append([]Request(nil), photos...), avatars...)
 	jobs, _ := m.Plan(t.Context(), requests)
-	if len(jobs) != 2 || jobs[0].Request != requests[0] || jobs[1].Request != requests[1] {
-		t.Fatalf("expected photo and first avatar without queued goroutines, got %d jobs", len(jobs))
+	var started []Request
+	for _, job := range jobs {
+		started = append(started, job.Request)
+	}
+	// Two photos fill their lane, and the avatars behind the third photo still start, four at a time.
+	want := append(append([]Request(nil), photos[:2]...), avatars[:4]...)
+	if !slices.Equal(started, want) {
+		t.Fatalf("started %v, want %v", started, want)
 	}
 	if next, _ := m.Plan(t.Context(), requests); len(next) != 0 {
-		t.Fatal("pending work exceeded the two active downloads")
+		t.Fatal("pending work went past the lanes")
 	}
-	m.Accept(Result{Job: jobs[1], Err: io.EOF})
-	next, _ := m.Plan(t.Context(), requests)
-	if len(next) != 1 || next[0].Request != requests[2] {
-		t.Fatal("finishing an image did not start the next visible request")
+	// A ringless embedded icon takes the small lane too, so it starts while both photo slots are busy.
+	icons := New("https://example.test")
+	icons.Enabled = true
+	logo := Request{Icon: "logo-dark", Cols: 23, Rows: 2}
+	if next, _ := icons.Plan(t.Context(), append(append([]Request(nil), photos...), logo)); len(next) != 3 || next[2].Request != logo {
+		t.Fatalf("the logo waited behind the photos: %d jobs", len(next))
+	}
+	m.Accept(Result{Job: jobs[4], Err: io.EOF})
+	if next, _ := m.Plan(t.Context(), requests); len(next) != 1 || next[0].Request != avatars[4] {
+		t.Fatal("a finished avatar must free its lane for the next avatar, not a photo")
+	}
+	m.Accept(Result{Job: jobs[0], Err: io.EOF})
+	if next, _ := m.Plan(t.Context(), requests); len(next) != 1 || next[0].Request != photos[2] {
+		t.Fatal("a finished photo must start the next visible photo")
 	}
 }
 

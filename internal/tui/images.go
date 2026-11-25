@@ -135,6 +135,9 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if m.achievements != nil {
 		stars = append(stars, m.achievementsMedia(p)...)
 	}
+	// Guild icons go ahead of the avatars on screen, so the sidebar and directory don't wait behind every avatar. An
+	// open modal's media still comes first.
+	avatars = append(m.guildIconRequests(), avatars...)
 	if m.picker != nil {
 		avatars = append(m.listPickerMedia(p), avatars...)
 	}
@@ -146,7 +149,6 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if _, _, aside := m.columns(); aside > 0 {
 		requests = append(requests, m.liveNowRequests()...)
 	}
-	avatars = append(avatars, m.guildIconRequests()...)
 	requests = append(m.composerThumbnails(), requests...)
 	if c := m.composer; c.open && c.previewing {
 		_, preview := previewRequests(c.images, max(1, m.composerBounds().w-4))

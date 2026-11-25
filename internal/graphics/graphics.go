@@ -136,9 +136,11 @@ type Manager struct {
 	next          int
 	origin        *url.URL
 	client        *http.Client
-	slots         chan struct{}
-	entries       map[Request]*entry
-	sources       sourceCache
+	// slots bound photos, link cards and local files. small is the lane for requests with a Ring or an Icon: avatars,
+	// guild icons, badges and embedded icons, which never wait behind a photo.
+	slots, small chan struct{}
+	entries      map[Request]*entry
+	sources      sourceCache
 }
 
 func New(origin string) *Manager {
@@ -146,7 +148,7 @@ func New(origin string) *Manager {
 	var seed [4]byte
 	_, _ = rand.Read(seed[:])
 	base := int(binary.BigEndian.Uint32(seed[:])&0x7fffff) + 0x10000
-	m := &Manager{origin: u, ProbeID: base, next: base, entries: make(map[Request]*entry), slots: make(chan struct{}, 2)}
+	m := &Manager{origin: u, ProbeID: base, next: base, entries: make(map[Request]*entry), slots: make(chan struct{}, 2), small: make(chan struct{}, 4)}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 	transport.Proxy = nil
 	transport.DialContext = m.dial
@@ -210,19 +212,20 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 	if !m.Enabled {
 		return jobs, cleanup.String()
 	}
-	active := 0
+	active := make(map[chan struct{}]int)
 	loading := make(map[avatarKey]bool)
 	for req, e := range m.entries {
 		if !e.ready && !e.failed {
-			active++
+			active[m.lane(req)]++
 			if req.Ring != "" {
 				loading[avatarKey{req.URL, req.Ring, req.Icon, req.Square}] = true
 			}
 		}
 	}
 	for _, req := range ordered {
-		if active >= cap(m.slots) {
-			break
+		lane := m.lane(req)
+		if active[lane] >= cap(lane) {
+			continue
 		}
 		if _, ok := m.entries[req]; ok {
 			continue
@@ -238,7 +241,7 @@ func (m *Manager) Plan(ctx context.Context, requests []Request) ([]Job, string) 
 		jobCtx, cancel := context.WithCancel(ctx)
 		m.entries[req] = &entry{id: m.next, cancel: cancel}
 		jobs = append(jobs, Job{Request: req, ID: m.next, ctx: jobCtx, avatar: avatars[key]})
-		active++
+		active[lane]++
 		if req.Ring != "" {
 			loading[key] = true
 		}
@@ -287,15 +290,24 @@ func (m *Manager) Forget() {
 	m.sources.clear()
 }
 
+// lane is the download lane a request waits in: small for a request with a Ring or an Icon, slots for the rest.
+func (m *Manager) lane(req Request) chan struct{} {
+	if req.Ring != "" || req.Icon != "" {
+		return m.small
+	}
+	return m.slots
+}
+
 func (m *Manager) Fetch(job Job) Result {
 	result := Result{Job: job}
+	lane := m.lane(job.Request)
 	select {
-	case m.slots <- struct{}{}:
+	case lane <- struct{}{}:
 	case <-job.ctx.Done():
 		result.Err = errors.New("image unavailable")
 		return result
 	}
-	defer func() { <-m.slots }()
+	defer func() { <-lane }()
 	ctx, cancel := context.WithTimeout(job.ctx, 12*time.Second)
 	defer cancel()
 	picture := job.avatar

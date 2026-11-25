@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
 type guildLog struct {
@@ -504,5 +505,39 @@ func TestTheSidebarListsFiveGuildsAndTheRestUnderMoreGuilds(t *testing.T) {
 	m = through(m, "G", "enter")
 	if s := m.topProfile(); m.picker != nil || s == nil || s.handle != "j7" {
 		t.Fatalf("enter on the last row did not open its board: %v", log.calls)
+	}
+}
+
+func TestGuildIconsLoadAheadOfTheAvatarsOnScreen(t *testing.T) {
+	m, _ := guildApp(t, laravelBoard(false, true, false))
+	m.images.Enabled = true
+	m.joinedGuilds = []api.JoinedGuild{{GuildBadge: api.GuildBadge{Handle: "laravel", Name: "Laravel", IconURL: "https://example.test/guilds/laravel/icon"}}}
+	commits := []api.Commit{}
+	for i := range 8 {
+		c := fixtureCommit(fmt.Sprint("c", i))
+		c.Author.AvatarURL = fmt.Sprintf("https://example.test/avatar-%d", i)
+		commits = append(commits, c)
+	}
+	m = applyPage(m, 0, api.Page{Data: commits})
+	icon, ok := m.guildIconRequest(m.joinedGuilds[0].GuildBadge, 2, 1)
+	if !ok {
+		t.Fatal("an uploaded icon must be requested")
+	}
+	m.images.Clear()
+	jobs, _ := m.images.Plan(t.Context(), m.visibleMedia())
+	if !slices.ContainsFunc(jobs, func(j graphics.Job) bool { return j.Request == icon }) {
+		t.Fatalf("the guild icon waited behind the avatars on screen: %d jobs", len(jobs))
+	}
+
+	// A picker over a directory page full of icons still loads its own avatars first.
+	m.directory.open = true
+	for i := range 24 {
+		m.directory.guilds = append(m.directory.guilds, api.Guild{Handle: fmt.Sprintf("g%02d", i), Name: "Guild", IconURL: fmt.Sprintf("https://example.test/icon-%d", i)})
+	}
+	ada := &api.User{ID: "ada", Handle: "ada", Name: "Ada", AvatarURL: "https://example.test/ada"}
+	m.picker = &picker{kind: "people", title: "People", rows: []pickerRow{{person: ada, label: "Ada", value: "ada"}}}
+	picked, _ := m.userAvatar(ada, 2, 1, m.account.colors())
+	if media := m.visibleMedia(); slices.Index(media, picked) != 0 {
+		t.Fatalf("the picker's avatar sits at %d, behind the guild icons", slices.Index(media, picked))
 	}
 }

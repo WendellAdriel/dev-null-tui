@@ -18,6 +18,7 @@ import (
 
 	"github.com/WendellAdriel/dev-null-cli/internal/api"
 	"github.com/WendellAdriel/dev-null-cli/internal/auth"
+	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
 var uuidV4 = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
@@ -552,8 +553,15 @@ func TestMessageAttachmentsShowThumbnailsAndFocusHints(t *testing.T) {
 	if !slices.Equal(locals, paths) {
 		t.Fatalf("attachment thumbnails not scheduled: %v", locals)
 	}
-	jobs, _ := m.images.Plan(t.Context(), m.visibleMedia())
-	if len(jobs) != len(paths) {
+	// The photo lane goes to the thumbnails first. Avatars load beside them in their own lane.
+	var jobs []graphics.Job
+	planned, _ := m.images.Plan(t.Context(), m.visibleMedia())
+	for _, job := range planned {
+		if job.Request.Ring == "" && job.Request.Icon == "" {
+			jobs = append(jobs, job)
+		}
+	}
+	if len(jobs) != len(paths) || jobs[0].Request.Path == "" || jobs[len(jobs)-1].Request.Path == "" {
 		t.Fatalf("thumbnails were not prioritized: %d jobs", len(jobs))
 	}
 	for _, job := range jobs {
