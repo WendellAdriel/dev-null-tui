@@ -223,7 +223,7 @@ func (m *AppModel) renderThread(t *threadState) {
 		}
 		lines[line] = content
 	}
-	t.viewport.SetContent(strings.Join(lines, "\n"))
+	t.viewport.SetContent(strings.Join(roomToJump(lines, t.starts, t.viewport.Height()), "\n"))
 }
 
 type commitAction struct{ label, key string }

@@ -211,7 +211,7 @@ func (m *AppModel) renderProfile(s *profileState) {
 		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("EOF")), "")
 	}
 	s.actions, s.avatars, s.media, s.days = frame.actions, frame.avatars, frame.media, frame.days
-	s.viewport.SetContent(strings.Join(frame.lines, "\n"))
+	s.viewport.SetContent(strings.Join(roomToJump(frame.lines, s.starts, s.viewport.Height()), "\n"))
 }
 
 func profileEmpty(s *profileState) string {

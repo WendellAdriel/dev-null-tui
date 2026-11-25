@@ -535,7 +535,8 @@ func (m *AppModel) renderFeed(index int) {
 		}
 		lines = append(lines, "", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(ending), "")
 	}
-	f.viewport.SetContent(strings.Join(lines, "\n"))
+	f.contentLines = len(lines)
+	f.viewport.SetContent(strings.Join(roomToJump(lines, f.starts, f.viewport.Height()), "\n"))
 }
 
 type commitList struct {

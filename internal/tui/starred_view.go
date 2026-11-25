@@ -79,7 +79,7 @@ func (m *AppModel) renderStarred() {
 	case f.loaded:
 		add("You've reached the end of your starred commits.")
 	}
-	f.viewport.SetContent(strings.Join(lines, "\n"))
+	f.viewport.SetContent(strings.Join(roomToJump(lines, f.starts, f.viewport.Height()), "\n"))
 }
 
 func (m *AppModel) sizeStarred() {

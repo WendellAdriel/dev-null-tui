@@ -31,12 +31,14 @@ type feed struct {
 	selected             int
 	viewport             viewport.Model
 	starts, ends         []int
-	pictures             []pictureArea
-	actions              []hitArea
-	next, status         string
-	loadingMode          string
-	loaded, loading      bool
-	generation           int
+	// contentLines is the drawn length without the room Z adds below it.
+	contentLines    int
+	pictures        []pictureArea
+	actions         []hitArea
+	next, status    string
+	loadingMode     string
+	loaded, loading bool
+	generation      int
 	// arrivals are the new commits the reader hasn't seen yet, newest first, for the New commits notice.
 	arrivals []api.Commit
 	cancel   context.CancelFunc
@@ -1210,6 +1212,10 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if pressed == "L" && !m.pendingG {
 		return m, m.toggleLive()
+	}
+	if pressed == "Z" && !m.pendingG {
+		m.jumpToTop()
+		return m, nil
 	}
 	if pressed == "z" && !m.pendingG && m.undo.id != "" {
 		return m, m.startUndo()

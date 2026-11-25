@@ -427,7 +427,7 @@ func (m *AppModel) renderNotifications() {
 		f.actions = append(f.actions, hitArea{uiRect{gutter, len(lines), contentWidth, 1}, "more", 0})
 		lines = append(lines, "       "+text(p.blue).Render("n Older notifications"))
 	}
-	f.viewport.SetContent(strings.Join(lines, "\n"))
+	f.viewport.SetContent(strings.Join(roomToJump(lines, f.starts, f.viewport.Height()), "\n"))
 }
 
 // notificationChips are the selected entry's labeled shortcuts: Enter opens its commit, u its actor.

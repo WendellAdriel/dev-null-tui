@@ -117,7 +117,7 @@ func (m AppModel) screenBindings() appKeys {
 }
 
 func (m AppModel) engagementBindings() []key.Binding {
-	bindings := []key.Binding{key.NewBinding(key.WithKeys("g t"), key.WithHelp("g t", "scheduled commits")), key.NewBinding(key.WithKeys("g d"), key.WithHelp("g d", "drafts"))}
+	bindings := []key.Binding{key.NewBinding(key.WithKeys("Z"), key.WithHelp("Z", "focused commit to the top")), key.NewBinding(key.WithKeys("g t"), key.WithHelp("g t", "scheduled commits")), key.NewBinding(key.WithKeys("g d"), key.WithHelp("g d", "drafts"))}
 	if m.undo.id != "" {
 		bindings = append(bindings, key.NewBinding(key.WithKeys("z"), key.WithHelp("z", "undo the delete")))
 	}
@@ -781,7 +781,7 @@ func (m AppModel) feedViewport(p palette) string {
 	f := m.feeds[m.active]
 	view := f.viewport.View()
 	height, total, width := f.viewport.Height(), f.viewport.TotalLineCount(), f.viewport.Width()
-	if total <= height || height <= 2 || width <= 1 {
+	if f.contentLines <= height || height <= 2 || width <= 1 {
 		return view
 	}
 	lines := strings.Split(view, "\n")

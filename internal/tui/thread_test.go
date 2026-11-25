@@ -347,7 +347,8 @@ func TestNarrowThreadActionsWrapInsideTheirRows(t *testing.T) {
 	next, _ := m.Update(tea.WindowSizeMsg{Width: 40, Height: 24})
 	m = openThread(t, next.(AppModel))
 	th := m.threads[0]
-	rendered := strings.Count(th.viewport.GetContent(), "\n") + 1
+	// Z's blank lines after the last entry don't count.
+	rendered := strings.Count(strings.TrimRight(th.viewport.GetContent(), "\n"), "\n") + 1
 	if th.ends[len(th.ends)-1]+1 != rendered {
 		t.Fatalf("entry rows %v do not match %d rendered lines", th.ends, rendered)
 	}
@@ -511,7 +512,7 @@ func TestSpineRunsOnToMoreReplies(t *testing.T) {
 	th := &m.threads[0]
 	th.next = "cursor"
 	m.renderThread(th)
-	lines := strings.Split(ansi.Strip(th.viewport.GetContent()), "\n")
+	lines := strings.Split(strings.TrimRight(ansi.Strip(th.viewport.GetContent()), "\n"), "\n")
 	last := len(lines) - 1
 	if !strings.Contains(lines[last], "More replies") || graphCell(t, lines, last, 2) != "╰" || graphCell(t, lines, th.starts[4], 2) != "├" {
 		t.Fatalf("the spine must end at More replies:\n%s", strings.Join(lines, "\n"))
