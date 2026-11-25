@@ -24,6 +24,8 @@ type pickerRow struct {
 	heading bool
 	// detail shows in full below the list while the row is selected, such as a hot topic's recap.
 	detail string
+	// guild draws the row with a guild's icon or emoji.
+	guild *api.GuildBadge
 }
 
 // picker is a centered list dialog: Starred by, the link picker, the Live now picker, and the themes.
@@ -206,6 +208,9 @@ func (m AppModel) listPickerRow(row pickerRow, width int, pal palette) string {
 		_, avatar := m.userAvatar(row.person, 2, 1, pal)
 		label = avatar[0] + " " + label
 	}
+	if row.guild != nil {
+		label = m.guildIcon(*row.guild, 2, 1)[0] + " " + label
+	}
 	if row.note != "" {
 		label += " " + text(pal.muted).Render(safeText(row.note))
 	}
@@ -218,6 +223,11 @@ func (m AppModel) listPickerMedia(pal palette) []graphics.Request {
 		if row.person != nil {
 			req, _ := m.userAvatar(row.person, 2, 1, pal)
 			requests = append(requests, req)
+		}
+		if row.guild != nil {
+			if req, ok := m.guildIconRequest(*row.guild, 2, 1); ok {
+				requests = append(requests, req)
+			}
 		}
 	}
 	return requests
@@ -339,6 +349,8 @@ func (m AppModel) choosePicker() (AppModel, tea.Cmd) {
 		return m, m.setRepliesPerPage(row.value)
 	case "theme-base":
 		return m, m.newThemeEditor(row.value)
+	case "guilds":
+		return m, tea.Batch(m.syncImages(), m.openGuild(row.value))
 	}
 	return m, tea.Batch(m.syncImages(), m.openLink(row.value))
 }

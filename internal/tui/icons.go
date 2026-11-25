@@ -1,13 +1,13 @@
 package tui
 
 type iconSet struct {
-	company, location, link, github, gitlab, codeberg, joined, log, notifications, profile, commit, starred, lock, settings, remotes, pin, muted, scheduled, drafts, follow, flame, moderation string
+	company, location, link, github, gitlab, codeberg, joined, log, notifications, profile, commit, starred, lock, settings, remotes, pin, muted, scheduled, drafts, follow, flame, moderation, guilds string
 }
 
 // Nerd Font glyphs mirror the web's Lucide icons. Plain glyphs work with any font.
 var (
-	nerdIcons  = iconSet{company: "", location: "", link: "", github: "", gitlab: "\uf296", codeberg: "\uf330", joined: "", log: "", notifications: "", profile: "", commit: "", starred: "", lock: "", settings: "", remotes: "\uf086", pin: "\uf435", muted: "\uf1f6", scheduled: "\uf252", drafts: "\uf044", follow: "\uf234", flame: "\uf06d", moderation: "\uf0e3"}
-	plainIcons = iconSet{company: "⌂", location: "⌖", link: "↗", github: "⎇", gitlab: "⎇", codeberg: "⎇", joined: "◷", log: "◉", notifications: "◔", profile: "◎", commit: "＋", starred: "☆", lock: "⚿", settings: "⚙", remotes: "✉", pin: "⚲", muted: "⊘", scheduled: "⧗", drafts: "✎", follow: "+", flame: "∆", moderation: "§"}
+	nerdIcons  = iconSet{company: "", location: "", link: "", github: "", gitlab: "\uf296", codeberg: "\uf330", joined: "", log: "", notifications: "", profile: "", commit: "", starred: "", lock: "", settings: "", remotes: "\uf086", pin: "\uf435", muted: "\uf1f6", scheduled: "\uf252", drafts: "\uf044", follow: "\uf234", flame: "\uf06d", moderation: "\uf0e3", guilds: "\uf0c0"}
+	plainIcons = iconSet{company: "⌂", location: "⌖", link: "↗", github: "⎇", gitlab: "⎇", codeberg: "⎇", joined: "◷", log: "◉", notifications: "◔", profile: "◎", commit: "＋", starred: "☆", lock: "⚿", settings: "⚙", remotes: "✉", pin: "⚲", muted: "⊘", scheduled: "⧗", drafts: "✎", follow: "+", flame: "∆", moderation: "§", guilds: "#"}
 )
 
 // WithIcons picks the icon set: "plain" for any font, otherwise Nerd Font glyphs.

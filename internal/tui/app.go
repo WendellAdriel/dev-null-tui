@@ -167,22 +167,30 @@ type AppModel struct {
 	remotes                    remotesState
 	remoteCalls                remoteCalls
 	organizationCalls          organizationCalls
-	claiming                   string
-	openURL                    func(context.Context, string) error
-	liveCalls                  liveCalls
-	suggestCalls               suggestCalls
-	whoToFollow                whoToFollow
-	live                       *liveDialog
-	liveEnding                 bool
-	liveNow                    []api.User
-	meCall                     func(context.Context) (auth.User, error)
-	accountRefresh             accountRefresh
-	search                     *searchDialog
-	achievements               *achievementsDialog
-	completionCalls            completionCalls
-	completionGeneration       int
-	searchGeneration           int
-	searchCalls                searchCalls
+	guildCalls                 guildCalls
+	// guildBusy is a join, mute or pin in flight. joinedGuilds is the navigation's Your guilds.
+	guildBusy    bool
+	joinedGuilds []api.JoinedGuild
+	directory    guildDirectory
+	// guildForm is the create or edit form while it's open.
+	guildForm            *guildForm
+	guildFormGeneration  int
+	claiming             string
+	openURL              func(context.Context, string) error
+	liveCalls            liveCalls
+	suggestCalls         suggestCalls
+	whoToFollow          whoToFollow
+	live                 *liveDialog
+	liveEnding           bool
+	liveNow              []api.User
+	meCall               func(context.Context) (auth.User, error)
+	accountRefresh       accountRefresh
+	search               *searchDialog
+	achievements         *achievementsDialog
+	completionCalls      completionCalls
+	completionGeneration int
+	searchGeneration     int
+	searchCalls          searchCalls
 	// commitSearch is set while the Starred list screen shows that search's matching commits instead.
 	commitSearch string
 	// batRunning keeps one Halloween bat tick chain alive, and batAt is the clock it last moved on.
@@ -485,7 +493,23 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.acceptModerationHistory(msg)
 	case profileListResult:
 		msg.commits.Data = m.safeCommitsFor(msg.commits.Data, true)
+		if board := msg.board; board != nil {
+			board.Data = m.safeCommitsFor(board.Data, true)
+			if board.Pinned != nil && len(m.safeCommitsFor([]api.Commit{*board.Pinned}, true)) == 0 {
+				board.Pinned = nil
+			}
+		}
 		return m, m.acceptProfileList(msg)
+	case guildActionResult:
+		return m, m.acceptGuildAction(msg)
+	case joinedGuildsResult:
+		m.acceptJoinedGuilds(msg)
+		return m, nil
+	case directoryResult:
+		m.acceptDirectory(msg)
+		return m, nil
+	case guildSavedResult:
+		return m, m.acceptGuildSaved(msg)
 	case followResult:
 		return m, m.acceptFollow(msg)
 	case claimResult:
@@ -750,6 +774,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.searchKey(msg)
 			return m, cmd
 		}
+		if m.connected && m.directoryOnTop() && m.directory.searching && msg.String() != "enter" && msg.String() != "esc" && msg.String() != "ctrl+c" && !m.popupOpen() {
+			cmd := m.directoryInput(msg)
+			return m, cmd
+		}
 		if msg.String() == "ctrl+k" && !m.searchBlocked() {
 			cmd := m.openSearch("")
 			return m, cmd
@@ -802,6 +830,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cmd := m.settingsDialogKey(msg)
 			return m, cmd
 		}
+		if m.connected && !m.accountOpen && m.guildForm != nil && msg.String() != "ctrl+c" {
+			cmd := m.guildFormKey(msg)
+			return m, cmd
+		}
 		if msg.String() == "ctrl+c" {
 			if m.composer.hasDraft() {
 				if m.settings.open || m.settings.dialog != "" {
@@ -828,6 +860,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.connected && m.search != nil {
 		// Pastes and cursor blinks reach the search box.
 		return m, m.updateSearchField(msg)
+	}
+	if m.connected && !m.accountOpen && m.guildForm != nil && m.settings.dialog == "" {
+		return m, m.guildFormInput(msg)
 	}
 	if m.connected && !m.accountOpen && m.settings.dialog != "" {
 		if !m.settings.busy {
@@ -928,6 +963,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.organizationCalls.load == nil {
 			m.organizationCalls = newOrganizationCalls(client)
 		}
+		if m.guildCalls.board == nil {
+			m.guildCalls = newGuildCalls(client)
+		}
 		if m.commitCalls.related == nil {
 			m.commitCalls = newCommitCalls(client)
 		}
@@ -961,7 +999,7 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.resetSequence()
 		m.reflow()
 		load := m.load("initial")
-		return m, tea.Batch(cmd, load, m.tickClock(), m.scheduleLogCheck(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow(), m.fetchHeadlines())
+		return m, tea.Batch(cmd, load, m.tickClock(), m.scheduleLogCheck(), m.scheduleBadges(), m.startWhatsNew(), m.startUpgradeCheck(), m.fetchLiveNow(), m.fetchHeadlines(), m.refreshJoinedGuilds())
 	}
 	return m, cmd
 }
@@ -1018,6 +1056,7 @@ func (m *AppModel) leaveApplication() {
 	m.achievements = nil
 	// Cleared so a later connection builds them on its own signing key.
 	m.organizationCalls, m.liveCalls, m.searchCalls, m.completionCalls, m.commitCalls = organizationCalls{}, liveCalls{}, searchCalls{}, completionCalls{}, commitCalls{}
+	m.guildCalls, m.guildBusy, m.joinedGuilds, m.directory, m.guildForm = guildCalls{}, false, nil, guildDirectory{}, nil
 	m.openIssue, m.applyRepliesPerPage, m.headlineCalls = nil, nil, headlineCalls{}
 	m.meCall, m.accountRefresh = nil, accountRefresh{}
 	m.closeAllProfiles()
@@ -1137,7 +1176,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	// Remotes keeps / for its inbox search, as the web does, and Ctrl+K still opens this one there.
-	if pressed == "/" && !m.remotesOnTop() && !m.searchBlocked() {
+	if pressed == "/" && !m.remotesOnTop() && !m.directoryOnTop() && !m.searchBlocked() {
 		return m, m.openSearch("")
 	}
 	if m.help {
@@ -1165,7 +1204,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m, m.startSequence()
 		}
 		// A go-to sequence leaves Settings unless a write is in flight; anything else stays inside it.
-		if m.settings.busy || !m.pendingG || !strings.Contains("lenpstdrh", pressed) || len(pressed) != 1 {
+		if m.settings.busy || !m.pendingG || !strings.Contains("lenpstdrhum12345", pressed) || len(pressed) != 1 || !m.hasGuildTarget(pressed) {
 			m.resetSequence()
 			cmd := m.settingsKey(pressed)
 			return m, cmd
@@ -1174,6 +1213,11 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	}
 	if m.draftsOnTop() && !m.pendingG {
 		if next, cmd, ok := m.draftsKey(pressed); ok {
+			return next, cmd
+		}
+	}
+	if m.directoryOnTop() && (!m.pendingG || m.directory.searching) {
+		if next, cmd, ok := m.directoryKey(pressed); ok {
 			return next, cmd
 		}
 	}
@@ -1202,7 +1246,7 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 	if m.profileOnTop() && pressed == "M" && m.openModerationHistory() {
 		return m, nil
 	}
-	if m.profileOnTop() && (pressed == "M" || pressed == "B") {
+	if m.profileOnTop() && !m.topProfile().guild && (pressed == "M" || pressed == "B") {
 		kind := "mute"
 		if pressed == "B" {
 			kind = "block"
@@ -1273,6 +1317,12 @@ func (m AppModel) handleKey(pressed string) (AppModel, tea.Cmd) {
 			return m.openDrafts()
 		case "h":
 			return m.openHotTopics()
+		case "u":
+			return m.openDirectory()
+		case "m":
+			return m, m.openGuildsPicker()
+		case "1", "2", "3", "4", "5":
+			return m, m.openJoinedGuild(int(pressed[0] - '0'))
 		case "r":
 			return m.openRemotes()
 		case ",":
@@ -1471,7 +1521,7 @@ func (m AppModel) handleFeedMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 
 func (m AppModel) switchLog(index int) (AppModel, tea.Cmd) {
 	m.resetSequence()
-	left := m.notificationsOpen || m.starredOpen || m.remotes.open || m.drafts.open || m.topics.open || len(m.profiles) > 0
+	left := m.notificationsOpen || m.starredOpen || m.remotes.open || m.drafts.open || m.topics.open || m.directory.open || len(m.profiles) > 0
 	if left {
 		m.drafts = draftsState{}
 		m.closeStarred()
@@ -1530,6 +1580,9 @@ func (m AppModel) statusParts() []statusPart {
 		return m.gMenuStatus()
 	}
 	if m.profileOnTop() && m.notice == "" {
+		if s := m.topProfile(); s.guild {
+			return m.guildStatus(s)
+		}
 		return plainStatusLine(m.profileStatus())
 	}
 	if m.notice != "" {
@@ -1544,6 +1597,9 @@ func (m AppModel) statusParts() []statusPart {
 	if m.topicsOnTop() {
 		return plainStatusLine(m.topicsStatus())
 	}
+	if m.directoryOnTop() {
+		return m.directoryStatus()
+	}
 	// Settings can cover Remotes, and the Remotes chips would send their keys to Settings.
 	if m.remotes.open && !m.settings.open {
 		return m.remotesStatus()
@@ -1557,7 +1613,16 @@ func (m AppModel) gMenuStatus() []statusPart {
 	if m.remotesEnabled() {
 		parts = append(parts, statusChip("Remotes", "r"))
 	}
-	parts = append(parts, statusChip("Profile", "p"), statusChip("Starred", "s"), statusChip("Scheduled", "t"), statusChip("Drafts", "d"), statusChip("Hot topics", "h"))
+	parts = append(parts, statusChip("Profile", "p"), statusChip("Starred", "s"), statusChip("Scheduled", "t"), statusChip("Drafts", "d"), statusChip("Hot topics", "h"), statusChip("Guilds", "u"))
+	switch joined := min(len(m.joinedGuilds), sidebarGuilds); {
+	case joined == 1:
+		parts = append(parts, statusChip("Your guild", "1"))
+	case joined > 1:
+		parts = append(parts, statusChip("Your guilds", fmt.Sprintf("1-%d", joined)))
+	}
+	if len(m.joinedGuilds) > 0 {
+		parts = append(parts, statusChip("All your guilds", "m"))
+	}
 	return append(parts, statusPart{text: "(1 second)"})
 }
 

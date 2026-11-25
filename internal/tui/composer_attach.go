@@ -53,6 +53,9 @@ func (m AppModel) composerDraft() api.NewCommit {
 	if c.author != nil {
 		draft.Author = c.author.Handle
 	}
+	if c.guild != nil {
+		draft.Guild = c.guild.Handle
+	}
 	switch c.mode {
 	case "reply":
 		draft.ParentID = c.target.ID

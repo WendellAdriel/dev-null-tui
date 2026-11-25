@@ -102,7 +102,16 @@ type CommitDraft struct {
 	Body          string       `json:"body,omitempty"`
 	Images        []DraftImage `json:"images,omitempty"`
 	Poll          *DraftPoll   `json:"poll,omitempty"`
-	SavedAt       time.Time    `json:"saved_at"`
+	// Guild is the board a new commit was being written for.
+	Guild   *DraftGuild `json:"guild,omitempty"`
+	SavedAt time.Time   `json:"saved_at"`
+}
+
+// DraftGuild is enough of a guild to name it and post to its board.
+type DraftGuild struct {
+	Handle string `json:"handle"`
+	Name   string `json:"name"`
+	Emoji  string `json:"emoji,omitempty"`
 }
 
 // DraftPoll is a poll being written, with its duration in minutes.

@@ -39,6 +39,8 @@ type NewCommit struct {
 	QuotedID string
 	Poll     *NewPoll
 	Images   []ImageFile
+	// Guild is the handle of the board to post on, or empty for the Log.
+	Guild string
 }
 
 // Validate applies the server's combination rules: a poll goes alone on a top-level commit, and images make text
@@ -49,6 +51,12 @@ func (draft NewCommit) Validate() error {
 	}
 	if draft.ParentID != "" && draft.QuotedID != "" {
 		return errors.New("a commit cannot both reply and quote")
+	}
+	if draft.Guild != "" && !ValidGuildHandle(draft.Guild) {
+		return errors.New("invalid guild handle")
+	}
+	if draft.Guild != "" && draft.ParentID != "" {
+		return errors.New("only a top-level commit can go on a guild board")
 	}
 	if draft.Poll != nil {
 		switch {
@@ -87,7 +95,8 @@ func (draft NewCommit) payload(scheduledAt string) ([]byte, error) {
 		Poll         *NewPoll  `json:"poll,omitempty"`
 		Descriptions []*string `json:"image_descriptions,omitempty"`
 		ScheduledAt  string    `json:"scheduled_at,omitempty"`
-	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID, Author: draft.Author, ScheduledAt: scheduledAt}
+		Guild        string    `json:"guild_handle,omitempty"`
+	}{Body: draft.Body, ParentID: draft.ParentID, QuotedID: draft.QuotedID, Author: draft.Author, ScheduledAt: scheduledAt, Guild: draft.Guild}
 	if draft.Poll != nil {
 		poll := draft.Poll.trimmed()
 		payload.Poll = &poll

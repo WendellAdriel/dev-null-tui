@@ -146,6 +146,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 	if _, _, aside := m.columns(); aside > 0 {
 		requests = append(requests, m.liveNowRequests()...)
 	}
+	avatars = append(avatars, m.guildIconRequests()...)
 	requests = append(m.composerThumbnails(), requests...)
 	if c := m.composer; c.open && c.previewing {
 		_, preview := previewRequests(c.images, max(1, m.composerBounds().w-4))

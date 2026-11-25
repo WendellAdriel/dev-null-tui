@@ -68,6 +68,13 @@ type Commit struct {
 	ReplyPreview *struct {
 		Data []Commit `json:"data"`
 	} `json:"reply_preview"`
+	// GuildHandle and Guild are set on board posts. JoinedGuild is set in Following when a joined guild alone
+	// brought the commit there.
+	GuildHandle string      `json:"guild_handle"`
+	Guild       *GuildBadge `json:"guild"`
+	JoinedGuild string      `json:"joined_guild"`
+	// GuildMentions holds the guilds this commit's hashtags name, by handle.
+	GuildMentions GuildMentions `json:"guild_mentions"`
 }
 
 type Image struct {

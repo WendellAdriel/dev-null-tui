@@ -40,6 +40,10 @@ type profileState struct {
 	handle       string
 	people       bool
 	organization bool
+	// guild is a guild's board, or with people set its members. board holds the guild and its pin.
+	guild       bool
+	board       api.GuildBoard
+	moderatorID string
 	// mention opens a clicked @handle, which names a user or an organization, so a missing user tries the organization.
 	mention    bool
 	below, tab int
@@ -77,6 +81,8 @@ type profileListResult struct {
 	cursor                         string
 	commits                        api.CommitPage
 	people                         api.People
+	board                          *api.GuildBoard
+	members                        *api.GuildMembers
 	err                            error
 }
 
@@ -118,6 +124,9 @@ func (m AppModel) profileHandle() string {
 func (s profileState) entries() []api.Commit { return s.entriesOf(s.tab) }
 
 func (s profileState) entriesOf(tab int) []api.Commit {
+	if s.guild {
+		return s.boardEntries()
+	}
 	commits := s.lists[tab].commits
 	if tab == 0 && s.profile.Pinned != nil {
 		return append([]api.Commit{*s.profile.Pinned}, commits...)
@@ -207,7 +216,7 @@ func (m *AppModel) profileFor(session, generation int) *profileState {
 }
 
 func (m AppModel) ownProfile(s *profileState) bool {
-	return !s.people && !s.organization && strings.EqualFold(s.handle, m.account.user.Handle)
+	return !s.people && !s.organization && !s.guild && strings.EqualFold(s.handle, m.account.user.Handle)
 }
 
 func (m AppModel) fetchProfile(s *profileState) tea.Cmd {
@@ -241,6 +250,9 @@ func (m *AppModel) fetchProfileList(s *profileState, more bool) tea.Cmd {
 	}
 	m.profileGeneration++
 	l.generation, l.loading, l.status = m.profileGeneration, true, ""
+	if s.guild {
+		return m.fetchGuildPage(s, l, cursor)
+	}
 	session, generation, tab, list, handle, base := m.session, s.generation, s.tab, l.generation, s.handle, s.ctx
 	if s.people {
 		load, connections := m.loadConnections, connectionLists[tab]
@@ -282,7 +294,7 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 			m.closeProfile()
 			return m.openOrganization(handle)
 		}
-		s.status = m.ghostly(msg.err, profileError(msg.err, s.organization))
+		s.status = m.ghostly(msg.err, profileError(msg.err, s))
 		m.renderProfile(s)
 		return nil
 	}
@@ -291,9 +303,12 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 	return nil
 }
 
-func profileError(err error, organization bool) string {
+func profileError(err error, s *profileState) string {
 	noun := "profile"
-	if organization {
+	switch {
+	case s.guild:
+		noun = "guild"
+	case s.organization:
 		noun = "organization"
 	}
 	var failure *auth.APIError
@@ -319,11 +334,16 @@ func (m *AppModel) acceptProfileList(msg profileListResult) tea.Cmd {
 		if m.revoked(msg.err) {
 			return nil
 		}
-		l.status = m.ghostly(msg.err, profileError(msg.err, s.organization))
+		l.status = m.ghostly(msg.err, profileError(msg.err, s))
 		m.renderProfile(s)
 		return nil
 	}
-	if s.people {
+	if s.guild {
+		if msg.cursor == "" {
+			l.people, l.commits = nil, nil
+		}
+		acceptGuildPage(s, l, msg)
+	} else if s.people {
 		if msg.cursor == "" {
 			l.people = nil
 		}
@@ -404,7 +424,7 @@ func (m *AppModel) reloadProfile(s *profileState) tea.Cmd {
 	s.lists[s.tab] = profileList{cursors: make(map[string]bool)}
 	s.status = ""
 	m.renderProfile(s)
-	if s.people {
+	if s.people || s.guild {
 		return m.fetchProfileList(s, false)
 	}
 	return tea.Batch(m.fetchProfile(s), m.fetchProfileList(s, false))
@@ -433,16 +453,22 @@ func (m AppModel) profileKey(pressed string) (AppModel, tea.Cmd, bool) {
 	case "G", "end":
 		return m, m.selectProfileEntry(s.count() - 1), true
 	case "tab", "shift+tab":
+		if s.guild {
+			return m, nil, true
+		}
 		return m, m.switchProfileTab(1 - s.tab), true
 	case "n":
 		return m, m.fetchProfileList(s, true), true
 	case "ctrl+r":
 		return m, m.reloadProfile(s), true
 	}
-	if s.people {
+	if s.guild {
+		if next, cmd, handled := m.guildKey(s, pressed); handled || s.people {
+			return next, cmd, handled
+		}
+	} else if s.people {
 		return m.connectionKey(s, pressed)
-	}
-	if s.organization {
+	} else if s.organization {
 		if next, cmd, handled := m.organizationKey(s, pressed); handled {
 			return next, cmd, true
 		}

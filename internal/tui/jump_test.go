@@ -37,6 +37,23 @@ func TestShiftZPutsTheFocusedCommitAtTheTopOfTheLog(t *testing.T) {
 	}
 }
 
+func TestShiftZLeavesTheLogAloneUnderScreensWithoutCommits(t *testing.T) {
+	m := fixtureApp(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})
+	m = updated.(AppModel)
+	commits := []api.Commit{}
+	for i := range 12 {
+		commits = append(commits, fixtureCommit(fmt.Sprint("c", i)))
+	}
+	m = applyPage(m, 0, api.Page{Data: commits})
+	m.feeds[0].selected = 11
+	m.directory.open = true
+	m, _ = m.handleKey("Z")
+	if offset := m.feeds[0].viewport.YOffset(); offset != 0 {
+		t.Fatalf("Z on the Guilds directory scrolled the Log under it to %d", offset)
+	}
+}
+
 func TestShiftZPutsTheFocusedCommitAtTheTopOfStarredAndThreads(t *testing.T) {
 	m, _ := starredApp(t)
 	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 30})

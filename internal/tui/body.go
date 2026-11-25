@@ -38,6 +38,8 @@ type bodyRenderer struct {
 	style statsStyle
 	// source is the text being linkified, for boundary checks that look before a slice of it.
 	source string
+	// guilds are the guilds the hashtags name, which draw as chips that open the board.
+	guilds map[string]api.GuildBadge
 }
 
 // folded reports a body too long to show whole in a list, which shows the server's excerpt until Show more.
@@ -66,7 +68,7 @@ func renderBody(commit api.Commit, width int, p palette, style statsStyle) []str
 	if len(segments) == 0 && commit.Body != "" {
 		segments = []api.Segment{{Type: "text", Text: commit.Body}}
 	}
-	r := bodyRenderer{p: p, style: style}
+	r := bodyRenderer{p: p, style: style, guilds: commit.GuildMentions}
 	inner := 0
 	if width > 0 {
 		inner = max(1, width-2)
@@ -866,6 +868,12 @@ const (
 	hashtagEnd   = "\x1b_devnull-tag\x1b\\"
 )
 
+// A guild chip opens the guild's board when clicked.
+const (
+	guildStart = "\x1b_devnull-guild;"
+	guildEnd   = "\x1b_devnull-guild\x1b\\"
+)
+
 // A star count marked with its commit opens Starred by when clicked.
 const (
 	starsStart = "\x1b_devnull-stars;"
@@ -874,7 +882,7 @@ const (
 
 var (
 	hashtagMarks  = regexp.MustCompile(`\x1b_devnull-tag;([^\x1b]*)\x1b\\`)
-	hashtagMarker = regexp.MustCompile(`\x1b_devnull-(?:tag|stars)[^\x1b]*\x1b\\`)
+	hashtagMarker = regexp.MustCompile(`\x1b_devnull-(?:tag|stars|guild)[^\x1b]*\x1b\\`)
 )
 
 // hashtags draws #tags like links. The web's lookbehind allows no word rune or any of "&/#>-" before the "#".
@@ -893,9 +901,13 @@ func (r bodyRenderer) hashtags(s string, offset int) []piece {
 			_, size := utf8.DecodeRuneInString(s[end:])
 			end += size
 		}
-		mark, blue := hashtagStart+url.PathEscape(s[i:end])+"\x1b\\", text(r.p.blue).Render
 		pieces = append(pieces, r.wordmarks(s[position:i])...)
-		pieces = append(pieces, piece{text: s[i:end], paint: func(s ...string) string { return mark + blue(s...) + hashtagEnd }})
+		if guild, ok := r.guilds[strings.ToLower(s[i+1:end])]; ok {
+			pieces = append(pieces, piece{text: guildLabel(guild), paint: guildPaint(guild.Handle, r.p)})
+		} else {
+			mark, blue := hashtagStart+url.PathEscape(s[i:end])+"\x1b\\", text(r.p.blue).Render
+			pieces = append(pieces, piece{text: s[i:end], paint: func(s ...string) string { return mark + blue(s...) + hashtagEnd }})
+		}
 		position, i = end, end-1
 	}
 	return append(pieces, r.wordmarks(s[position:])...)
@@ -906,6 +918,12 @@ func hashtagAt(line string, x int) string {
 	tag := markAt(line, x, hashtagStart, hashtagEnd)
 	tag, _ = url.PathUnescape(tag)
 	return tag
+}
+
+// guildAt is the guild whose chip is drawn at column x of a rendered line.
+func guildAt(line string, x int) string {
+	handle, _ := url.PathUnescape(markAt(line, x, guildStart, guildEnd))
+	return handle
 }
 
 // starsAt is the commit whose star count is drawn at column x of a rendered line.

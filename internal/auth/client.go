@@ -110,6 +110,8 @@ func (e *APIError) Error() string {
 		return "this account cannot access the API"
 	case "commit_rules_required":
 		return "your first commit must come from the web after reading the commit rules"
+	case "guild_paused":
+		return "This guild is paused until it has a moderator."
 	}
 	return fmt.Sprintf("account request failed (HTTP %d)", e.Status)
 }
@@ -275,15 +277,23 @@ func (c *Client) PostMultipart(ctx context.Context, target string, payload []byt
 	if len(images) == 0 {
 		return errors.New("a multipart request needs at least one image")
 	}
-	return c.postFiles(ctx, target, payload, "images[]", images, result)
+	return c.postFiles(ctx, http.MethodPost, target, payload, "images[]", images, result)
+}
+
+// SendMultipart is PostMultipart with any method, for edits such as a guild's new icon.
+func (c *Client) SendMultipart(ctx context.Context, method, target string, payload []byte, images []Upload, result any) error {
+	if len(images) == 0 {
+		return errors.New("a multipart request needs at least one image")
+	}
+	return c.postFiles(ctx, method, target, payload, "images[]", images, result)
 }
 
 // PostVoice sends a voice note the same way, alone in a voice part, signed by its own SHA-256.
 func (c *Client) PostVoice(ctx context.Context, target string, payload []byte, voice Upload, result any) error {
-	return c.postFiles(ctx, target, payload, "voice", []Upload{voice}, result)
+	return c.postFiles(ctx, http.MethodPost, target, payload, "voice", []Upload{voice}, result)
 }
 
-func (c *Client) postFiles(ctx context.Context, target string, payload []byte, field string, files []Upload, result any) error {
+func (c *Client) postFiles(ctx context.Context, method, target string, payload []byte, field string, files []Upload, result any) error {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	hashes := make([]string, len(files))
@@ -301,7 +311,7 @@ func (c *Client) postFiles(ctx context.Context, target string, payload []byte, f
 		return err
 	}
 	data, err := c.do(ctx, signedRequest{
-		method:      http.MethodPost,
+		method:      method,
 		path:        target,
 		body:        body.Bytes(),
 		contentType: writer.FormDataContentType(),
@@ -388,7 +398,8 @@ func (c *Client) do(ctx context.Context, request signedRequest, expected int) ([
 	if err != nil || len(data) > 1<<20 {
 		return nil, errors.New("server returned an unreadable response")
 	}
-	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusNoContent {
+	// 202 is a guild create or edit that waits for an admin.
+	if response.StatusCode != http.StatusOK && response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusAccepted && response.StatusCode != http.StatusNoContent {
 		var failure struct {
 			Code    string              `json:"code"`
 			Message string              `json:"message"`
@@ -417,7 +428,7 @@ func fieldErrors(all map[string][]string) []string {
 	for field := range all {
 		name, _, _ := strings.Cut(field, ".")
 		switch name {
-		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role", "author", "url", "hours", "scheduled_at", "undo", "language":
+		case "poll", "images", "image_descriptions", "option", "emoji", "reply_to_id", "voice", "voice_waveform", "name", "members", "role", "author", "url", "hours", "scheduled_at", "undo", "language", "handle", "description", "details", "guild_handle", "remove_icon":
 			fields = append(fields, field)
 		}
 	}

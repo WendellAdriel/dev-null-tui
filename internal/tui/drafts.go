@@ -32,12 +32,21 @@ type draftTargetLoaded struct {
 	err     error
 }
 
-// draftKey names the place a draft belongs to, like the web's stash names: the new commit, or one per reply and quote.
+// draftKey names the place a draft belongs to, like the web's stash names: the new commit, one per guild board, or one
+// per reply and quote.
 func draftKey(mode string, target api.Commit) string {
 	if mode == "" {
 		return "commit"
 	}
 	return mode + ":" + target.ID
+}
+
+// composerDraftKey is the open composer's draft place, which is its board when it posts to a guild.
+func composerDraftKey(c composer) string {
+	if c.mode == "" && c.guild != nil {
+		return "guild:" + c.guild.Handle
+	}
+	return draftKey(c.mode, c.target)
 }
 
 func (m *AppModel) loadCommitDrafts() {
@@ -70,6 +79,9 @@ func (m *AppModel) stashComposer() tea.Cmd {
 		}
 		draft.TargetExcerpt = draftExcerpt(c.target.Body)
 	}
+	if c.mode == "" && c.guild != nil {
+		draft.Guild = &auth.DraftGuild{Handle: c.guild.Handle, Name: c.guild.Name, Emoji: c.guild.Emoji}
+	}
 	for _, image := range c.images {
 		draft.Images = append(draft.Images, auth.DraftImage{Path: image.Path, Description: image.Description})
 	}
@@ -79,7 +91,7 @@ func (m *AppModel) stashComposer() tea.Cmd {
 	if m.commitDrafts == nil {
 		m.commitDrafts = map[string]auth.CommitDraft{}
 	}
-	m.commitDrafts[draftKey(c.mode, c.target)] = draft
+	m.commitDrafts[composerDraftKey(c)] = draft
 	m.clearComposer()
 	return m.saveCommitDrafts()
 }
@@ -93,7 +105,7 @@ func (m *AppModel) dropDraft() tea.Cmd {
 }
 
 func (m *AppModel) removeDraft() error {
-	return m.removeDraftAt(draftKey(m.composer.mode, m.composer.target))
+	return m.removeDraftAt(composerDraftKey(m.composer))
 }
 
 func (m *AppModel) removeDraftAt(key string) error {
@@ -110,7 +122,7 @@ func (m *AppModel) removeDraftAt(key string) error {
 // no longer valid are dropped with a note, like message drafts.
 func (m *AppModel) restoreDraft() {
 	c := &m.composer
-	draft, ok := m.commitDrafts[draftKey(c.mode, c.target)]
+	draft, ok := m.commitDrafts[composerDraftKey(*c)]
 	if !ok || c.hasDraft() {
 		return
 	}
@@ -206,6 +218,9 @@ func (m *AppModel) reopenDraft(key string) tea.Cmd {
 	if !ok {
 		return nil
 	}
+	if draft.Guild != nil {
+		return m.composeAt("", api.Commit{}, &api.GuildBadge{Handle: draft.Guild.Handle, Name: draft.Guild.Name, Emoji: draft.Guild.Emoji})
+	}
 	if draft.Kind == "commit" || draft.TargetID == "" {
 		return m.composeTo("", api.Commit{})
 	}
@@ -265,6 +280,9 @@ func draftExcerpt(body string) string {
 
 // draftKindLabel names the draft and, when it was kept with one, whose commit it answers.
 func draftKindLabel(draft auth.CommitDraft) string {
+	if draft.Guild != nil {
+		return "Post to " + guildLabel(api.GuildBadge{Name: draft.Guild.Name, Emoji: draft.Guild.Emoji})
+	}
 	to := ""
 	if draft.TargetHandle != "" {
 		to = " @" + safeText(draft.TargetHandle)

@@ -55,6 +55,13 @@ func TestRoundAvatarAndImageSizing(t *testing.T) {
 	if square.NRGBAAt(2, 2).R != 255 || square.NRGBAAt(2, 2).A == 0 || square.NRGBAAt(10, 10).A != 255 {
 		t.Fatal("an organization avatar must be square, so it never passes for a person")
 	}
+	bare, err := prepare(picture(t), Request{Cols: 4, Rows: 2, Ring: NoRing, Square: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bare.NRGBAAt(0, 0) != (color.NRGBA{R: 180, G: 90, B: 40, A: 255}) || bare.NRGBAAt(45, 2) != bare.NRGBAAt(48, 48) {
+		t.Fatal("a ringless icon must fill its square, with no band to show on a highlighted row")
+	}
 	cols, rows := Fit(1600, 900, 40, 12)
 	if cols != 40 || rows != 11 {
 		t.Fatalf("landscape fit: %dx%d", cols, rows)

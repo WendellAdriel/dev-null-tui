@@ -157,8 +157,8 @@ func TestSavedConnectionOpensApplicationAndReadsSignedLogs(t *testing.T) {
 		switch r.URL.Path {
 		case "/api/v1/me":
 			_, _ = io.WriteString(w, `{"data":{"id":"fixture","handle":"fixture","name":"Fixture"}}`)
-		case "/api/v1/me/live-following", "/api/v1/headlines":
-			// The aside's Live now and Hot topics blocks load beside the log, in no fixed order.
+		case "/api/v1/me/live-following", "/api/v1/headlines", "/api/v1/me/guilds":
+			// The aside's Live now and Hot topics blocks and the sidebar's Your guilds load beside the log, in no fixed order.
 			_, _ = io.WriteString(w, `{"data":[]}`)
 			return
 		default:

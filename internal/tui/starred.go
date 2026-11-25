@@ -40,6 +40,7 @@ func (m *AppModel) closeStarred() {
 	m.scheduled = nil
 	m.drafts = draftsState{}
 	m.topics.open, m.headline = false, nil
+	m.directory.open = false
 }
 
 func (m AppModel) openStarred() (AppModel, tea.Cmd) { return m.openList("", nil) }

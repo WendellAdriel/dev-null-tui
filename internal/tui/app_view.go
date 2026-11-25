@@ -89,6 +89,9 @@ func (m AppModel) screenBindings() appKeys {
 		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", "choose a theme"))
 		return appKeys{short, all}
 	}
+	if m.directoryOnTop() {
+		return m.directoryBindings(bind)
+	}
 	if m.draftsOnTop() {
 		short := []key.Binding{bind("↑/↓", "move"), bind("enter", "open draft"), bind("D", "delete draft"), bind("esc", "back to log"), bind("?", "help"), bind("ctrl+c", "quit")}
 		all := append(append([]key.Binding(nil), short...), bind("home / G / end", "first / last"), bind("c", "compose"), bind("g l", "Log"), bind("f2", "choose a theme"))
@@ -103,7 +106,7 @@ func (m AppModel) screenBindings() appKeys {
 	}
 	short = append(short, bind("f2", "choose a theme"), bind("?", "help"), bind("ctrl+c", "quit"))
 	all := append([]key.Binding(nil), short...)
-	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("g h", "Hot topics"), bind("H", "open a hot topic"), bind("L", "go live / end your stream"))
+	all = append(all, bind("g n", "notifications"), bind("g p", "your profile"), bind("g s", "Starred"), bind("g h", "Hot topics"), bind("g u", "Guilds"), bind("g 1-5", "your guilds in the sidebar"), bind("g m", "all your guilds"), bind("H", "open a hot topic"), bind("L", "go live / end your stream"))
 	all = append(all, bind("enter", "open thread"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind(".", "more commit actions"), bind("a", "account"), bind("Q", "open quoted commit"), bind("T", "copy own commit text"), bind("1/2/3", "choose log"), bind("w", "Who to follow"), bind("f / X / R", "on a suggested person: follow, not interested, others"), bind("g l", "return to log"), bind("g e", "Trending"), bind("g g / home", "first commit"), bind("G / end", "last commit"), bind("pgup/pgdown", "move five commits"), bind("ctrl+u/ctrl+d", "move five commits"), bind("] / l / right", "next log"), bind("[ / shift+tab", "previous log"), bind("wheel", "move selection"), bind("click", "open thread or view image"), bind("esc", "close overlay"))
 	if len(m.feeds[m.active].commits) > 0 && m.account.width < 100 {
 		all = append(all, bind("y", "copy link"))
@@ -281,6 +284,10 @@ func (m AppModel) View() tea.View {
 		content, r, _ := m.confirmationModal(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
 	}
+	if m.connected && !m.accountOpen && m.guildForm != nil {
+		content, r, _ := m.guildFormView(p)
+		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
+	}
 	if m.connected && !m.accountOpen && m.settings.dialog != "" {
 		content, r, _ := m.settingsDialog(p)
 		v.Content = overlay(v.Content, content, r, p, m.account.width, m.account.height)
@@ -336,6 +343,9 @@ func (m AppModel) workspaceView() tea.View {
 		}
 		if m.topics.open && m.manualLink == "" {
 			main, _ = m.topicsLayout(center, p)
+		}
+		if m.directory.open && m.manualLink == "" {
+			main = m.directoryColumn(center, p)
 		}
 		if m.threadOnTop() && m.manualLink == "" {
 			main = m.threadColumn(center, p)
@@ -526,21 +536,32 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		active                           bool
 	}
 	entries := []navEntry{
-		{m.icons.log, "Log", "", "g l", "log", idle && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && !m.drafts.open && !m.topics.open},
+		{m.icons.log, "Log", "", "g l", "log", idle && !m.notificationsOpen && !m.starredOpen && !m.remotes.open && !m.drafts.open && !m.topics.open && !m.directory.open},
 		{m.icons.notifications, "Notifications", badge, "g n", "notifications", idle && m.notificationsOpen},
 	}
 	// The web's sidebar shows Remotes only to accounts that have them, between Notifications and Profile.
 	if m.remotesEnabled() {
 		entries = append(entries, navEntry{m.icons.remotes, "Remotes", countBadge(m.remotes.unread), "g r", "remotes", idle && m.remotes.open})
 	}
-	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.isStarred() && m.scheduled == nil}, navEntry{m.icons.scheduled, "Scheduled", "", "g t", "scheduled", idle && m.scheduled != nil}, navEntry{m.icons.drafts, "Drafts", draftCount(len(m.commitDrafts)), "g d", "drafts", idle && m.drafts.open}, navEntry{m.icons.flame, "Hot topics", "", "g h", "hot-topics", idle && (m.topics.open || m.headline != nil)}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
+	entries = append(entries, navEntry{m.icons.profile, "Profile", "", "g p", "profile", ownProfile}, navEntry{m.icons.starred, "Starred", "", "g s", "starred", idle && m.starredOpen && m.isStarred() && m.scheduled == nil}, navEntry{m.icons.scheduled, "Scheduled", "", "g t", "scheduled", idle && m.scheduled != nil}, navEntry{m.icons.drafts, "Drafts", draftCount(len(m.commitDrafts)), "g d", "drafts", idle && m.drafts.open}, navEntry{m.icons.flame, "Hot topics", "", "g h", "hot-topics", idle && (m.topics.open || m.headline != nil)}, navEntry{m.icons.guilds, "Guilds", "", "g u", "guilds", (idle && m.directory.open) || (m.profileOnTop() && m.topProfile().guild)}, navEntry{m.icons.settings, "Settings", "", "g ,", "settings", m.settings.open})
 	top := "\n" + logo
 	var areas []hitArea
 	// Entries sit a blank row apart, and close up when that would push your identity off a short column: the logo,
-	// the entries, the button with its blank rows, and the identity with a row above it.
+	// the entries, the button with its blank rows, Your guilds, and the identity with a row above it.
 	step := 2
 	if lipgloss.Height(top)+2*len(entries)+3+1+2 > height {
 		step = 1
+	}
+	// They also close up when Your guilds would lose rows under the spaced entries, with your counts kept.
+	if want := m.guildSidebarHeight(); want > 0 && width >= 12 {
+		stats := len(m.accountStats(width, p))
+		if stats > 0 {
+			stats++
+		}
+		// The room guildSidebarRows gets below, for the spaced entries and the button with its fill.
+		if room := height - (lipgloss.Height(top) + 2*len(entries) + 2 + 3) - 1 - stats - 2 - 2; want > room {
+			step = 1
+		}
 	}
 	for i, entry := range entries {
 		gap := "\n\n "
@@ -586,6 +607,15 @@ func (m AppModel) navigationLayout(width, height int, p palette) (string, []hitA
 		}
 		if len(stats) > 0 {
 			bottom = strings.Join(stats, "\n") + "\n\n" + bottom
+		}
+		// Your guilds follow the button, as on the web, in the rows your counts and identity leave.
+		guilds, guildAreas := m.guildSidebarRows(inner, height-lipgloss.Height(top)-1-lipgloss.Height(bottom)-2, p)
+		for _, area := range guildAreas {
+			area.y += lipgloss.Height(top) + 1
+			areas = append(areas, area)
+		}
+		if len(guilds) > 0 {
+			top += "\n\n" + strings.Join(guilds, "\n")
 		}
 	}
 	gap := max(1, height-lipgloss.Height(top)-lipgloss.Height(bottom))

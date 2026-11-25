@@ -131,6 +131,9 @@ func (m AppModel) messageBrowser() *messageComposer {
 }
 
 func (m AppModel) activeBrowser() *fileBrowser {
+	if m.guildForm != nil && m.guildForm.browser != nil {
+		return m.guildForm.browser
+	}
 	if mc := m.messageBrowser(); mc != nil {
 		return mc.browser
 	}
@@ -138,6 +141,10 @@ func (m AppModel) activeBrowser() *fileBrowser {
 }
 
 func (m *AppModel) closeBrowser() tea.Cmd {
+	if f := m.guildForm; f != nil && f.browser != nil {
+		m.imageDir, f.browser = f.browser.dir, nil
+		return nil
+	}
 	if mc := m.messageBrowser(); mc != nil {
 		m.imageDir, mc.browser = mc.browser.dir, nil
 		return mc.input.Focus()
@@ -148,6 +155,9 @@ func (m *AppModel) closeBrowser() tea.Cmd {
 }
 
 func (m *AppModel) attachPicked(path string) string {
+	if m.guildForm != nil && m.guildForm.browser != nil {
+		return m.pickGuildIcon(path)
+	}
 	if m.messageBrowser() != nil {
 		return m.attachMessageImages([]string{path})
 	}

@@ -170,6 +170,10 @@ func (m *AppModel) renderProfile(s *profileState) {
 	frame := &profileFrame{hovered: s.hoveredDay}
 	tabs := profileTabNames
 	switch {
+	case s.guild && s.people:
+		m.guildMembersHeader(frame, s, width, p)
+	case s.guild:
+		m.guildHeader(frame, s, width, p)
 	case s.people:
 		tabs = connectionTabs
 	case s.organization:
@@ -178,10 +182,14 @@ func (m *AppModel) renderProfile(s *profileState) {
 	default:
 		m.profileHeader(frame, s, width, p)
 	}
-	m.profileTabs(frame, tabs, s.tab, width, p)
+	if !s.guild {
+		m.profileTabs(frame, tabs, s.tab, width, p)
+	}
 	l := s.lists[s.tab]
 	s.starts, s.ends, s.pictures = nil, nil, nil
-	if s.people {
+	if s.guild && !s.people {
+		m.boardList(frame, s, width, p)
+	} else if s.people {
 		m.organizationRows(frame, s, width, p)
 		m.peopleRows(frame, s, width, p)
 	} else {
@@ -215,6 +223,9 @@ func (m *AppModel) renderProfile(s *profileState) {
 }
 
 func profileEmpty(s *profileState) string {
+	if s.guild {
+		return guildEmpty(s)
+	}
 	if s.organization {
 		return organizationEmpty(s)
 	}
@@ -658,6 +669,9 @@ func (m AppModel) peopleRows(frame *profileFrame, s *profileState, width int, p 
 			name = text(p.ink).Bold(true).Render(safeText(person.Handle))
 		}
 		identity := name + " " + text(p.muted).Render("@"+safeText(person.Handle))
+		if s.guild && s.moderatorID != "" && person.ID == s.moderatorID {
+			identity += text(p.muted).Render(" (moderator)")
+		}
 		if person.FollowsYou != nil && *person.FollowsYou {
 			identity += "  " + chip("Follows you", p.muted, p)
 		}
@@ -775,11 +789,18 @@ func (m AppModel) profileColumn(width int, p palette) string {
 	if s.organization {
 		name = s.page.Organization.Name
 	}
+	if s.guild {
+		name = s.board.Guild.Name
+	}
 	if name == "" {
 		name = s.handle
 	}
 	title := "  " + text(p.ink).Bold(true).Render(safeText(name))
 	switch {
+	case s.guild && s.people:
+		title += text(p.muted).Render(" members")
+	case s.guild:
+		title += text(p.muted).Render(" guild")
 	case s.organization:
 		title += text(p.muted).Render(" organization")
 	case s.people:
@@ -810,6 +831,10 @@ func (m AppModel) profileStatus() string {
 	}
 	noun := [2]string{"commits", "replies"}[s.tab]
 	switch {
+	case s.guild && s.people:
+		noun = "members"
+	case s.guild:
+		noun = "commits"
 	case s.people:
 		noun = "people"
 	case s.organization:
@@ -827,6 +852,9 @@ func (m AppModel) profileStatus() string {
 
 func (m AppModel) profileBindings(bind func(string, string) key.Binding) appKeys {
 	s := m.profiles[len(m.profiles)-1]
+	if s.guild {
+		return m.guildBindings(bind)
+	}
 	if s.organization {
 		return m.organizationBindings(bind)
 	}

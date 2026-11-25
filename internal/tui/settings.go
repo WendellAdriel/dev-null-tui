@@ -169,6 +169,8 @@ func (m *AppModel) startSettings(op settingsOperation) tea.Cmd {
 			r.person, r.err = client.SetSafety(ctx, op.handle, op.kind, op.enabled)
 		case "report":
 			r.err = client.Report(ctx, op.id, op.reason, op.details)
+		case "guild-report":
+			r.err = client.ReportGuild(ctx, op.handle, op.details)
 		case "timezone":
 			r.user, r.err = client.SetTimezone(ctx, op.value, op.enabled)
 		case "automatic-translation":
@@ -277,8 +279,11 @@ func (m *AppModel) acceptSettings(r settingsResult) tea.Cmd {
 	m.applySettingsChange(r.op)
 	s.status, s.uncertain, s.dialog = "", false, ""
 	title := "Saved."
-	if r.op.kind == "refresh" {
+	switch r.op.kind {
+	case "refresh":
 		title = "Account refreshed."
+	case "guild-report":
+		title = "Report sent."
 	}
 	m.reflow()
 	var list tea.Cmd
@@ -554,11 +559,14 @@ func (m *AppModel) beginSettingsDialog(kind, handle, id string) tea.Cmd {
 	if kind == "report" {
 		s.input.Placeholder = "Optional details (500 characters)"
 	}
+	if kind == "guild-report" {
+		s.focus = 1
+	}
 	if kind == "timezone" || kind == "translation-language" {
 		// Preference dialogs are reversible, so Enter after typing saves instead of discarding the input.
 		s.focus = 1
 	}
-	if kind == "delete-account" || kind == "report" || kind == "timezone" || kind == "translation-language" {
+	if kind == "delete-account" || kind == "report" || kind == "guild-report" || kind == "timezone" || kind == "translation-language" {
 		return s.input.Focus()
 	}
 	return nil
@@ -659,6 +667,11 @@ func (m *AppModel) submitSettingsDialog() tea.Cmd {
 		}
 	case "report":
 		op.reason, op.details = api.ReportReasons[s.choice].Value, s.input.Value()
+	case "guild-report":
+		if op.details = strings.TrimSpace(s.input.Value()); op.details == "" {
+			s.status = "Describe what looks wrong."
+			return nil
+		}
 	case "delete-account":
 		if s.input.Value() != m.account.user.Handle {
 			s.status = "Type your exact handle to confirm permanent account deletion."
@@ -840,7 +853,7 @@ func (m *AppModel) beginReport() tea.Cmd {
 
 func (m *AppModel) beginProfileSafety(kind string) tea.Cmd {
 	p := m.topProfile()
-	if p == nil || p.people || p.organization || !p.loaded || p.profile.User.ID == m.account.user.ID {
+	if p == nil || p.people || p.organization || p.guild || !p.loaded || p.profile.User.ID == m.account.user.ID {
 		return nil
 	}
 	if kind == "mute" && p.profile.IsMuting != nil && *p.profile.IsMuting {

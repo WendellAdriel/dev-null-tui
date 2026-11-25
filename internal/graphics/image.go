@@ -38,7 +38,7 @@ func prepare(data []byte, req Request) (*image.NRGBA, error) {
 	}
 	output := image.NewNRGBA(image.Rect(0, 0, width, height))
 	draw.CatmullRom.Scale(output, output.Bounds(), source, bounds, draw.Src, nil)
-	if req.Ring != "" {
+	if req.Ring != "" && req.Ring != NoRing {
 		ring := parseRing(req.Ring)
 		for y := range height {
 			for x := range width {

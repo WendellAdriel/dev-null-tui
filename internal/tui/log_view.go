@@ -234,6 +234,9 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 		meta += strings.Repeat(" ", max(2, width-lipgloss.Width(meta)-lipgloss.Width(hash))) + hash
 	}
 	lines := []string{fit(meta, width)}
+	if line := guildLine(commit, p); line != "" {
+		lines = append(lines, fit(line, width))
+	}
 	for _, line := range bodyLines(commit, width, p, style) {
 		lines = append(lines, fit(line, width))
 	}

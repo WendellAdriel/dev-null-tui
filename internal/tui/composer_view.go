@@ -138,6 +138,9 @@ func (m AppModel) composerModal(p palette) (string, uiRect) {
 
 func (m AppModel) composerTitle(p palette) string {
 	title := map[string]string{"": "New commit", "reply": "Reply", "quote": "Quote commit", "feature": "Request a feature", "bug": "Report a bug"}[m.composer.mode]
+	if g := m.composer.guild; g != nil && m.composer.mode == "" {
+		title = "Post to " + guildLabel(*g)
+	}
 	if m.composer.previewing {
 		title = "Preview commit"
 		if m.composer.issue() {

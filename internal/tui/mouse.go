@@ -66,6 +66,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if msg.Button != tea.MouseLeft || msg.X < 0 || msg.Y < 0 || msg.X >= m.account.width || msg.Y >= m.account.height {
 		return m, nil
 	}
+	if m.connected && !m.accountOpen && m.guildForm != nil && m.settings.dialog == "" {
+		return m.guildFormMouse(msg)
+	}
 	if m.connected && !m.accountOpen && m.settings.dialog != "" {
 		_, r, areas := m.settingsDialog(m.account.colors())
 		if (uiRect{r.x + r.w - 3, r.y + 1, 1, 1}).contains(msg.X, msg.Y) {
@@ -218,6 +221,9 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 		return m, nil
 	}
 	if lines := strings.Split(m.workspaceView().Content, "\n"); msg.Y < len(lines) && !m.searchBlocked() {
+		if handle := guildAt(lines[msg.Y], msg.X); handle != "" {
+			return m, m.openGuild(handle)
+		}
 		if tag := hashtagAt(lines[msg.Y], msg.X); tag != "" {
 			cmd := m.openSearch(tag)
 			return m, cmd
@@ -257,6 +263,17 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 				}
 				if area.action == "hot-topics" {
 					return m.openHotTopics()
+				}
+				if area.action == "guilds" {
+					return m.openDirectory()
+				}
+				if area.action == "more-guilds" {
+					m.settings.open = false
+					return m, m.openGuildsPicker()
+				}
+				if handle, ok := strings.CutPrefix(area.action, "guild:"); ok {
+					m.settings.open = false
+					return m, m.openGuild(handle)
 				}
 				if area.action == "remotes" {
 					return m.openRemotes()
@@ -302,6 +319,12 @@ func (m AppModel) handleMouse(msg tea.MouseClickMsg) (AppModel, tea.Cmd) {
 	if m.draftsOnTop() && !m.settings.open {
 		if x := msg.X - left - nav - 1; x >= 0 && x < center {
 			return m.draftsMouse(x, msg.Y, center)
+		}
+		return m, nil
+	}
+	if m.directoryOnTop() && !m.settings.open {
+		if x := msg.X - left - nav - 1; x >= 0 && x < center {
+			return m.directoryMouse(x, msg.Y, center)
 		}
 		return m, nil
 	}

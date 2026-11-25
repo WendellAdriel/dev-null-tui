@@ -46,6 +46,10 @@ type Request struct {
 	// Square draws an organization's avatar, ringed like a person's but square, as the web does.
 	Square bool
 }
+
+// NoRing as a Request's Ring crops the image square like an avatar but draws no ring, so it sits on any background.
+const NoRing = "none"
+
 type Job struct {
 	Request Request
 	ID      int

@@ -33,7 +33,7 @@ func (m *AppModel) jumpToTop() {
 		scroll(&f.viewport, f.starts, f.selected)
 	case m.starredOpen:
 		scroll(&m.starred.viewport, m.starred.starts, m.starred.selected)
-	case m.topicsOnTop(), m.draftsOnTop():
+	case m.directoryOnTop(), m.topicsOnTop(), m.draftsOnTop():
 		// These screens have no commits to lift, and the Log under them must stay where it was.
 	default:
 		f := &m.feeds[m.active]

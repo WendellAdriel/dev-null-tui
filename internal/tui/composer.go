@@ -39,9 +39,11 @@ type composer struct {
 	field        textinput.Model
 	browser      *fileBrowser
 	author       *auth.Organization
-	picker       *authorPicker
-	schedule     *schedulePicker
-	scheduleAt   *time.Time
+	// guild is the board a top-level commit goes to, from c on a board.
+	guild      *api.GuildBadge
+	picker     *authorPicker
+	schedule   *schedulePicker
+	scheduleAt *time.Time
 }
 
 type submissionResult struct {
@@ -81,19 +83,24 @@ func (m *AppModel) openComposer() tea.Cmd {
 }
 
 func (m *AppModel) composeTo(mode string, target api.Commit) tea.Cmd {
+	return m.composeAt(mode, target, nil)
+}
+
+// composeAt opens the composer for a place: a new commit, a reply or quote, or a new commit on a guild's board.
+func (m *AppModel) composeAt(mode string, target api.Commit, guild *api.GuildBadge) tea.Cmd {
 	if mode != "" && !isIssueMode(mode) && (target.DeletedAt != nil || target.Author == nil) {
 		return nil
 	}
 	c := &m.composer
 	if c.owner != "" && c.hasDraft() {
 		cmd := m.openComposer()
-		if m.composer.mode != mode || m.composer.target.ID != target.ID {
+		if composerDraftKey(m.composer) != composerDraftKey(composer{mode: mode, target: target, guild: guild}) {
 			m.composer.status = "Finish or discard this draft before starting another."
 		}
 		return cmd
 	}
 	cmd := m.openComposer()
-	m.composer.mode, m.composer.target = mode, target
+	m.composer.mode, m.composer.target, m.composer.guild = mode, target, guild
 	if isIssueMode(mode) {
 		m.composer.startIssueMode(mode)
 	}
@@ -512,7 +519,11 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 	}
 	m.addToThreads(c.mode, c.target.ID, commit)
 	index := c.log
-	if c.mode != "reply" && index != 2 {
+	onBoard := c.mode == "" && c.guild != nil
+	if onBoard {
+		// A board post stays out of the general logs, as the web says, and leads its board instead.
+		m.addToBoard(c.guild.Handle, commit)
+	} else if c.mode != "reply" && index != 2 {
 		f := &m.feeds[index]
 		if f.loading && f.loadingMode == "initial" {
 			f.submitted = append([]api.Commit{commit}, f.submitted...)
@@ -537,7 +548,7 @@ func (m *AppModel) acceptSubmission(result submissionResult) tea.Cmd {
 	if commit.Status == "pending" {
 		m.notice += " Awaiting review, not public yet."
 	}
-	if index == 2 && c.mode != "reply" {
+	if index == 2 && c.mode != "reply" && !onBoard {
 		m.notice += " Trending stays ranked. Refresh to check for it."
 	}
 	removal := m.removeDraft()

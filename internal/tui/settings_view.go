@@ -209,6 +209,12 @@ func (m AppModel) settingsDialog(p palette) (string, uiRect, []hitArea) {
 	case "lane":
 		title = "Your color"
 		body, bodyAreas = m.settingsLanePicker(p, w)
+	case "guild-report":
+		title = "Report #" + safeText(s.handle)
+		if top := m.topProfile(); top != nil && top.guild && top.handle == s.handle {
+			title = "Report " + safeText(top.board.Guild.Name)
+		}
+		body = "Your report is private. Admins will review the description and icon. Reporting does not hide the guild.\n\nWhat looks wrong?\n" + s.input.View()
 	case "report":
 		title = "Report commit"
 		body = "Private report · choose a reason (↑/↓):\n"
@@ -239,7 +245,7 @@ func (m AppModel) settingsDialog(p palette) (string, uiRect, []hitArea) {
 	if s.dialog == "lane" {
 		label = "Save color"
 	}
-	if s.dialog == "report" {
+	if s.dialog == "report" || s.dialog == "guild-report" {
 		label = "Send report"
 	}
 	if s.dialog == "delete-account" {
@@ -264,7 +270,7 @@ func (m AppModel) settingsDialog(p palette) (string, uiRect, []hitArea) {
 	switch s.dialog {
 	case "delete-account", "revoke-device", "block":
 		border = p.danger
-	case "mute", "report":
+	case "mute", "report", "guild-report":
 		border = p.warning
 	}
 	return panel(title, body, footer, r, p, border), r, append(bodyAreas, areas...)

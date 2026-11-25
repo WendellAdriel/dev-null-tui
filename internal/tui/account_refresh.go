@@ -62,7 +62,7 @@ func (m *AppModel) refreshAside() tea.Cmd {
 	nav, _, aside := m.columns()
 	var account, live tea.Cmd
 	if nav >= sidebarWidth {
-		account = m.refreshAccount()
+		account = tea.Batch(m.refreshAccount(), m.refreshJoinedGuilds())
 	}
 	var topics tea.Cmd
 	if aside > 0 {
