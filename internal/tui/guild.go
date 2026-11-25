@@ -138,6 +138,20 @@ func acceptGuildPage(s *profileState, l *profileList, msg profileListResult) {
 }
 
 // boardEntries puts the pinned commit first, as the web does, without repeating it in the board below.
+// boardPin is the selected commit and whether b unpins it. ok is false with nothing selected or on a reply, since the
+// server only pins top-level commits.
+func (s profileState) boardPin() (commit api.Commit, unpin, ok bool) {
+	entries := s.boardEntries()
+	if len(entries) == 0 {
+		return api.Commit{}, false, false
+	}
+	commit = entries[min(s.lists[0].selected, len(entries)-1)]
+	if commit.ParentID != nil {
+		return commit, false, false
+	}
+	return commit, s.board.Pinned != nil && s.board.Pinned.ID == commit.ID, true
+}
+
 func (s profileState) boardEntries() []api.Commit {
 	commits := s.lists[0].commits
 	if s.board.Pinned == nil {
@@ -196,13 +210,11 @@ func (m AppModel) guildKey(s *profileState, pressed string) (AppModel, tea.Cmd, 
 		}
 		return m, m.openGuildForm(&g), true
 	case "b":
-		entries := s.boardEntries()
-		if !s.board.CanModerate || len(entries) == 0 {
+		selected, unpin, ok := s.boardPin()
+		if !s.board.CanModerate || !ok {
 			return m, nil, true
 		}
-		selected := entries[min(s.lists[0].selected, len(entries)-1)]
-		pinned := s.board.Pinned != nil && s.board.Pinned.ID == selected.ID
-		return m, m.startGuildAction(guildAction{kind: "pin", handle: g.Handle, commit: selected.ID, on: !pinned}), true
+		return m, m.startGuildAction(guildAction{kind: "pin", handle: g.Handle, commit: selected.ID, on: !unpin}), true
 	}
 	return m, nil, false
 }

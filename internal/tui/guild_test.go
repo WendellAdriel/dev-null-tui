@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
@@ -539,5 +540,51 @@ func TestGuildIconsLoadAheadOfTheAvatarsOnScreen(t *testing.T) {
 	picked, _ := m.userAvatar(ada, 2, 1, m.account.colors())
 	if media := m.visibleMedia(); slices.Index(media, picked) != 0 {
 		t.Fatalf("the picker's avatar sits at %d, behind the guild icons", slices.Index(media, picked))
+	}
+}
+
+func TestBoardRepliesNameTheirParentAndCannotBePinned(t *testing.T) {
+	board := laravelBoard(true, true, false)
+	parent := fixtureCommit("parent")
+	parent.Author = &api.Author{Name: "Grace", Handle: "grace"}
+	reply := fixtureCommit("r1")
+	reply.Body = "Learning #laravel"
+	reply.ParentID, reply.Parent = &parent.ID, &parent
+	deleted := fixtureCommit("r2")
+	deleted.Body = "A #laravel reply under a deleted parent"
+	gone := time.Date(2026, 10, 22, 10, 0, 0, 0, time.UTC)
+	deleted.ParentID, deleted.Parent = &parent.ID, &api.Commit{ID: "gone", DeletedAt: &gone}
+	hidden := fixtureCommit("r3")
+	hidden.Body = "A #laravel reply under a parent you can't see"
+	hidden.ParentID = &parent.ID
+	board.Data = append(board.Data, reply, deleted, hidden)
+	m, log := guildApp(t, board)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 60})
+	m = openBoard(t, updated.(AppModel), log)
+	frame := frameText(m)
+	for _, want := range []string{"↳ replying to @grace", "↳ replying to [deleted]"} {
+		if !strings.Contains(frame, want) {
+			t.Fatalf("missing %q:\n%s", want, frame)
+		}
+	}
+	if strings.Count(frame, "↳ replying to") != 2 {
+		t.Fatalf("only replies name a parent:\n%s", frame)
+	}
+	log.calls = nil
+	m = press(t, m, "j", "j")
+	if status := statusLineOf(m); strings.Contains(status, "Pin") {
+		t.Fatalf("a reply offers no pin: %q", status)
+	}
+	m = press(t, m, "b", "j", "j")
+	if status := statusLineOf(m); strings.Contains(status, "Pin") {
+		t.Fatalf("a reply with an unseen parent offers no pin: %q", status)
+	}
+	m = press(t, m, "b")
+	if strings.Contains(strings.Join(log.calls, ","), "pin") {
+		t.Fatalf("b must not pin a reply: %v", log.calls)
+	}
+	m = press(t, m, "k", "k", "k")
+	if status := statusLineOf(m); !strings.Contains(status, "Pin") {
+		t.Fatalf("a top-level commit keeps its pin: %q", status)
 	}
 }

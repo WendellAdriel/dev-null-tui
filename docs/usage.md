@@ -34,7 +34,7 @@ A commit with a link shows the server's link card below the body: the site, a tw
 
 Long commits show the server's excerpt first, like the web. Press `m` or click **Show more** to see the whole text. It stays unfolded for the rest of the session. Opening a thread always shows its commit whole, while its ancestors and replies keep the excerpt.
 
-Click a row or press `Enter` to open its thread. The selected commit shows clickable actions below its stats. `y` copies its web link. Clipboard failures display the link for manual copying.
+Click a row or press `Enter` to open its thread. A reply shown outside its thread, as on boards, profile replies and Starred, says **↳ replying to @handle** above its text. The selected commit shows clickable actions below its stats. `y` copies its web link. Clipboard failures display the link for manual copying.
 
 ## Threads
 
@@ -95,7 +95,7 @@ Guilds are public groups with a bulletin board. Open them with `g u` or **Guilds
 
 Joined guilds you didn't mute show under the sidebar's Commit button as **Your guilds**, most missed commits first, with their counts. The sidebar lists up to five, opened with `g 1` to `g 5`. With more, **More guilds** (`g m`) lists them all. Opening a board clears its count. A short terminal drops them before your counts and identity.
 
-A board shows its pinned commit first, labeled **Pinned to board**, then its commits, newest first. `c` on a board posts there instead of your profile log, and the composer can schedule the post. A paused guild, one without a moderator, keeps its board and members but takes no posts. A hashtag that names a guild draws as its emoji and name, and a click opens the board. A board post's thread says which guild it was posted in, and Following says "because you joined" when a guild brought a commit there.
+A board shows its pinned commit first, labeled **Pinned to board**, then its commits, newest first. A reply that mentions the guild shows on its own, and `Enter` opens its full thread. `c` on a board posts there instead of your profile log, and the composer can schedule the post. A paused guild, one without a moderator, keeps its board and members but takes no posts. A hashtag that names a guild draws as its emoji and name, and a click opens the board. A board post's thread says which guild it was posted in, and Following says "because you joined" when a guild brought a commit there.
 
 ## Remotes
 

@@ -237,6 +237,9 @@ func commitLayout(commit api.Commit, tag string, width int, p palette, now time.
 	if line := guildLine(commit, p); line != "" {
 		lines = append(lines, fit(line, width))
 	}
+	if line := replyingTo(commit, p); line != "" {
+		lines = append(lines, fit(line, width))
+	}
 	for _, line := range bodyLines(commit, width, p, style) {
 		lines = append(lines, fit(line, width))
 	}
@@ -629,4 +632,15 @@ func (m AppModel) commitList(lines []string, commits []api.Commit, selected, wid
 	}
 	list.lines = lines
 	return list
+}
+
+// replyingTo is the web's line on a reply the API sent with its parent: boards, profile replies, Starred and mentions.
+func replyingTo(commit api.Commit, p palette) string {
+	switch {
+	case commit.Parent == nil:
+		return ""
+	case commit.Parent.DeletedAt != nil || commit.Parent.Author == nil:
+		return text(p.muted).Render("↳ replying to [deleted]")
+	}
+	return text(p.muted).Render("↳ replying to @" + safeText(commit.Parent.Author.Handle))
 }

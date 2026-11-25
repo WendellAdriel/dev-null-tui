@@ -23,7 +23,7 @@ func TestGuildDirectoryBoardAndMembersDecode(t *testing.T) {
 		case "/api/v1/guilds/café":
 			_, _ = io.WriteString(w, `{"data":[{"id":"c1","body":"Queues in #laravel","author":{"id":"u1","handle":"ada"},"guild_handle":"café","guild":{"handle":"café","name":"Café","emoji":"☕","icon_url":null},
 				"guild_mentions":{"laravel":{"handle":"laravel","name":"Laravel","emoji":"🟥","icon_url":"https://dev-null.sh/i"}}},
-					{"id":"c2","body":"No guild here","author":{"id":"u1","handle":"ada"},"guild_mentions":[]}],
+					{"id":"c2","body":"No guild here","author":{"id":"u1","handle":"ada"},"guild_mentions":[],"parent_id":"p1","parent":{"id":"p1","parent_id":"r1","deleted_at":"2026-11-25T10:00:00Z"}}],
 				"guild":{"handle":"café","name":"Café","description":"Coffee","emoji":"☕","member_count":3,"is_joined":false,"is_muted":true,"is_paused":true},
 				"pinned_commit":{"id":"c1","body":"Pinned","author":{"id":"u1","handle":"ada"}},"can_moderate":true,"meta":{"current_page":1,"per_page":30},"links":{"next":"https://dev-null.sh/api/v1/guilds/caf%C3%A9?page=2"}}`)
 		case "/api/v1/guilds/laravel/members":
@@ -55,6 +55,9 @@ func TestGuildDirectoryBoardAndMembersDecode(t *testing.T) {
 
 	if plain := board.Data[1]; len(plain.GuildMentions) != 0 {
 		t.Fatalf("an empty guild_mentions list: %+v", plain.GuildMentions)
+	}
+	if reply := board.Data[1]; reply.Parent == nil || reply.Parent.ID != "p1" || reply.Parent.DeletedAt == nil || post.Parent != nil {
+		t.Fatalf("a matching reply's parent: %+v", reply.Parent)
 	}
 
 	members, err := client.GuildMembers(t.Context(), "laravel", 1)

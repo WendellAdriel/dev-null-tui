@@ -1011,6 +1011,9 @@ func (m AppModel) safeCommitsFor(commits []api.Commit, direct bool) []api.Commit
 				c.Quote = &quotes[0]
 			}
 		}
+		if c.Parent != nil && c.Parent.Author != nil && m.safetyHidden[strings.ToLower(c.Parent.Author.Handle)]&mask != 0 {
+			c.Parent = nil
+		}
 		if c.ReplyPreview != nil {
 			preview := *c.ReplyPreview
 			preview.Data = m.safeCommits(preview.Data)

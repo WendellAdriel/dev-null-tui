@@ -183,11 +183,14 @@ func (m AppModel) guildStatus(s *profileState) []statusPart {
 	}
 	parts = append(parts, statusChip("Members", "U"))
 	if s.board.CanModerate {
-		pin := "Pin"
-		if entries := s.boardEntries(); s.board.Pinned != nil && len(entries) > 0 && entries[min(s.lists[0].selected, len(entries)-1)].ID == s.board.Pinned.ID {
-			pin = "Unpin"
+		if _, unpin, ok := s.boardPin(); ok {
+			pin := "Pin"
+			if unpin {
+				pin = "Unpin"
+			}
+			parts = append(parts, statusChip(pin, "b"))
 		}
-		parts = append(parts, statusChip(pin, "b"), statusChip("Edit", "E"))
+		parts = append(parts, statusChip("Edit", "E"))
 	} else {
 		parts = append(parts, statusChip("Report", "R"))
 	}
@@ -204,7 +207,7 @@ func (m AppModel) guildBindings(bind func(string, string) key.Binding) appKeys {
 	short := []key.Binding{bind("↑/↓", "move"), bind("J", "join / leave"), bind("c", "post to this guild"), bind("enter", "open thread"), bind("esc", "back"), bind("?", "help"), bind("ctrl+c", "quit")}
 	all := append(append([]key.Binding(nil), short...), bind("M", "mute / unmute"), bind("U", "members"), bind("u", "author profile"), bind("r", "reply"), bind("q", "quote"), bind("v", "view images"), bind("D", "delete own commit"), bind("y", "copy link"), bind(".", "more commit actions"), bind("P", "pin to your profile"), bind("!", "report a commit"), bind("n", "older commits"), bind("ctrl+r", "reload board"), bind("home / G / end", "first / last"), bind("pgup/pgdown", "move five entries"), bind("f2", "choose a theme"), bind("click", "select, open, act, or view image"))
 	if s.board.CanModerate {
-		all = append(all, bind("b", "pin / unpin on the board"), bind("E", "edit the guild"))
+		all = append(all, bind("b", "pin / unpin a top-level commit"), bind("E", "edit the guild"))
 	} else {
 		all = append(all, bind("R", "report the guild"))
 	}

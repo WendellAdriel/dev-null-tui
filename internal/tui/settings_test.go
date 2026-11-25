@@ -203,6 +203,24 @@ func TestSafetyChangesDiscardStaleReadsAndHiddenContent(t *testing.T) {
 	}
 }
 
+func TestRepliesNameTheirParentUntilItsAuthorIsHidden(t *testing.T) {
+	m := fixtureApp(t)
+	updated, _ := m.Update(tea.WindowSizeMsg{Width: 120, Height: 34})
+	m = updated.(AppModel)
+	parent := fixtureCommit("parent")
+	parent.Author = &api.Author{Name: "Grace", Handle: "grace"}
+	reply := fixtureCommit("reply")
+	reply.ParentID, reply.Parent = &parent.ID, &parent
+	m = applyPage(m, 0, api.Page{Data: []api.Commit{reply}})
+	if !strings.Contains(frameText(m), "↳ replying to @grace") {
+		t.Fatalf("a reply the API sent with its parent names it:\n%s", frameText(m))
+	}
+	m.restrictSafetyContent("grace", "block")
+	if len(m.feeds[0].commits) != 1 || strings.Contains(frameText(m), "@grace") {
+		t.Fatalf("blocking the parent's author keeps the reply but drops its name:\n%s", frameText(m))
+	}
+}
+
 func TestSettingsViewsStayWithinTerminalAndShowOnlySupportedTabs(t *testing.T) {
 	for _, dark := range []bool{false, true} {
 		for _, size := range [][2]int{{160, 45}, {120, 35}, {80, 24}, {60, 18}} {

@@ -144,7 +144,7 @@ A board stacks like a profile. It shows the guild's header, a composer row, the 
 | `U` | Open the members, the moderator first |
 | `R` | Report the guild, unless you moderate it |
 | `E` | Edit the guild, as its moderator |
-| `b` | Pin or unpin the selected commit on the board, as its moderator |
+| `b` | Pin or unpin the selected top-level commit on the board, as its moderator |
 | `Z` | Scroll the selected commit to the top of the screen |
 | `r`, `q`, `s`, `P`, `!`, `m`, `y` | Act on the selected commit, as in the log |
 | `n`, `Ctrl+R`, `Esc` | Older commits, reload, or go back |
