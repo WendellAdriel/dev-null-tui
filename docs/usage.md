@@ -63,7 +63,7 @@ Notifications about an organization's commit or mention name the organization, a
 
 Press `u` on a commit or notification to open its author's or actor's profile. `g p` or the sidebar's **Profile** row opens your own. On an organization's commit, `u` or **Profile** opens the organization's page instead. It shows the organization's identity, links, followers, and admins, with **Commits** and **Mentions** tabs on `1` and `2`. Press `f` to follow it. A Following list shows the organizations you follow above the people.
 
-Profiles show available identity details, counts, activity, streaks, and achievements. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `F` or `O`, or click a count, to open Followers or Following. The counts show those keys beside them.
+Profiles show available identity details, counts, activity, streaks, and achievements. Hover over or click a day in the activity graph to see its commit count. A pinned commit leads the Commits tab. `Tab`, `1`, or `2` switches between Commits and Replies. Press `F` or `O`, or click a count, to open Followers or Following. The counts show those keys beside them.
 
 Your own profile shows your moderation history under the counts, as a gavel and **N timeouts · N bans**. Only you and site moderators see it. Press `M` or click the line to list each timeout and ban with its reason and dates. The history reloads with `Ctrl+R` and when a new notification arrives.
 
@@ -88,6 +88,14 @@ Unstarring with `s` removes the entry after confirmation. Selection moves to the
 ## Hot topics
 
 The aside's **Hot topics** shows what people commit about in the last 12 hours, one card per topic with its whole title. On a short terminal the aside drops the shortcuts first, then the block. Click a card, or press `H` to pick a topic with its whole recap shown below the list, to open its commits under its name and recap. A topic shows **No recap right now** while the server writes a new recap, every 2 hours, or when the topic links commits hidden from you, such as ones from people you muted. The web shows the same. For the full list with whole recaps, press `g h` or choose **Hot topics** above Settings in the sidebar, then `Enter` or click a topic. `Esc` returns to the Hot topics screen when you opened the topic there, and to the log otherwise. The list refreshes every minute while the terminal is focused and the list is shown.
+
+## Guilds
+
+Guilds are public groups with a bulletin board. Open them with `g u` or **Guilds** in the sidebar. The directory searches names, `#handles`, and descriptions, and **Create a guild** starts a new one. Its display name sets the hashtag, which the form previews as you type. A new guild, or an edit, that waits for an admin shows the server's message instead of opening.
+
+Joined guilds you didn't mute show under the sidebar's Commit button as **Your guilds**, most missed commits first, with their counts. The sidebar lists up to five, opened with `g 1` to `g 5`. With more, **More guilds** (`g m`) lists them all. Opening a board clears its count. A short terminal drops them before your counts and identity.
+
+A board shows its pinned commit first, labeled **Pinned to board**, then its commits, newest first. `c` on a board posts there instead of your profile log, and the composer can schedule the post. A paused guild, one without a moderator, keeps its board and members but takes no posts. A hashtag that names a guild draws as its emoji and name, and a click opens the board. A board post's thread says which guild it was posted in, and Following says "because you joined" when a guild brought a commit there.
 
 ## Remotes
 

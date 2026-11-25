@@ -31,10 +31,14 @@ Run `devnull`. A verified saved connection opens the workspace. Otherwise, login
 | `g r` | Open Remotes, when Remotes is on |
 | `g s` | Open Starred, fetching its first page again |
 | `g h` | Open Hot topics |
+| `g u` | Open Guilds |
+| `g 1` to `g 5` | Open a guild under Your guilds in the sidebar |
+| `g m` | List all your guilds |
 | `H` | Pick a hot topic and open its commits |
 | `g ,` | Open Settings |
 | `g g`, `Home` | Select the first commit and scroll to the top |
 | `G`, `End` | Select the last loaded commit |
+| `Z` | Scroll the selected commit to the top of the screen. `z` stays the delete undo |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | Mouse wheel | Select the next or previous commit, or scroll help while it is open |
 | Left click | Open a commit's thread, or select a log tab, sidebar action, or sidebar shortcut. Click an image to view it |
@@ -86,6 +90,7 @@ Opening Notifications marks all categories read, including categories excluded b
 | `y` | Copy the referenced commit's link |
 | `v` | View attached images when returned by the API |
 | `Home`, `G`, `End` | Select the first or last loaded entry |
+| `Z` | Scroll the selected notification to the top of the screen |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five entries |
 | `Ctrl+R` | Refresh and select the first notification after success |
 | `Esc`, `g l` | Return to the log |
@@ -101,6 +106,7 @@ Open **Starred** below Profile in the sidebar, or press `g s`. The header's **On
 | --- | --- |
 | `j`, `k`, `Down`, `Up`, mouse wheel | Select the next or previous commit |
 | `g g`, `Home`, `G`, `End` | Select the first or last loaded commit |
+| `Z` | Scroll the selected commit to the top of the screen |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | `Enter`, `u` | Open the thread or author's profile |
 | `r`, `q`, `s`, `p`, `v`, `D`, `y` | Act on the selected commit, as in the log |
@@ -112,6 +118,38 @@ Open **Starred** below Profile in the sidebar, or press `g s`. The header's **On
 Threads and profiles stack above Starred. Returning with `Esc` keeps the list and selection. Each explicit open through the sidebar or `g s` fetches the first page again. A confirmed unstar anywhere removes its loaded Starred entry, keeping selection on the next entry or the previous one at the end. A failed unstar leaves the entry unchanged. Starring elsewhere doesn't insert into a loaded list.
 
 Follow, star, and pastél rate-limit toasts show the server's retry delay or UTC date when supplied. Missing or invalid Retry-After headers retain the usual error text.
+
+## Guilds
+
+Open **Guilds** above Settings in the sidebar, or press `g u`. The directory lists public guilds, biggest first, 24 to a page, one card per row and two from 120 terminal columns.
+
+| Keys | Action |
+| --- | --- |
+| `j`, `k`, `h`, `l`, arrows | Select a card |
+| `Enter`, left click | Open the selected guild's board |
+| `J` | Join or leave the selected guild |
+| `M` | Mute or unmute a guild you didn't join |
+| `/` | Search names, `#handles`, and descriptions. `Enter` searches and `Esc` cancels |
+| `n`, `p` | Next or previous page |
+| `C` | Create a guild |
+| `Esc` | Clear the search, or return to the log |
+
+A board stacks like a profile. It shows the guild's header, a composer row, the pinned commit, then the board, newest first.
+
+| Keys | Action |
+| --- | --- |
+| `J` | Join or leave at once, as the web does |
+| `M` | Mute or unmute, while you haven't joined |
+| `c` | Post a top-level commit to the board. A paused guild has no composer |
+| `U` | Open the members, the moderator first |
+| `R` | Report the guild, unless you moderate it |
+| `E` | Edit the guild, as its moderator |
+| `b` | Pin or unpin the selected commit on the board, as its moderator |
+| `Z` | Scroll the selected commit to the top of the screen |
+| `r`, `q`, `s`, `P`, `!`, `m`, `y` | Act on the selected commit, as in the log |
+| `n`, `Ctrl+R`, `Esc` | Older commits, reload, or go back |
+
+The create and edit form takes Tab and Shift+Tab between fields. The emoji field searches as you type, and `Enter` picks the highlighted emoji. `Enter` on Icon opens the file browser, and `Backspace` removes the chosen file. `Ctrl+S` saves and `Esc` cancels.
 
 ## Remotes
 
@@ -196,6 +234,7 @@ The thread replaces the log column. `Esc` returns to the previous thread, then t
 | `j`, `k`, `Down`, `Up` | Select the next or previous entry |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five entries |
 | `Home`, `G`, `End` | Select the first or last entry |
+| `Z` | Scroll the selected entry to the top of the screen |
 | `Enter` | Open the selected entry's thread |
 | `Space` | Show or hide replies. On a reply, show or hide its nested replies |
 | `n` | Load more replies |
@@ -226,6 +265,7 @@ A profile replaces the center column, like a thread. `Esc` returns to the screen
 | `j`, `k`, `Down`, `Up` | Select the next or previous commit |
 | `PageUp`, `PageDown`, `Ctrl+U`, `Ctrl+D` | Move five commits |
 | `g g`, `Home`, `G`, `End` | Select the first or last loaded commit |
+| `Z` | Scroll the selected commit to the top of the screen |
 | `Tab`, `Shift+Tab`, `1`, `2` | Switch between Commits and Replies |
 | `F`, `O` | Open the Followers or Following list |
 | `f` | Follow or unfollow this person |
