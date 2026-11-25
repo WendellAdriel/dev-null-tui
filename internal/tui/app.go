@@ -540,6 +540,10 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouse(msg)
 	case tea.MouseMotionMsg:
 		m.dragComposer(msg.X, msg.Y)
+		if m.tracksHover() {
+			nav, center, aside := m.columns()
+			m.hoverActivity(msg.X-(m.account.width-nav-center-aside-2)/2-nav-1, msg.Y)
+		}
 		return m, nil
 	case tea.MouseReleaseMsg:
 		if m.composer.dragging {

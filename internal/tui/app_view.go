@@ -295,6 +295,10 @@ func (m AppModel) View() tea.View {
 	}
 	v.Content = hashtagMarker.ReplaceAllString(v.Content, "")
 	v.MouseMode = tea.MouseModeCellMotion
+	if m.tracksHover() {
+		// Hover needs every move, so it's asked for only while a profile's activity graph can use it.
+		v.MouseMode = tea.MouseModeAllMotion
+	}
 	return v
 }
 

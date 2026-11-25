@@ -16,7 +16,7 @@ import (
 	"github.com/WendellAdriel/dev-null-cli/internal/graphics"
 )
 
-var activityWindows = map[string]string{"day": "24 hours", "week": "7 days", "month": "30 days", "year": "year"}
+var activityWindows = map[string]string{"day": "24 hours", "week": "7 days", "month": "30 days", "half": "6 months", "year": "year"}
 
 // activityMix is the web's share of the lane colour at each activity level.
 var activityMix = [5]float64{0, 0.32, 0.56, 0.80, 1}
@@ -137,6 +137,9 @@ type profileFrame struct {
 	actions []hitArea
 	avatars []avatarHit
 	media   []lineMedia
+	// days are the activity graph's cells by bucket, and hovered is the one under the mouse plus one, or 0.
+	days    []hitArea
+	hovered int
 }
 
 // lineMedia is an image drawn on one line of a scrolling page, requested only while that line shows.
@@ -164,7 +167,7 @@ func (f *profileFrame) targetLines(x, width, lines int, action string) {
 func (m *AppModel) renderProfile(s *profileState) {
 	p := m.account.colors()
 	width := max(1, s.viewport.Width())
-	frame := &profileFrame{}
+	frame := &profileFrame{hovered: s.hoveredDay}
 	tabs := profileTabNames
 	switch {
 	case s.people:
@@ -207,7 +210,7 @@ func (m *AppModel) renderProfile(s *profileState) {
 	default:
 		frame.add("", lipgloss.NewStyle().Width(width).Align(lipgloss.Center).Render(text(p.muted).Render("EOF")), "")
 	}
-	s.actions, s.avatars, s.media = frame.actions, frame.avatars, frame.media
+	s.actions, s.avatars, s.media, s.days = frame.actions, frame.avatars, frame.media, frame.days
 	s.viewport.SetContent(strings.Join(frame.lines, "\n"))
 }
 
@@ -410,18 +413,42 @@ func (m AppModel) activityGraph(frame *profileFrame, activity *api.Activity, lan
 	cell := func(count int, value string) string {
 		return text(activityColor(activityLevel(count, most), lane, p)).Render(value)
 	}
-	if activity.Scale == "year" {
-		// The web lays a year out as weeks of seven days, starting on a Sunday.
+	if barScale := activity.Scale == "day" || activity.Scale == "week" || activity.Scale == "month"; !barScale {
+		// The web lays long scales out as weeks of seven days, starting on a Sunday. Scales the TUI does not know
+		// use the same grid, so a new one never overflows the card with a bar per bucket.
 		weeks := (len(activity.Buckets) + 6) / 7
-		first := max(0, weeks-width)
+		// Lower blocks leave a gap above each row and a blank column parts the weeks, like the web's spaced squares.
+		// The day labels need four more columns, and a grid too wide for gaps falls back to bare squares.
+		labels, square, gap := "", "■", ""
+		switch {
+		case activity.Scale == "half" && 4+weeks*3-1 <= width:
+			labels, square, gap = "    ", "▆▆", " "
+		case 4+weeks*2-1 <= width:
+			labels, square, gap = "    ", "▄", " "
+		case weeks*2-1 <= width:
+			square, gap = "▄", " "
+		case 4+weeks <= width:
+			// A ■ glyph keeps its own small margins, so a year on a narrower card still reads as spaced squares.
+			labels = "    "
+		}
+		step := lipgloss.Width(square + gap)
+		first := max(0, weeks-(width-len(labels)+len(gap))/step)
+		if labels != "" {
+			frame.add(pad + labels + activityMonths(activity, first, weeks, step, p))
+		}
 		for day := range 7 {
-			row := ""
+			cells := []string{}
 			for week := first; week < weeks; week++ {
 				if i := week*7 + day; i < len(activity.Buckets) {
-					row += cell(activity.Buckets[i].Count, "■")
+					cells = append(cells, cell(activity.Buckets[i].Count, square))
+					frame.days = append(frame.days, hitArea{uiRect{len(pad) + len(labels) + (week-first)*step, len(frame.lines), lipgloss.Width(square), 1}, "", i})
 				}
 			}
-			frame.add(pad + row)
+			name := labels
+			if labels != "" && day%2 == 1 {
+				name = text(p.muted).Render([]string{"", "Mon ", "", "Wed ", "", "Fri "}[day])
+			}
+			frame.add(pad + name + strings.Join(cells, gap))
 		}
 	} else {
 		// Every bar gets the same width, as on the web, using whichever of a gap column or a closing half block
@@ -443,6 +470,7 @@ func (m AppModel) activityGraph(frame *profileFrame, activity *api.Activity, lan
 				bar = strings.Repeat("█", column-1) + "▌"
 			}
 			bars += cell(b.Count, bar)
+			frame.days = append(frame.days, hitArea{uiRect{len(pad) + at, len(frame.lines), column, 2}, "", i})
 			label := activityLabel(activity.Scale, b.Date)
 			if label != "" && at >= lipgloss.Width(labels) && at+len(label) <= width {
 				labels += strings.Repeat(" ", at-lipgloss.Width(labels)) + label
@@ -456,18 +484,59 @@ func (m AppModel) activityGraph(frame *profileFrame, activity *api.Activity, lan
 		legend += text(activityColor(level, lane, p)).Render("■")
 	}
 	legend += text(p.muted).Render(" More")
-	frame.add(pad + strings.Repeat(" ", max(0, width-lipgloss.Width(legend))) + legend)
+	// The web's tooltip: the count of the cell under the mouse, on the legend's line so nothing shifts.
+	hovered := ""
+	if i := frame.hovered - 1; i >= 0 && i < len(activity.Buckets) {
+		b := activity.Buckets[i]
+		hovered = text(p.ink).Render(fit(plural(b.Count, "commit", "commits")+activityDay(activity.Scale, b.Date), max(0, width-lipgloss.Width(legend)-1)))
+	}
+	frame.add(pad + hovered + strings.Repeat(" ", max(0, width-lipgloss.Width(hovered)-lipgloss.Width(legend))) + legend)
+}
+
+// activityMonths is the grid's month row: a month's short name over the week that holds its 1st. A month already
+// under way in the first column gets no name, as on the web, so it can't crowd the next one.
+func activityMonths(activity *api.Activity, first, weeks, step int, p palette) string {
+	row := ""
+	for week := first; week < weeks; week++ {
+		sunday, ok := bucketDate(activity.Buckets[week*7].Date)
+		// The web names a month over the week holding its 1st, which is the week whose Saturday falls in days 1 to 7.
+		at := sunday.AddDate(0, 0, 6)
+		if !ok || at.Day() > 7 {
+			continue
+		}
+		if column := (week - first) * step; column >= lipgloss.Width(row) && column+3 <= (weeks-first)*step {
+			row += strings.Repeat(" ", column-lipgloss.Width(row)) + at.Format("Jan")
+		}
+	}
+	return text(p.muted).Render(row)
+}
+
+// activityDay says when a hovered bucket was, as the web's tooltip does: an hour for a day's bars, else a date.
+func activityDay(scale, date string) string {
+	at, ok := bucketDate(date)
+	if !ok {
+		return ""
+	}
+	if scale == "day" {
+		return " at " + at.Format("15:04")
+	}
+	return " on " + at.Format("Mon, Jan 2")
+}
+
+// bucketDate reads a bucket's day, sent as a date or a timestamp.
+func bucketDate(date string) (time.Time, bool) {
+	if at, err := time.Parse(time.DateOnly, date); err == nil {
+		return at, true
+	}
+	at, err := time.Parse(time.RFC3339, date)
+	return at.In(time.Local), err == nil
 }
 
 // activityLabel names a bucket the way the web axis does: every six hours, every day, or each Monday.
 func activityLabel(scale, date string) string {
-	at, err := time.Parse(time.RFC3339, date)
-	if err != nil {
-		if at, err = time.Parse(time.DateOnly, date); err != nil {
-			return ""
-		}
-	} else {
-		at = at.In(time.Local)
+	at, ok := bucketDate(date)
+	if !ok {
+		return ""
 	}
 	switch scale {
 	case "day":
@@ -783,6 +852,10 @@ func (m AppModel) profileMouse(x, y int) (AppModel, tea.Cmd) {
 	}
 	row := y - threadHeaderHeight + s.viewport.YOffset()
 	l := &s.lists[s.tab]
+	if m.hoverActivity(x, y) {
+		// A click shows a day's count too, for terminals that report no hover.
+		return m, nil
+	}
 	if cmd, ok := m.openAvatarAt(s.avatars, x, row); ok {
 		return m, cmd
 	}
@@ -817,4 +890,33 @@ func (m AppModel) profileMouse(x, y int) (AppModel, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// hoverActivity shows the count of the activity cell at a center-column point, and reports whether there was one.
+func (m *AppModel) hoverActivity(x, y int) bool {
+	s := m.topProfile()
+	if s == nil {
+		return false
+	}
+	day := 0
+	if y >= threadHeaderHeight && y < m.mainHeight() {
+		row := y - threadHeaderHeight + s.viewport.YOffset()
+		for _, area := range s.days {
+			if area.contains(x, row) {
+				day = area.index + 1
+				break
+			}
+		}
+	}
+	if day != s.hoveredDay {
+		s.hoveredDay = day
+		m.renderProfile(s)
+	}
+	return day != 0
+}
+
+// tracksHover is whether the screen needs every mouse move: only a profile with an activity graph shows hover.
+func (m AppModel) tracksHover() bool {
+	s := m.topProfile()
+	return m.profileOnTop() && s != nil && len(s.days) > 0 && !m.popupOpen() && !m.settings.open
 }

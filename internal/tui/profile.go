@@ -57,9 +57,12 @@ type profileState struct {
 	pictures     []pictureArea
 	actions      []hitArea
 	avatars      []avatarHit
-	media        []lineMedia
-	ctx          context.Context
-	cancel       context.CancelFunc
+	// days are the activity graph's cells, and hoveredDay is the bucket under the mouse plus one, or 0.
+	days       []hitArea
+	hoveredDay int
+	media      []lineMedia
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 type profileResult struct {

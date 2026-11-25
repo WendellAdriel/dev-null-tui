@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/charmbracelet/x/ansi"
@@ -437,5 +438,130 @@ func TestMonthActivityDrawsSeparateBarsAcrossTheWidth(t *testing.T) {
 		if left := len(line) - len(strings.TrimLeft(line, " ")); used > width || used < width-29 || left != (width-used)/2 {
 			t.Fatalf("width %d: %d cells from column %d: %q", width, used, left, line)
 		}
+	}
+}
+
+func TestHalfYearActivityDrawsTwentySixWeeksWithLargerSquares(t *testing.T) {
+	m, _ := profileApp(t)
+	activity := func(scale string, days int) *api.Activity {
+		a := &api.Activity{Scale: scale}
+		start := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+		for day := range days {
+			a.Buckets = append(a.Buckets, struct {
+				Date  string `json:"date"`
+				Count int    `json:"count"`
+			}{start.AddDate(0, 0, day).Format(time.DateOnly), day % 3})
+		}
+		return a
+	}
+	// weekRows are the grid's seven rows, under the month row when the grid has one.
+	weekRows := func(frame profileFrame) []string {
+		if strings.Contains(ansi.Strip(frame.lines[2]), "Jun") {
+			return frame.lines[3:10]
+		}
+		return frame.lines[2:9]
+	}
+	count := func(row string) int {
+		plain := ansi.Strip(row)
+		return strings.Count(plain, "▆▆") + strings.Count(plain, "▄") + strings.Count(plain, "■")
+	}
+	for _, width := range []int{40, 56, 86} {
+		var frame profileFrame
+		m.activityGraph(&frame, activity("half", 182), "#fcc419", width, colors(true))
+		if header := ansi.Strip(frame.lines[0]); !strings.Contains(header, "in the last 6 months") {
+			t.Fatalf("width %d: header %q", width, header)
+		}
+		rows := weekRows(frame)
+		for _, row := range rows {
+			if cells := ansi.StringWidth(strings.TrimRight(ansi.Strip(row), " ")); cells > width+2 {
+				t.Fatalf("width %d: row is %d cells: %q", width, cells, ansi.Strip(row))
+			}
+		}
+		if squares := count(rows[0]); squares != 26 {
+			t.Fatalf("width %d: %d weeks in %q", width, squares, ansi.Strip(rows[0]))
+		}
+		if width >= 81 && (!strings.Contains(ansi.Strip(rows[0]), "▆▆ ▆▆") || !strings.HasPrefix(ansi.Strip(rows[1]), "  Mon ")) {
+			t.Fatalf("width %d: weeks must be large spaced squares with day names when they fit: %q", width, ansi.Strip(rows[1]))
+		}
+		if width >= 56 && !strings.Contains(ansi.Strip(frame.lines[2]), "Jun") {
+			t.Fatalf("width %d: the grid needs its month row: %q", width, ansi.Strip(frame.lines[2]))
+		}
+	}
+	// A year spaces its squares when the card is wide enough, and fits 53 bare squares when it isn't.
+	for _, width := range []int{60, 110} {
+		var frame profileFrame
+		m.activityGraph(&frame, activity("year", 371), "#fcc419", width, colors(true))
+		row := weekRows(frame)[0]
+		if squares := count(row); squares != min(53, width) {
+			t.Fatalf("year at %d: %d weeks in %q", width, squares, ansi.Strip(row))
+		}
+		if width >= 109 && !strings.Contains(ansi.Strip(row), "▄ ▄") {
+			t.Fatalf("year at %d: squares must be spaced: %q", width, ansi.Strip(row))
+		}
+	}
+	// Any scale the TUI does not know draws the week grid rather than one bar per bucket.
+	for _, days := range []int{14, 91} {
+		var frame profileFrame
+		m.activityGraph(&frame, activity("quarter", days), "#fcc419", 86, colors(true))
+		if len(frame.lines) < 10 || strings.Contains(ansi.Strip(frame.lines[2]), "█") {
+			t.Fatalf("%d buckets of an unknown scale must draw the week grid, got %q", days, ansi.Strip(frame.lines[2]))
+		}
+	}
+}
+
+func TestActivityMonthsSitOverTheWeekOfTheFirstAndCellsShowTheirCount(t *testing.T) {
+	m, _ := profileApp(t)
+	half := &api.Activity{Scale: "half"}
+	start := time.Date(2026, 5, 24, 0, 0, 0, 0, time.UTC)
+	for day := range 182 {
+		half.Buckets = append(half.Buckets, struct {
+			Date  string `json:"date"`
+			Count int    `json:"count"`
+		}{start.AddDate(0, 0, day).Format(time.DateOnly), day % 3})
+	}
+	var frame profileFrame
+	m.activityGraph(&frame, half, "#fcc419", 86, colors(true))
+	// The week of Sunday May 31 holds June 1, so June's name sits over the second column, after 2 + 4 label cells.
+	if months := ansi.Strip(frame.lines[2]); strings.Index(months, "Jun") != 2+4+3 || strings.Contains(months, "May") {
+		t.Fatalf("month row: %q", months)
+	}
+
+	m.loadProfile = func(_ context.Context, handle string) (api.Profile, error) {
+		profile := fixtureProfile(handle)
+		profile.Activity = half
+		return profile, nil
+	}
+	next, _ := m.Update(tea.WindowSizeMsg{Width: 160, Height: 120})
+	m = press(t, next.(AppModel), "u")
+	if !m.tracksHover() {
+		t.Fatal("a profile with an activity graph must ask for hover")
+	}
+	s := m.topProfile()
+	// Cells go row by row, so the second is the next Sunday, May 31.
+	day := s.days[1]
+	m.hoverActivity(day.x, day.y+threadHeaderHeight-s.viewport.YOffset())
+	if page := ansi.Strip(s.viewport.GetContent()); !strings.Contains(page, "1 commit on Sun, May 31") {
+		t.Fatalf("hovering a cell must show its count:\n%s", page)
+	}
+	m.hoverActivity(0, 0)
+	if strings.Contains(ansi.Strip(m.topProfile().viewport.GetContent()), "commit on Mon") {
+		t.Fatal("moving off the graph must clear the count")
+	}
+
+	// Through Update, the motion lands on the cell under the pointer, and not while help covers the page.
+	nav, center, aside := m.columns()
+	x := day.x + (m.account.width-nav-center-aside-2)/2 + nav + 1
+	y := day.y + threadHeaderHeight - s.viewport.YOffset()
+	next, _ = m.Update(tea.MouseMotionMsg{X: x, Y: y})
+	m = next.(AppModel)
+	// May 31 is the eighth bucket, and hoveredDay counts from one.
+	if got := m.topProfile().hoveredDay; got != 8 {
+		t.Fatalf("motion over the second cell hovered %d", got)
+	}
+	m = press(t, m, "?")
+	next, _ = m.Update(tea.MouseMotionMsg{X: 0, Y: 0})
+	m = next.(AppModel)
+	if m.topProfile().hoveredDay != 8 || m.tracksHover() || m.View().MouseMode != tea.MouseModeCellMotion {
+		t.Fatal("help must stop hover from reaching the page behind it")
 	}
 }
