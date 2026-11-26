@@ -47,10 +47,16 @@ var themes = []theme{
 	{name: "default", label: "Auto", note: "Dark or Light, like your terminal", dark: &defaultDark, light: &defaultLight},
 	{name: "dark", label: "Dark", dark: &defaultDark},
 	{name: "light", label: "Light", light: &defaultLight},
+	{name: "ayu-light", label: "Ayu Light", light: &ayuLight},
 	{name: "catppuccin-latte", label: "Catppuccin Latte", light: &catppuccinLatte},
 	{name: "catppuccin-mocha", label: "Catppuccin Mocha", dark: &catppuccinMocha},
 	{name: "dracula", label: "Dracula", dark: &dracula},
+	{name: "github-light", label: "GitHub Light", light: &gitHubLight},
+	{name: "kanagawa", label: "Kanagawa", dark: &kanagawa},
+	{name: "nord", label: "Nord", dark: &nord},
 	{name: "ocean-drive", label: "Ocean Drive", dark: &oceanDrive},
+	{name: "rose-pine", label: "Rosé Pine", dark: &rosePine},
+	{name: "rose-pine-dawn", label: "Rosé Pine Dawn", light: &rosePineDawn},
 	{name: "solarized-light", label: "Solarized Light", light: &solarizedLight},
 	{name: "synthwave84", label: "Synthwave '84", dark: &synthwave84},
 	{name: "tokyonight-night", label: "Tokyo Night", dark: &tokyoNight},
@@ -151,6 +157,55 @@ var solarizedLight = palette{
 	soft: "#eee8d5", code: "#8f6c00", danger: "#d5302e",
 	success: "#687700", warning: "#c34815", brand: "#ff2d20",
 	lanes: [6]string{"#cb4b16", "#849700", "#6c71c4", "#299e95", "#d33682", "#b38800"},
+}
+
+var rosePine = palette{
+	shell: "#191724", ink: "#e0def4", muted: "#908caa",
+	hairline: "#403d52", blue: "#9ccfd8", wash: "#26233a",
+	soft: "#1f1d2e", code: "#f6c177", danger: "#eb6f92",
+	success: "#9ccfd8", warning: "#f6c177", brand: "#ff2d20",
+	lanes: [6]string{"#ebbcba", "#31748f", "#c4a7e7", "#9ccfd8", "#eb6f92", "#f6c177"},
+}
+
+var rosePineDawn = palette{
+	shell: "#faf4ed", ink: "#534e73", muted: "#716c8c",
+	hairline: "#dfdad9", blue: "#286983", wash: "#f2e9e1",
+	soft: "#dfdad9", code: "#966421", danger: "#a2596e",
+	success: "#45767f", warning: "#966421", brand: "#ff2d20",
+	lanes: [6]string{"#c47673", "#56949f", "#907aa9", "#286983", "#b4637a", "#be7f2a"},
+}
+
+var gitHubLight = palette{
+	shell: "#ffffff", ink: "#1f2328", muted: "#656d76",
+	hairline: "#d0d7de", blue: "#0969da", wash: "#f6f8fa",
+	soft: "#ddf4ff", code: "#9a6700", danger: "#cf222e",
+	success: "#1a7f37", warning: "#9a6700", brand: "#ff2d20",
+	lanes: [6]string{"#bc4c00", "#1a7f37", "#8250df", "#1b7c83", "#bf3989", "#9a6700"},
+}
+
+var ayuLight = palette{
+	shell: "#fcfcfc", ink: "#53575c", muted: "#6f747b",
+	hairline: "#e7e8e9", blue: "#338ecf", wash: "#f3f4f5",
+	soft: "#e7f1fb", code: "#aa602a", danger: "#b65656",
+	success: "#5e7d00", warning: "#966c2d", brand: "#ff2d20",
+	lanes: [6]string{"#d77935", "#769e00", "#a37acc", "#40a081", "#e46b6b", "#ba8638"},
+}
+
+var nord = palette{
+	shell: "#2e3440", ink: "#eceff4", muted: "#9aa3b5",
+	hairline: "#4c566a", blue: "#88c0d0", wash: "#3b4252",
+	soft: "#434c5e", code: "#ebcb8b", danger: "#d08a91",
+	success: "#a3be8c", warning: "#ebcb8b", brand: "#ff2d20",
+	lanes: [6]string{"#d08770", "#a3be8c", "#b48ead", "#8fbcbb", "#bf616a", "#ebcb8b"},
+}
+
+// kanagawa is the Wave variant.
+var kanagawa = palette{
+	shell: "#1f1f28", ink: "#dcd7ba", muted: "#8a887c",
+	hairline: "#363646", blue: "#7e9cd8", wash: "#2a2a37",
+	soft: "#363646", code: "#e6c384", danger: "#e46876",
+	success: "#98bb6c", warning: "#ffa066", brand: "#ff2d20",
+	lanes: [6]string{"#ffa066", "#98bb6c", "#957fb8", "#7aa89f", "#d27e99", "#e6c384"},
 }
 
 // eventThemes mirror the web's resources/css/app.css: the surface colors change, and lanes and status colors stay.

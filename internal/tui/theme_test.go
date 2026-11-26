@@ -340,7 +340,7 @@ func TestThemeLivesInTheTUITabAndPicksEventThemesTooWithATag(t *testing.T) {
 	for _, row := range m.picker.rows {
 		labels = append(labels, row.label)
 	}
-	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Auto|Dark|Light|Catppuccin Latte|Catppuccin Mocha|Dracula|Ocean Drive|Solarized Light|Synthwave '84|Tokyo Night|Tokyo Night Day||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
+	if m.picker == nil || m.picker.kind != "theme" || strings.Join(labels, "|") != "TUI themes|Auto|Dark|Light|Ayu Light|Catppuccin Latte|Catppuccin Mocha|Dracula|GitHub Light|Kanagawa|Nord|Ocean Drive|Rosé Pine|Rosé Pine Dawn|Solarized Light|Synthwave '84|Tokyo Night|Tokyo Night Day||Event themes|Halloween|Christmas|New Year" || m.picker.rows[m.picker.selected].value != "default" {
 		t.Fatalf("the picker must group TUI themes, then event themes, on the current choice: %q", labels)
 	}
 	if text := frameText(m); !strings.Contains(text, "TUI themes") || !strings.Contains(text, "overrides") {
@@ -452,6 +452,25 @@ func TestTheSavedPairStaysSelectedInThePicker(t *testing.T) {
 	m.openThemes()
 	if row := m.picker.rows[m.picker.selected]; row.value != "tokyonight" || row.label != "Tokyo Night (follows terminal)" {
 		t.Fatalf("the picker must keep the saved pair selected, got %+v", row)
+	}
+}
+
+func TestRosePineGitHubAyuNordAndKanagawaAreListedWithTheirMode(t *testing.T) {
+	for name, want := range map[string]struct {
+		label string
+		dark  bool
+	}{
+		"rose-pine":      {"Rosé Pine", true},
+		"rose-pine-dawn": {"Rosé Pine Dawn", false},
+		"github-light":   {"GitHub Light", false},
+		"ayu-light":      {"Ayu Light", false},
+		"nord":           {"Nord", true},
+		"kanagawa":       {"Kanagawa", true},
+	} {
+		th := themeNamed(name)
+		if th.name != name || th.label != want.label || (th.dark != nil) != want.dark || (th.light != nil) == want.dark {
+			t.Fatalf("%s must be listed as %q, dark=%v, got %+v", name, want.label, want.dark, th)
+		}
 	}
 }
 
