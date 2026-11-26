@@ -295,6 +295,12 @@ func (m *AppModel) messageComposerKey(msg tea.KeyPressMsg) tea.Cmd {
 		return nil
 	case "ctrl+o":
 		return m.openMessageBrowser()
+	case "ctrl+y":
+		if !applySwatchHint(&mc.input, fitsMessage) {
+			return nil
+		}
+		m.resizeThread()
+		return tea.Batch(m.refreshMessageSuggestions(), m.scheduleDraftSave())
 	case "tab", "shift+tab":
 		if pressed != "tab" || mc.suggest.count() == 0 {
 			if len(mc.images) > 0 {

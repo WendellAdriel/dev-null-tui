@@ -232,6 +232,8 @@ func (m *AppModel) composerKey(msg tea.KeyPressMsg) tea.Cmd {
 			return m.openAuthorPicker()
 		case "ctrl+t":
 			return m.openSchedulePicker()
+		case "ctrl+y":
+			return m.useSwatchHint()
 		}
 		if c.focus == composerStrip {
 			if cmd, ok := m.stripKey(pressed); ok {
@@ -374,6 +376,17 @@ func (m *AppModel) updateComposerInput(msg tea.Msg) tea.Cmd {
 		m.takeIssueCommand()
 	}
 	return tea.Batch(cmd, m.refreshSuggestions())
+}
+
+// useSwatchHint turns the hinted hashtag into a color(...) swatch, as the web's Use as color does.
+func (m *AppModel) useSwatchHint() tea.Cmd {
+	c := &m.composer
+	if c.issue() || !applySwatchHint(&c.input, fitsCommit) {
+		return nil
+	}
+	c.focus = 0
+	m.invalidatePreview()
+	return tea.Batch(m.focusComposer(), m.refreshSuggestions())
 }
 
 func (m *AppModel) invalidatePreview() {

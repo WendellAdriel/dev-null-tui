@@ -280,6 +280,14 @@ func (m AppModel) messageComposerView(width int, p palette) (string, []hitArea) 
 		}
 		lines = append(lines, " "+fit(strings.Join(choices, "  "), inner))
 	}
+	if hint, hintAreas := swatchHintRow(mc.input, fitsMessage, inner, p); mc.focused && hint != "" && mc.suggest.count() == 0 && mc.recording == nil && !mc.editing {
+		for _, area := range hintAreas {
+			area.x++
+			area.y = len(lines)
+			areas = append(areas, area)
+		}
+		lines = append(lines, " "+hint)
+	}
 	editorTop := len(lines)
 	if mc.recording != nil {
 		lines = append(lines, m.recordingLines(mc.recording, inner, p)...)

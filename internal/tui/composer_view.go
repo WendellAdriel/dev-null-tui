@@ -120,9 +120,20 @@ func (m AppModel) composerHintAreas() []hitArea {
 		_, found = m.scheduleView(inner, height, p)
 	}
 	place(found, top, height)
+	_, found = m.composerSwatchRow(inner, p)
+	place(found, top+c.input.Height(), m.composerStatusRows())
 	_, found = m.stripView(inner, p)
 	place(found, top+height, m.composerStripRows())
 	return areas
+}
+
+// composerSwatchRow offers color(...) for a hashtag that could be a color, in the status rows while they're free.
+func (m AppModel) composerSwatchRow(width int, p palette) (string, []hitArea) {
+	c := m.composer
+	if c.issue() || c.previewing || c.editing != "" || c.status != "" || c.uncertain || m.scheduleNotice() != "" || c.suggest.count() > 0 || c.browser != nil || c.picker != nil || c.schedule != nil || c.owner != m.account.user.ID || m.composerStatusRows() == 0 {
+		return "", nil
+	}
+	return swatchHintRow(c.input, fitsCommit, width, p)
 }
 
 func (m AppModel) composerModal(p palette) (string, uiRect) {
@@ -236,6 +247,8 @@ func (m AppModel) composerView(width int, p palette) string {
 		rows[len(rows)-1], _ = m.authorPickerView(inner, c.input.Height()+m.composerStatusRows(), p)
 	} else if c.schedule != nil {
 		rows[len(rows)-1], _ = m.scheduleView(inner, c.input.Height()+m.composerStatusRows(), p)
+	} else if hint, _ := m.composerSwatchRow(inner, p); hint != "" {
+		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(m.composerStatusRows()).Render(hint))
 	} else if height := m.composerStatusRows(); height > 0 {
 		rows = append(rows, lipgloss.NewStyle().Width(inner).Height(height).MaxHeight(height).Foreground(lipgloss.Color(p.muted)).Render(statusView))
 	}
