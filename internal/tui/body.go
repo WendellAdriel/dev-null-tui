@@ -899,32 +899,54 @@ var (
 	hashtagMarker = regexp.MustCompile(`\x1b_devnull-(?:tag|stars|guild)[^\x1b]*\x1b\\`)
 )
 
-// hashtags draws #tags like links. The web's lookbehind allows no word rune or any of "&/#>-" before the "#".
+// hashtags draws #tags like links.
 func (r bodyRenderer) hashtags(s string, offset int) []piece {
 	var pieces []piece
 	position := 0
-	for i := 0; i < len(s); i++ {
+	for {
+		start, end, ok := nextHashtag(s, position, func(i int) string { return r.source[:offset+i] })
+		if !ok {
+			break
+		}
+		pieces = append(pieces, r.wordmarks(s[position:start])...)
+		if guild, ok := r.guilds[strings.ToLower(s[start+1:end])]; ok {
+			pieces = append(pieces, r.guildPieces(guild)...)
+		} else {
+			mark, blue := hashtagStart+url.PathEscape(s[start:end])+"\x1b\\", text(r.p.blue).Render
+			pieces = append(pieces, piece{text: s[start:end], paint: func(s ...string) string { return mark + blue(s...) + hashtagEnd }})
+		}
+		position = end
+	}
+	return append(pieces, r.wordmarks(s[position:])...)
+}
+
+// nextHashtag finds the first hashtag in s at or after from. The web's lookbehind allows no word rune or any of
+// "&/#>-" before the "#". before returns the text ahead of an index, which a body takes from its whole source.
+func nextHashtag(s string, from int, before func(int) string) (start, end int, ok bool) {
+	for i := from; i < len(s); i++ {
 		if s[i] != '#' || !unicode.IsLetter(firstRune(s[i+1:])) {
 			continue
 		}
-		if before := lastRune(r.source[:offset+i]); offset+i > 0 && (isWordRune(before) || strings.ContainsRune("&/#>-", before)) {
+		if prev := before(i); prev != "" && (isWordRune(lastRune(prev)) || strings.ContainsRune("&/#>-", lastRune(prev))) {
 			continue
 		}
-		end := i + 1
+		end = i + 1
 		for end < len(s) && isWordRune(firstRune(s[end:])) {
 			_, size := utf8.DecodeRuneInString(s[end:])
 			end += size
 		}
-		pieces = append(pieces, r.wordmarks(s[position:i])...)
-		if guild, ok := r.guilds[strings.ToLower(s[i+1:end])]; ok {
-			pieces = append(pieces, piece{text: guildLabel(guild), paint: guildPaint(guild.Handle, r.p)})
-		} else {
-			mark, blue := hashtagStart+url.PathEscape(s[i:end])+"\x1b\\", text(r.p.blue).Render
-			pieces = append(pieces, piece{text: s[i:end], paint: func(s ...string) string { return mark + blue(s...) + hashtagEnd }})
-		}
-		position, i = end, end-1
+		return i, end, true
 	}
-	return append(pieces, r.wordmarks(s[position:])...)
+	return 0, 0, false
+}
+
+// guildPieces draws a guild chip that wraps as its emoji label does: the icon can't break, and the name is text.
+func (r bodyRenderer) guildPieces(guild api.GuildBadge) []piece {
+	paint := guildPaint(guild.Handle, r.p)
+	if icon := guildChipIcon(guild, r.style.icons); icon != "" {
+		return []piece{{atom: guildMark(guild.Handle) + icon + guildEnd}, {text: " " + safeText(guild.Name), paint: paint}}
+	}
+	return []piece{{text: guildLabel(guild), paint: paint}}
 }
 
 // hashtagAt is the hashtag drawn at column x of a rendered line.

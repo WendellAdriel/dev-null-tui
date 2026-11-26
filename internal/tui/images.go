@@ -104,13 +104,13 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			if i < len(widths) {
 				width = widths[i]
 			}
-			avatars = append(avatars, m.authorAvatar(c.Author, p, 5, 2))
+			avatars = append(append(avatars, m.authorAvatar(c.Author, p, 5, 2)), m.commitGuildIcons(c)...)
 			requests = append(requests, imageRequests(c.Images, width)...)
 			if req, ok := linkCardRequest(c.LinkPreview); ok {
 				requests = append(requests, req)
 			}
 			if c.Quote != nil && c.Quote.DeletedAt == nil && c.Quote.Author != nil {
-				avatars = append(avatars, m.authorAvatar(c.Quote.Author, p, 2, 1))
+				avatars = append(append(avatars, m.authorAvatar(c.Quote.Author, p, 2, 1)), m.commitGuildIcons(*c.Quote)...)
 				if req, ok := linkCardRequest(c.Quote.LinkPreview); ok {
 					requests = append(requests, req)
 				}
@@ -118,7 +118,7 @@ func (m AppModel) visibleMedia() []graphics.Request {
 			if c.ReplyPreview != nil {
 				for _, reply := range c.ReplyPreview.Data {
 					if reply.DeletedAt == nil && reply.Author != nil {
-						avatars = append(avatars, m.authorAvatar(reply.Author, p, 2, 1))
+						avatars = append(append(avatars, m.authorAvatar(reply.Author, p, 2, 1)), m.commitGuildIcons(reply)...)
 					}
 				}
 			}

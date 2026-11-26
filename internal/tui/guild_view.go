@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"charm.land/bubbles/v2/key"
@@ -19,8 +21,8 @@ func (m AppModel) guildIconRequest(g api.GuildBadge, cols, rows int) (graphics.R
 	if g.IconURL == "" || m.images == nil || !m.images.Enabled {
 		return graphics.Request{}, false
 	}
-	req := m.avatarRequest(g.IconURL, graphics.NoRing, cols, rows)
-	req.Square = true
+	req := guildChipRequest(g)
+	req.Cols, req.Rows = cols, rows
 	return req, true
 }
 
@@ -316,6 +318,22 @@ func (m AppModel) guildIconRequests() []graphics.Request {
 			if req, ok := m.guildIconRequest(g.GuildBadge, 2, 1); ok {
 				requests = append(requests, req)
 			}
+		}
+	}
+	return requests
+}
+
+// commitGuildIcons are the icons a commit's guild chips draw: the board it went to and the guilds its body names.
+func (m AppModel) commitGuildIcons(c api.Commit) []graphics.Request {
+	var requests []graphics.Request
+	if c.Guild != nil {
+		if req, ok := m.guildIconRequest(*c.Guild, 2, 1); ok {
+			requests = append(requests, req)
+		}
+	}
+	for _, handle := range slices.Sorted(maps.Keys(c.GuildMentions)) {
+		if req, ok := m.guildIconRequest(c.GuildMentions[handle], 2, 1); ok {
+			requests = append(requests, req)
 		}
 	}
 	return requests
