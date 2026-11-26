@@ -209,6 +209,7 @@ In the composer:
 | `Ctrl+O` | Attach images |
 | `Tab` | Edit attached images, or return to writing. `Enter` describes and `Delete` or `x` removes |
 | `Up`, `Down`, then `Tab` or `Enter` | Choose an emoji suggestion |
+| `Ctrl+Y` | Wrap the last hashtag that is also a hex color in `color(...)`, as the hint above the composer offers |
 | `Ctrl+T` | Record a voice note, up to one minute. `Enter` stops and `Esc` discards. Then `Space` listens, `Enter` pushes, and `d` discards |
 | `Esc` | Close suggestions, the image list, or the reply, then return to the messages |
 
@@ -358,6 +359,7 @@ The modal keeps the log visible without changing its reading position. It needs 
 | `Ctrl+O` | Open the image browser |
 | `Ctrl+L` | Add a poll, or focus the one you have |
 | `Ctrl+A` | Post as yourself or an organization you're a member of |
+| `Ctrl+Y` | Wrap the last hashtag that is also a hex color, such as `#fade`, in `color(...)` so it draws as a swatch. The hint under the text field offers it |
 | `Enter` | Insert a new line in the text field, or activate the focused control |
 | `Esc` | Leave preview, or request cancellation without implicit submission |
 | `Up`, `Down`, `PageUp`, `PageDown` | Scroll while previewing |
