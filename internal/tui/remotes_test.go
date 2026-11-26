@@ -562,12 +562,22 @@ func TestRemotesMessagesLinkOnlyTheirMentions(t *testing.T) {
 	m, _ = m.handleKey("g")
 	m = settle(t, m, "r", "enter")
 	message := remoteMessage(5, "ada", "@ada and @bob", m.now)
-	message.Mentions = []api.Mention{{Handle: "Ada"}}
+	message.Mentions = []api.Mention{{Handle: "Ada", Kind: "user", ID: "0199c8a4-0000-7000-8000-000000000001"}}
 	m.remotes.thread.messages = []api.Message{message}
 	m.renderRemoteThread()
 	content := m.remotes.thread.viewport.GetContent()
-	if !strings.Contains(content, "https://dev-null.test/@ada") || strings.Contains(content, "https://dev-null.test/@bob") {
+	if !strings.Contains(content, "https://dev-null.test/mentions/0199c8a4-0000-7000-8000-000000000001") || strings.Contains(content, "https://dev-null.test/@bob") {
 		t.Fatalf("message mentions: %q", content)
+	}
+	var opened []string
+	m.loadMentionedUser = func(_ context.Context, id string) (api.Profile, error) {
+		opened = append(opened, id)
+		return fixtureProfile("ada"), nil
+	}
+	m, cmd := clickText(t, m, "@ada and")
+	settleCmd(m, cmd)
+	if strings.Join(opened, " ") != "0199c8a4-0000-7000-8000-000000000001" {
+		t.Fatalf("clicking a message mention must open who it captured: %v", opened)
 	}
 }
 

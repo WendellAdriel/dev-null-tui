@@ -152,3 +152,39 @@ func TestSuggestedUsersAskForTheirContextAndDismissalsPost(t *testing.T) {
 		t.Fatal("a handle and a commit together must be refused, as the server prohibits them")
 	}
 }
+
+func TestMentionedProfilesOpenByTheCapturedID(t *testing.T) {
+	const id = "0199c8a4-6f7e-7a1b-9c2d-3e4f5a6b7c8d"
+	client := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v1/mentions/" + id:
+			_, _ = io.WriteString(w, `{"data":{"id":"`+id+`","handle":"ada-renamed"}}`)
+		case "/api/v1/mentions/organizations/" + id:
+			_, _ = io.WriteString(w, `{"data":{"handle":"acme-renamed"}}`)
+		default:
+			t.Errorf("unexpected request %s", r.URL)
+		}
+	})
+	profile, err := client.MentionedUser(t.Context(), id)
+	if err != nil || profile.User.Handle != "ada-renamed" {
+		t.Fatalf("mentioned user: %+v %v", profile, err)
+	}
+	page, err := client.MentionedOrganization(t.Context(), id)
+	if err != nil || page.Organization.Handle != "acme-renamed" {
+		t.Fatalf("mentioned organization: %+v %v", page, err)
+	}
+	for _, bad := range []string{"", "ada", "../me", id + "/x"} {
+		if _, err := client.MentionedUser(t.Context(), bad); err == nil {
+			t.Fatalf("accepted unsafe id %q", bad)
+		}
+		if _, err := client.MentionedOrganization(t.Context(), bad); err == nil {
+			t.Fatalf("accepted unsafe organization id %q", bad)
+		}
+	}
+	other := fixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"id":"someone-else","handle":"grace"}}`)
+	})
+	if _, err := other.MentionedUser(t.Context(), id); err == nil {
+		t.Fatal("accepted another user's profile")
+	}
+}

@@ -143,6 +143,7 @@ type AppModel struct {
 	notificationCountCancel    context.CancelFunc
 	deletedNotificationCommits map[string]time.Time
 	loadProfile                func(context.Context, string) (api.Profile, error)
+	loadMentionedUser          func(context.Context, string) (api.Profile, error)
 	loadModerationHistory      func(context.Context) (api.ModerationHistory, error)
 	loadUserCommits            func(context.Context, string, bool, string) (api.CommitPage, error)
 	loadConnections            func(context.Context, string, api.Connections, string) (api.People, error)
@@ -956,6 +957,9 @@ func (m AppModel) update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if m.loadProfile == nil {
 			m.loadProfile, m.loadUserCommits, m.loadConnections, m.setFollow = client.Profile, client.UserCommits, client.Connections, client.SetFollow
+		}
+		if m.loadMentionedUser == nil {
+			m.loadMentionedUser = client.MentionedUser
 		}
 		if m.loadModerationHistory == nil {
 			m.loadModerationHistory = client.ModerationHistory

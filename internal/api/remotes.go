@@ -59,11 +59,14 @@ type LinkPreview struct {
 	Pending     bool   `json:"is_pending"`
 }
 
+// Mention is an @handle in a commit or message. ID is the user or organization it captured, so it still opens them
+// after a rename. It is empty for a handle that was nobody's.
 type Mention struct {
 	Handle string `json:"handle"`
 	Offset int    `json:"offset"`
 	Length int    `json:"length"`
 	Kind   string `json:"kind"`
+	ID     string `json:"id"`
 }
 
 type Reaction struct {

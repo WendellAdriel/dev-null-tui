@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -66,5 +67,27 @@ func TestPaginationNeverLeavesOriginOrSelectedLog(t *testing.T) {
 				t.Fatalf("unsafe next accepted or echoed: %v", err)
 			}
 		})
+	}
+}
+
+func TestCommitsAndMessagesCarryTheIDEachMentionCaptured(t *testing.T) {
+	var commit Commit
+	body := `{"id":"c1","body":"hi @Ada @acme @nobody","mentions":[
+		{"handle":"Ada","offset":3,"length":4,"kind":"user","id":"u1"},
+		{"handle":"acme","offset":8,"length":5,"kind":"organization","id":"o1"},
+		{"handle":"nobody","offset":14,"length":7,"kind":"user","id":null}]}`
+	if err := json.Unmarshal([]byte(body), &commit); err != nil {
+		t.Fatal(err)
+	}
+	want := []Mention{{Handle: "Ada", Offset: 3, Length: 4, Kind: "user", ID: "u1"}, {Handle: "acme", Offset: 8, Length: 5, Kind: "organization", ID: "o1"}, {Handle: "nobody", Offset: 14, Length: 7, Kind: "user"}}
+	if !reflect.DeepEqual(commit.Mentions, want) {
+		t.Fatalf("commit mentions: %+v", commit.Mentions)
+	}
+	var message Message
+	if err := json.Unmarshal([]byte(`{"id":1,"body":"@ada","mentions":[{"handle":"ada","offset":0,"length":4,"kind":"user","id":"u1"}]}`), &message); err != nil {
+		t.Fatal(err)
+	}
+	if len(message.Mentions) != 1 || message.Mentions[0].ID != "u1" {
+		t.Fatalf("message mentions: %+v", message.Mentions)
 	}
 }

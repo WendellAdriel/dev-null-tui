@@ -61,6 +61,21 @@ func (c *Client) Organization(ctx context.Context, handle string) (OrganizationP
 	return page, nil
 }
 
+// MentionedOrganization opens the organization a mention captured, by id, whatever its handle is now.
+func (c *Client) MentionedOrganization(ctx context.Context, id string) (OrganizationPage, error) {
+	if !ValidMentionID(id) {
+		return OrganizationPage{}, errors.New("invalid mention id")
+	}
+	var page OrganizationPage
+	if err := c.transport.GetJSON(ctx, "/api/v1/mentions/organizations/"+id, &page); err != nil {
+		return OrganizationPage{}, err
+	}
+	if !handlePattern.MatchString(page.Organization.Handle) {
+		return OrganizationPage{}, errors.New("server returned an invalid organization")
+	}
+	return page, nil
+}
+
 // OrganizationCommits reads the Commits tab, or with mentions the commits mentioning the organization.
 func (c *Client) OrganizationCommits(ctx context.Context, handle string, mentions bool, cursor string) (CommitPage, error) {
 	path, err := organizationPath(handle)

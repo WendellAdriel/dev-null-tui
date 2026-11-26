@@ -132,6 +132,26 @@ func (c *Client) Profile(ctx context.Context, handle string) (Profile, error) {
 	return profile, nil
 }
 
+var uuidPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// ValidMentionID reports an id the mentions routes accept, which is a UUID.
+func ValidMentionID(id string) bool { return uuidPattern.MatchString(id) }
+
+// MentionedUser opens the user a mention captured, by id, whatever their handle is now.
+func (c *Client) MentionedUser(ctx context.Context, id string) (Profile, error) {
+	if !ValidMentionID(id) {
+		return Profile{}, errors.New("invalid mention id")
+	}
+	var profile Profile
+	if err := c.transport.GetJSON(ctx, withQuery("/api/v1/mentions/"+id, c.withReplies(url.Values{})), &profile); err != nil {
+		return Profile{}, err
+	}
+	if !strings.EqualFold(profile.User.ID, id) || !handlePattern.MatchString(profile.User.Handle) || (profile.Pinned != nil && !validCommit(*profile.Pinned)) {
+		return Profile{}, errors.New("server returned an invalid profile")
+	}
+	return profile, nil
+}
+
 func (c *Client) UserCommits(ctx context.Context, handle string, replies bool, cursor string) (CommitPage, error) {
 	path, err := userPath(handle)
 	if err != nil {

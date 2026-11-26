@@ -76,6 +76,7 @@ type Commit struct {
 	GuildHandle string      `json:"guild_handle"`
 	Guild       *GuildBadge `json:"guild"`
 	JoinedGuild string      `json:"joined_guild"`
+	Mentions    []Mention   `json:"mentions"`
 	// GuildMentions holds the guilds this commit's hashtags name, by handle.
 	GuildMentions GuildMentions `json:"guild_mentions"`
 }

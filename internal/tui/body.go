@@ -40,6 +40,8 @@ type bodyRenderer struct {
 	source string
 	// guilds are the guilds the hashtags name, which draw as chips that open the board.
 	guilds map[string]api.GuildBadge
+	// people are the mentions the server resolved, by lowercase handle, so each links to who it captured.
+	people map[string]api.Mention
 }
 
 // folded reports a body too long to show whole in a list, which shows the server's excerpt until Show more.
@@ -68,7 +70,7 @@ func renderBody(commit api.Commit, width int, p palette, style statsStyle) []str
 	if len(segments) == 0 && commit.Body != "" {
 		segments = []api.Segment{{Type: "text", Text: commit.Body}}
 	}
-	r := bodyRenderer{p: p, style: style, guilds: commit.GuildMentions}
+	r := bodyRenderer{p: p, style: style, guilds: commit.GuildMentions, people: mentionsByHandle(commit.Mentions)}
 	inner := 0
 	if width > 0 {
 		inner = max(1, width-2)
@@ -717,15 +719,27 @@ func (r bodyRenderer) mentions(s string, offset int, colors []hexColor) []piece 
 	return append(pieces, r.colored(s[position:], offset+position, colors)...)
 }
 
-// profileLink styles a mention, linked to the profile on the web when the server is known. The web's route also
-// serves organizations under the same path.
+func mentionsByHandle(mentions []api.Mention) map[string]api.Mention {
+	byHandle := make(map[string]api.Mention, len(mentions))
+	for _, mention := range mentions {
+		byHandle[strings.ToLower(mention.Handle)] = mention
+	}
+	return byHandle
+}
+
+// profileLink styles a mention, linked to the profile on the web when the server is known: by the id the mention
+// captured, as the web links it, or else by handle, which the web also serves for organizations.
 func (r bodyRenderer) profileLink(handle string) func(...string) string {
 	style := text(r.p.blue).Bold(true).Render
 	origin, err := url.Parse(r.style.origin)
 	if err != nil || (origin.Scheme != "http" && origin.Scheme != "https") || origin.Host == "" {
 		return style
 	}
-	href, ok := hrefFor(strings.TrimRight(r.style.origin, "/") + "/@" + handle)
+	path := "/@" + handle
+	if mention := r.people[strings.ToLower(handle)]; api.ValidMentionID(mention.ID) {
+		path = mentionPath(mention)
+	}
+	href, ok := hrefFor(strings.TrimRight(r.style.origin, "/") + path)
 	if !ok {
 		return style
 	}

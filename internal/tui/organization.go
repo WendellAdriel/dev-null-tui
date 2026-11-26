@@ -19,15 +19,16 @@ var organizationTabNames = [2]string{"Commits", "Mentions"}
 
 // organizationCalls are the organization routes, which tests replace.
 type organizationCalls struct {
-	load     func(context.Context, string) (api.OrganizationPage, error)
-	commits  func(context.Context, string, bool, string) (api.CommitPage, error)
-	follow   func(context.Context, string, bool) error
-	claim    func(context.Context, string) error
-	followed func(context.Context, string, string) (api.Organizations, error)
+	load      func(context.Context, string) (api.OrganizationPage, error)
+	mentioned func(context.Context, string) (api.OrganizationPage, error)
+	commits   func(context.Context, string, bool, string) (api.CommitPage, error)
+	follow    func(context.Context, string, bool) error
+	claim     func(context.Context, string) error
+	followed  func(context.Context, string, string) (api.Organizations, error)
 }
 
 func newOrganizationCalls(client *api.Client) organizationCalls {
-	return organizationCalls{client.Organization, client.OrganizationCommits, client.SetOrganizationFollow, client.ClaimOrganization, client.FollowedOrganizations}
+	return organizationCalls{client.Organization, client.MentionedOrganization, client.OrganizationCommits, client.SetOrganizationFollow, client.ClaimOrganization, client.FollowedOrganizations}
 }
 
 type claimResult struct {

@@ -45,7 +45,9 @@ type profileState struct {
 	board       api.GuildBoard
 	moderatorID string
 	// mention opens a clicked @handle, which names a user or an organization, so a missing user tries the organization.
-	mention    bool
+	mention bool
+	// mentionID loads who a clicked mention captured, by id, and the lists wait for the handle it has now.
+	mentionID  string
 	below, tab int
 	profile    api.Profile
 	page       api.OrganizationPage
@@ -221,8 +223,14 @@ func (m AppModel) ownProfile(s *profileState) bool {
 
 func (m AppModel) fetchProfile(s *profileState) tea.Cmd {
 	session, generation, handle, load, base := m.session, s.generation, s.handle, m.loadProfile, s.ctx
+	if s.mentionID != "" {
+		handle, load = s.mentionID, m.loadMentionedUser
+	}
 	if s.organization {
 		load := m.organizationCalls.load
+		if s.mentionID != "" {
+			load = m.organizationCalls.mentioned
+		}
 		return m.account.life.command(func() tea.Msg {
 			ctx, cancel := context.WithTimeout(base, 30*time.Second)
 			defer cancel()
@@ -299,8 +307,46 @@ func (m *AppModel) acceptProfile(msg profileResult) tea.Cmd {
 		return nil
 	}
 	s.profile, s.page, s.loaded, s.status = msg.profile, msg.page, true, ""
+	if s.mentionID != "" {
+		return m.acceptMentioned(s)
+	}
 	m.renderProfile(s)
 	return nil
+}
+
+// openMention opens who a clicked mention captured, by id, so a rename or a reused handle can't change who it is.
+func (m *AppModel) openMention(mention api.Mention) tea.Cmd {
+	organization := mention.Kind == "organization"
+	if m.loadMentionedUser == nil || (organization && m.organizationCalls.mentioned == nil) {
+		return nil
+	}
+	if top := m.topProfile(); top != nil && top.loaded && !organization && top.profile.User.ID == mention.ID {
+		return nil
+	}
+	return m.fetchProfile(m.pushProfile(profileState{organization: organization, mentionID: mention.ID}))
+}
+
+// acceptMentioned takes the handle a mentioned profile has now, then loads its lists under it.
+func (m *AppModel) acceptMentioned(s *profileState) tea.Cmd {
+	s.handle, s.mentionID = s.profile.User.Handle, ""
+	if s.organization {
+		s.handle = s.page.Organization.Handle
+	}
+	if m.topProfile() == s && (m.safetyHidden[strings.ToLower(s.handle)]&2 != 0 || m.sameAsBelow(s)) {
+		m.closeProfile()
+		return nil
+	}
+	m.renderProfile(s)
+	return tea.Batch(m.fetchProfileList(s, false), m.fetchModerationHistory(s))
+}
+
+// sameAsBelow reports a mentioned profile that turned out to be the page already open under it.
+func (m AppModel) sameAsBelow(s *profileState) bool {
+	if len(m.profiles) < 2 {
+		return false
+	}
+	below := m.profiles[len(m.profiles)-2]
+	return below.loaded && !below.guild && !below.people && below.organization == s.organization && strings.EqualFold(below.handle, s.handle)
 }
 
 func profileError(err error, s *profileState) string {

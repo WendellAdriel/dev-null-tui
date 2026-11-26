@@ -60,18 +60,43 @@ func lineLinks(lines []string) []string {
 	return links
 }
 
-// mentionHandle is the handle a link to a profile on this server names, such as a drawn @mention.
-func (m AppModel) mentionHandle(raw string) string {
+// serverPath is the path of a link to this server, or "" for a link elsewhere.
+func (m AppModel) serverPath(raw string) string {
 	u, err := url.Parse(raw)
 	origin, originErr := url.Parse(m.account.origin)
 	if err != nil || originErr != nil || !strings.EqualFold(u.Host, origin.Host) {
 		return ""
 	}
-	handle, ok := strings.CutPrefix(u.Path, "/@")
+	return u.Path
+}
+
+// mentionHandle is the handle a link to a profile on this server names, such as a drawn @mention.
+func (m AppModel) mentionHandle(raw string) string {
+	handle, ok := strings.CutPrefix(m.serverPath(raw), "/@")
 	if !ok || !api.ValidHandle(handle) {
 		return ""
 	}
 	return handle
+}
+
+// mentionPath is the web's link to who a mention captured, which still leads to them after a rename.
+func mentionPath(mention api.Mention) string {
+	if mention.Kind == "organization" {
+		return "/mentions/organizations/" + url.PathEscape(mention.ID)
+	}
+	return "/mentions/" + url.PathEscape(mention.ID)
+}
+
+// mentionTarget reads a link drawn by mentionPath back into the mention it opens.
+func (m AppModel) mentionTarget(raw string) (api.Mention, bool) {
+	path := m.serverPath(raw)
+	if id, ok := strings.CutPrefix(path, "/mentions/organizations/"); ok && api.ValidMentionID(id) {
+		return api.Mention{Kind: "organization", ID: id}, true
+	}
+	if id, ok := strings.CutPrefix(path, "/mentions/"); ok && api.ValidMentionID(id) {
+		return api.Mention{Kind: "user", ID: id}, true
+	}
+	return api.Mention{}, false
 }
 
 // commitLinks are the web links in a commit's body and link card, leaving out @mentions, which u and the author cover.
@@ -81,7 +106,7 @@ func (m AppModel) commitLinks(c api.Commit) []string {
 	}
 	var links []string
 	for _, link := range lineLinks(bodyLines(c, 0, m.account.colors(), m.statsStyle())) {
-		if m.mentionHandle(link) == "" {
+		if _, mention := m.mentionTarget(link); !mention && m.mentionHandle(link) == "" {
 			links = append(links, link)
 		}
 	}
@@ -111,6 +136,9 @@ func (m *AppModel) openLinks(links []string) tea.Cmd {
 
 // clickLink opens a clicked link: a profile on this server inside the app, anything else in the browser.
 func (m *AppModel) clickLink(link string) tea.Cmd {
+	if mention, ok := m.mentionTarget(link); ok {
+		return m.openMention(mention)
+	}
 	if handle := m.mentionHandle(link); handle != "" {
 		if m.safetyHidden[strings.ToLower(handle)]&2 != 0 || strings.EqualFold(handle, m.profileHandle()) || m.loadProfile == nil {
 			return nil

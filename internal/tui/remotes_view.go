@@ -532,7 +532,7 @@ func (m *AppModel) renderRemoteThread() {
 		if mine {
 			colors, foreground, background = own, p.shell, p.blue
 		}
-		body := bodyLines(api.Commit{ID: fmt.Sprint("message-", message.ID), Body: message.Body, Segments: message.Segments}, bubble-2, colors, mentioned)
+		body := bodyLines(api.Commit{ID: fmt.Sprint("message-", message.ID), Body: message.Body, Segments: message.Segments, Mentions: message.Mentions}, bubble-2, colors, mentioned)
 		for _, line := range bubbleLines(body, foreground, background) {
 			lines = append(lines, align(line))
 		}
